@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>amplifier-bundle-dot-graph — First-Class DOT Infrastructure for Amplifier</title>
+    <style>
+        :root {
+            --accent: #5E5CE6;
+            --accent-glow: rgba(94, 92, 230, 0.3);
+            --accent-dim: rgba(94, 92, 230, 0.15);
+
+            --font-headline: clamp(36px, 8vw, 72px);
+            --font-medium-headline: clamp(24px, 5vw, 48px);
+            --font-subhead: clamp(16px, 3vw, 28px);
+            --font-body: clamp(14px, 2.2vw, 18px);
+            --font-small: clamp(12px, 1.8vw, 15px);
+            --font-big-number: clamp(48px, 14vw, 140px);
+            --font-label: clamp(11px, 1.5vw, 14px);
+
+            --padding-slide: clamp(20px, 5vw, 80px);
+            --padding-slide-top: clamp(50px, 8vw, 100px);
+            --gap-grid: clamp(12px, 2.5vw, 32px);
+
+            --surface-1: rgba(255,255,255,0.06);
+            --surface-2: rgba(255,255,255,0.10);
+            --surface-3: rgba(255,255,255,0.15);
+            --border-subtle: rgba(255,255,255,0.12);
+            --border-visible: rgba(255,255,255,0.20);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255,255,255,0.7);
+            --text-tertiary: rgba(255,255,255,0.5);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            color: var(--text-primary);
+            overflow: hidden;
+            overscroll-behavior: none;
+        }
+
+        /* ── Slides ── */
+        .slide {
+            display: none;
+            width: 100vw;
+            min-height: 100vh;
+            min-height: 100dvh;
+            padding: var(--padding-slide-top) var(--padding-slide) clamp(80px, 12vw, 100px);
+            flex-direction: column;
+            overflow-y: auto;
+            overflow-x: hidden;
+            gap: clamp(16px, 3vw, 32px);
+        }
+        .slide.active { display: flex; }
+        .slide.center {
+            text-align: center;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* ── Typography ── */
+        .section-label {
+            font-size: var(--font-label);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--accent);
+        }
+        .headline {
+            font-size: var(--font-headline);
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            line-height: 1.08;
+        }
+        .medium-headline {
+            font-size: var(--font-medium-headline);
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.15;
+        }
+        .subhead {
+            font-size: var(--font-subhead);
+            color: var(--text-secondary);
+            line-height: 1.4;
+            max-width: 700px;
+        }
+        .body-text {
+            font-size: var(--font-body);
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        .small-text {
+            font-size: var(--font-small);
+            color: var(--text-tertiary);
+            line-height: 1.5;
+        }
+
+        /* ── Status Badge ── */
+        .status-badge {
+            display: inline-block;
+            font-size: var(--font-label);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            padding: 6px 16px;
+            border-radius: 20px;
+            background: rgba(48, 209, 88, 0.15);
+            color: #30D158;
+            border: 1px solid rgba(48, 209, 88, 0.3);
+        }
+
+        /* ── Layout Grids ── */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+            gap: var(--gap-grid);
+            width: 100%;
+        }
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+            gap: var(--gap-grid);
+            width: 100%;
+        }
+
+        /* ── Cards ── */
+        .card {
+            background: var(--surface-1);
+            border: 1px solid var(--border-subtle);
+            border-radius: clamp(12px, 2vw, 16px);
+            padding: clamp(16px, 3vw, 28px);
+        }
+        .card h3, .card h4 { color: var(--text-primary); font-size: var(--font-body); margin-bottom: 8px; }
+        .card p, .card li { color: var(--text-secondary); font-size: var(--font-small); line-height: 1.5; }
+        .card .icon {
+            font-size: clamp(28px, 5vw, 44px);
+            margin-bottom: 12px;
+            display: block;
+        }
+        .card-accent {
+            border-color: var(--accent);
+            background: var(--accent-dim);
+        }
+
+        /* ── Code Blocks ── */
+        .code-block {
+            background: var(--surface-1);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: clamp(16px, 3vw, 24px);
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+            font-size: clamp(13px, 2vw, 16px);
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            width: 100%;
+            max-width: 800px;
+        }
+        .code-comment { color: var(--text-tertiary); }
+        .code-key { color: var(--accent); }
+        .code-value { color: #30D158; }
+
+        /* ── Big Numbers ── */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(140px, 45%), 1fr));
+            gap: var(--gap-grid);
+            width: 100%;
+        }
+        .stat-item { text-align: center; }
+        .stat-number {
+            font-size: clamp(36px, 10vw, 80px);
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            line-height: 1.1;
+            background: linear-gradient(135deg, var(--accent), #8B5CF6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .stat-label {
+            font-size: var(--font-small);
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* ── Images ── */
+        .demo-image {
+            width: 100%;
+            max-height: 55vh;
+            object-fit: contain;
+            border-radius: clamp(8px, 1.5vw, 12px);
+            border: 1px solid var(--border-subtle);
+        }
+        .demo-image-large {
+            width: 100%;
+            max-height: 65vh;
+            object-fit: contain;
+            border-radius: clamp(8px, 1.5vw, 12px);
+            border: 1px solid var(--border-subtle);
+        }
+        .image-pair {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: clamp(8px, 2vw, 20px);
+            width: 100%;
+        }
+        .image-pair > div img {
+            width: 100%;
+            max-height: 48vh;
+            object-fit: contain;
+            border-radius: clamp(8px, 1.5vw, 12px);
+            border: 1px solid var(--border-subtle);
+        }
+        .image-label {
+            font-size: var(--font-label);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-secondary);
+            text-align: center;
+            margin-bottom: 6px;
+        }
+
+        /* ── Quote ── */
+        .quote {
+            font-size: clamp(20px, 4vw, 36px);
+            font-style: italic;
+            color: var(--text-primary);
+            line-height: 1.4;
+            max-width: 800px;
+            position: relative;
+            padding-left: clamp(16px, 3vw, 32px);
+            border-left: 3px solid var(--accent);
+            text-align: left;
+        }
+
+        /* ── Tier Roadmap ── */
+        .tier {
+            display: flex;
+            align-items: flex-start;
+            gap: clamp(12px, 3vw, 24px);
+            width: 100%;
+        }
+        .tier-marker {
+            flex-shrink: 0;
+            width: clamp(40px, 8vw, 56px);
+            height: clamp(40px, 8vw, 56px);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: var(--font-body);
+        }
+        .tier-marker.shipped {
+            background: rgba(48, 209, 88, 0.15);
+            color: #30D158;
+            border: 1px solid rgba(48, 209, 88, 0.3);
+        }
+        .tier-marker.next {
+            background: var(--accent-dim);
+            color: var(--accent);
+            border: 1px solid rgba(94, 92, 230, 0.3);
+        }
+        .tier-content { flex: 1; }
+        .tier-content h3 { font-size: var(--font-body); margin-bottom: 4px; }
+        .tier-content p { font-size: var(--font-small); color: var(--text-secondary); line-height: 1.5; }
+        .tier-tag {
+            display: inline-block;
+            font-size: var(--font-label);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 3px 10px;
+            border-radius: 6px;
+            margin-left: 8px;
+        }
+        .tier-tag.shipped { background: rgba(48, 209, 88, 0.15); color: #30D158; }
+        .tier-tag.next { background: var(--accent-dim); color: var(--accent); }
+
+        /* ── Inventory List ── */
+        .inventory {
+            list-style: none;
+            width: 100%;
+        }
+        .inventory li {
+            font-size: var(--font-small);
+            color: var(--text-secondary);
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            line-height: 1.5;
+        }
+        .inventory li strong { color: var(--text-primary); }
+        .inventory li .count {
+            color: var(--accent);
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ── Navigation ── */
+        .nav {
+            position: fixed;
+            bottom: 28px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 100;
+        }
+        .nav-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.25);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .nav-dot.active {
+            background: var(--accent);
+            transform: scale(1.3);
+        }
+        .slide-counter {
+            position: fixed;
+            bottom: 30px;
+            right: clamp(16px, 3vw, 32px);
+            font-size: 12px;
+            color: rgba(255,255,255,0.3);
+            font-variant-numeric: tabular-nums;
+            z-index: 100;
+        }
+        .more-stories {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: clamp(10px, 1.2vw, 11px);
+            color: rgba(255,255,255,0.2);
+            text-decoration: none;
+            z-index: 100;
+        }
+        .more-stories:hover { color: rgba(255,255,255,0.4); }
+
+        /* ── Responsive ── */
+        @media (max-width: 600px) {
+            .image-pair { grid-template-columns: 1fr; }
+        }
+        @media (max-height: 500px) and (orientation: landscape) {
+            .slide { padding: 16px var(--padding-slide) 60px; }
+            .slide.center { justify-content: flex-start; padding-top: 24px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .slide, .slide * { animation: none !important; transition: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- SLIDE 1 — TITLE                                               -->
+<!-- ============================================================ -->
+<div class="slide active center">
+    <div class="section-label">Announcing</div>
+    <h1 class="headline" style="margin-top: 12px;">amplifier-bundle-<br>dot-graph</h1>
+    <p class="subhead" style="margin-top: 16px;">First-class DOT/Graphviz infrastructure for the entire Amplifier ecosystem</p>
+    <div style="margin-top: 24px;">
+        <span class="status-badge">Phase 1 &mdash; Active</span>
+    </div>
+    <p class="small-text" style="margin-top: 24px;">March 2026 &nbsp;&middot;&nbsp; microsoft/amplifier-bundle-dot-graph</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 2 — THE HOOK                                            -->
+<!-- ============================================================ -->
+<div class="slide center">
+    <div class="quote">
+        &ldquo;The diagram didn&rsquo;t document the bug.<br>Drawing the diagram <em>found</em> the bug.&rdquo;
+    </div>
+    <p class="body-text" style="max-width: 600px; margin-top: 20px; text-align: center;">
+        This is the story of how a diagramming format turned out to be an analysis tool &mdash; and why the Amplifier ecosystem now has a shared bundle for it.
+    </p>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 3 — THE PROBLEM                                         -->
+<!-- ============================================================ -->
+<div class="slide">
+    <div class="section-label">The Problem</div>
+    <h2 class="medium-headline">DOT everywhere.<br>Infrastructure nowhere.</h2>
+    <div class="grid-3" style="margin-top: 8px;">
+        <div class="card">
+            <span class="icon">&#x1F504;</span>
+            <h3>Reinvented per project</h3>
+            <p>Attractor pipelines, Parallax investigations, recipe visualizations, architecture docs, event specs &mdash; every project built DOT tooling from scratch.</p>
+        </div>
+        <div class="card">
+            <span class="icon">&#x1F3DD;&#xFE0F;</span>
+            <h3>No shared knowledge</h3>
+            <p>Hard-won DOT patterns, quality standards, and rendering tricks stayed locked inside individual sessions. No institutional memory.</p>
+        </div>
+        <div class="card">
+            <span class="icon">&#x1F5BC;&#xFE0F;</span>
+            <h3>&ldquo;Just pictures&rdquo;</h3>
+            <p>DOT was treated as a visualization afterthought. Nobody had articulated why DOT matters beyond producing diagrams &mdash; its analytical power was invisible.</p>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 4 — THE DISCOVERY                                       -->
+<!-- ============================================================ -->
+<div class="slide">
+    <div class="section-label">The Discovery</div>
+    <h2 class="medium-headline">Before writing any code,<br>we ran a massive research effort.</h2>
+    <div class="stat-grid" style="margin-top: 12px;">
+        <div class="stat-item">
+            <div class="stat-number">12+</div>
+            <div class="stat-label">Agent dispatches<br>across 3 waves</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">6,240</div>
+            <div class="stat-label">Sessions scanned<br>for DOT usage</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">70+</div>
+            <div class="stat-label">Existing DOT<br>artifacts cataloged</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">10</div>
+            <div class="stat-label">Research documents<br>produced</div>
+        </div>
+    </div>
+    <p class="body-text" style="margin-top: 12px;">Multi-agent discovery: session mining, artifact cataloging, dialect comparison, ecosystem analysis, concept deep-dives. The research surfaced something unexpected.</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 5 — THE INSIGHT                                         -->
+<!-- ============================================================ -->
+<div class="slide">
+    <div class="section-label">The Insight</div>
+    <h2 class="headline">DOT is an<br>analysis tool.</h2>
+    <p class="subhead" style="margin-top: 8px;">Not just a diagramming format. Building a valid graph forces structural commitment.</p>
+    <div class="card card-accent" style="margin-top: 12px; max-width: 700px;">
+        <h3 style="color: var(--accent);">&#x1F52C; Reconciliation Forcing Function</h3>
+        <p style="margin-top: 8px;">Every node must exist. Every edge must connect. The ambiguity that prose hides gets exposed by the graph&rsquo;s formal structure. This surfaces bugs, dead code, gaps, and contradictions that LSP, compilers, and prose-based analysis routinely miss.</p>
+    </div>
+    <p class="body-text" style="margin-top: 12px; max-width: 700px;">You think you understand the system &mdash; then you try to draw it. The diagram doesn&rsquo;t just document what you know. It forces you to discover what you don&rsquo;t.</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 6 — 7 USE CASES                                         -->
+<!-- ============================================================ -->
+<div class="slide">
+    <div class="section-label">Seven Use Cases</div>
+    <h2 class="medium-headline">DOT serves the ecosystem<br>in seven distinct ways.</h2>
+    <div class="grid-2" style="margin-top: 8px;">
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div class="card" style="padding: clamp(10px, 2vw, 16px);">
+                <h4>1. Reconciliation Forcing Function</h4>
+                <p>Drawing the graph finds the bugs prose hides</p>
+            </div>
+            <div class="card" style="padding: clamp(10px, 2vw, 16px);">
+                <h4>2. Dense Context Representation</h4>
+                <p>200 lines of DOT &asymp; 2,000+ lines of prose</p>
+            </div>
+            <div class="card" style="padding: clamp(10px, 2vw, 16px);">
+                <h4>3. Multi-Scale Navigation</h4>
+                <p>Subgraphs as zoom levels &mdash; Google Maps for code</p>
+            </div>
+            <div class="card" style="padding: clamp(10px, 2vw, 16px);">
+                <h4>4. Analysis Substrate</h4>
+                <p>Parse &rarr; graph object &rarr; cycles, paths, impact. Zero tokens.</p>
+            </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div class="card" style="padding: clamp(10px, 2vw, 16px);">
+                <h4>5. Multi-Modal Bridge</h4>
+                <p>SVG/PNG for users, dashboards, and vision models</p>
+            </div>
+            <div class="card" style="padding: clamp(10px, 2vw, 16px);">
+                <h4>6. Workflow Visualization</h4>
+                <p>Multi-step recipes become comprehensible flow graphs</p>
+            </div>
+            <div class="card" style="padding: clamp(10px, 2vw, 16px);">
+                <h4>7. Investigation Artifact</h4>
+                <p>Forces structural claims &mdash; prevents vague analysis</p>
+            </div>
+            <div style="flex: 1;">
+                <img src="02-use-cases.png" alt="Seven use cases hub-and-spoke diagram" class="demo-image" style="max-height: 28vh;">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 7 — HERO: RECONCILIATION BEFORE/AFTER                   -->
+<!-- ============================================================ -->
+<div class="slide">
+    <div class="section-label">Demo &mdash; Reconciliation</div>
+    <h2 class="medium-headline">The naive view vs. what DOT actually found.</h2>
+    <div class="image-pair">
+        <div>
+            <div class="image-label">Before &mdash; &ldquo;We understand this system&rdquo;</div>
+            <img src="03a-reconciliation-before.png" alt="System as naively understood &mdash; clean, simple graph">
+        </div>
+        <div>
+            <div class="image-label">After &mdash; 7 issues surfaced</div>
+            <img src="03b-reconciliation-after.png" alt="Same system after reconciliation &mdash; bugs, dead code, and gaps revealed">
+        </div>
+    </div>
+    <p class="body-text" style="text-align: center; margin-top: 4px;">Same system. The left is what we thought existed. The right is what DOT reconciliation actually found &mdash; dead code, missing edges, circular dependencies, and gaps the compiler never warned about.</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 8 — DEMO: MULTI-SCALE                                   -->
+<!-- ============================================================ -->
+<div class="slide">
+    <div class="section-label">Demo &mdash; Multi-Scale Navigation</div>
+    <h2 class="medium-headline">Zoom out for context. Zoom in for detail.</h2>
+    <div class="image-pair">
+        <div>
+            <div class="image-label">Overview &mdash; Cluster level</div>
+            <img src="04a-multiscale-overview.png" alt="System at cluster level showing high-level subsystems">
+        </div>
+        <div>
+            <div class="image-label">Detail &mdash; Auth subsystem</div>
+            <img src="04b-multiscale-detail.png" alt="Auth subsystem expanded showing internal components">
+        </div>
+    </div>
+    <p class="body-text" style="text-align: center; margin-top: 4px;">Subgraphs act as zoom levels. The context window is the fixed &ldquo;screen size&rdquo; &mdash; DOT lets you navigate scale without losing orientation.</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 9 — DEMO: RECIPE VISUALIZATION                          -->
+<!-- ============================================================ -->
+<div class="slide">
+    <div class="section-label">Demo &mdash; Recipe Visualization</div>
+    <h2 class="medium-headline">Complex workflows, immediately comprehensible.</h2>
+    <img src="05-recipe-visualization.png" alt="Bundle validation recipes visualized as a flow graph" class="demo-image-large">
+    <p class="body-text" style="text-align: center; margin-top: 4px;">Bundle validation recipes rendered as a DOT flow graph. Sequential steps, parallel branches, and decision points become instantly readable.</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 10 — WHAT SHIPPED                                       -->
+<!-- ============================================================ -->
+<div class="slide">
+    <div class="section-label">Phase 1 &mdash; Knowledge Layer</div>
+    <h2 class="medium-headline">What shipped.</h2>
+    <div class="grid-2" style="margin-top: 4px;">
+        <div style="display: flex; flex-direction: column; gap: var(--gap-grid);">
+            <div class="stat-grid" style="grid-template-columns: repeat(3, 1fr);">
+                <div class="stat-item">
+                    <div class="stat-number" style="font-size: clamp(28px, 7vw, 56px);">2</div>
+                    <div class="stat-label">Agents</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" style="font-size: clamp(28px, 7vw, 56px);">5</div>
+                    <div class="stat-label">Skills</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" style="font-size: clamp(28px, 7vw, 56px);">502</div>
+                    <div class="stat-label">Tests</div>
+                </div>
+            </div>
+            <ul class="inventory">
+                <li><strong>dot-author</strong> agent &mdash; creates &amp; refines DOT <span class="small-text">(model_role: coding)</span></li>
+                <li><strong>diagram-reviewer</strong> agent &mdash; PASS/WARN/FAIL verdicts <span class="small-text">(model_role: critique)</span></li>
+                <li><span class="count">5</span> skills: syntax, patterns, analysis, quality, graph-intelligence</li>
+                <li><span class="count">5</span> docs: syntax ref, patterns catalog, quality standards, graphviz setup, analysis guide</li>
+                <li><span class="count">2</span> context files: thin awareness pointer (~150 tokens) + mid-weight instructions</li>
+                <li><span class="count">1</span> composable behavior &mdash; one include line</li>
+                <li><span class="count">2</span> shell scripts: dot-validate.sh, dot-render.sh</li>
+                <li>Tool module skeleton ready for Phase 2</li>
+            </ul>
+        </div>
+        <div>
+            <img src="01-bundle-architecture.png" alt="Three-tier bundle architecture diagram" class="demo-image">
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 11 — HOW TO USE IT                                      -->
+<!-- ============================================================ -->
+<div class="slide">
+    <div class="section-label">Integration</div>
+    <h2 class="medium-headline">One line. Full DOT capabilities.</h2>
+    <div class="code-block"><span class="code-comment"># In your bundle's behavior YAML:</span>
+
+<span class="code-key">includes:</span>
+  - <span class="code-key">bundle:</span> <span class="code-value">dot-graph:behaviors/dot-graph</span>
+
+<span class="code-comment"># That's it. You get:</span>
+<span class="code-comment">#   dot-author agent (coding)</span>
+<span class="code-comment">#   diagram-reviewer agent (critique)</span>
+<span class="code-comment">#   5 skills: syntax, patterns, analysis, quality, intelligence</span>
+<span class="code-comment">#   DOT tools (Phase 2)</span>
+<span class="code-comment">#   ~150 token awareness context</span></div>
+    <div style="margin-top: 12px; width: 100%;">
+        <div class="image-label">Ecosystem Composition</div>
+        <img src="06-ecosystem-composition.png" alt="How bundles compose the dot-graph behavior" class="demo-image" style="max-height: 40vh;">
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 12 — THREE-TIER ARCHITECTURE / WHAT'S NEXT              -->
+<!-- ============================================================ -->
+<div class="slide">
+    <div class="section-label">Architecture &amp; Roadmap</div>
+    <h2 class="medium-headline">Three-tier design.</h2>
+    <div style="display: flex; flex-direction: column; gap: clamp(16px, 3vw, 28px); max-width: 700px;">
+        <div class="tier">
+            <div class="tier-marker shipped">T1</div>
+            <div class="tier-content">
+                <h3>Knowledge Layer <span class="tier-tag shipped">Shipped</span></h3>
+                <p>Agents + context + skills. Zero runtime dependencies. Pure knowledge infrastructure that makes any Amplifier agent DOT-literate.</p>
+            </div>
+        </div>
+        <div class="tier">
+            <div class="tier-marker next">T2</div>
+            <div class="tier-content">
+                <h3>Validation &amp; Rendering Tools <span class="tier-tag next">Next</span></h3>
+                <p>pydot-based three-layer validation (syntax &rarr; structural &rarr; render-quality). Graphviz CLI wrapper for SVG/PNG/PDF output. Real tool module, not just knowledge.</p>
+            </div>
+        </div>
+        <div class="tier">
+            <div class="tier-marker next">T3</div>
+            <div class="tier-content">
+                <h3>Graph Intelligence <span class="tier-tag next">Next</span></h3>
+                <p>NetworkX-backed analysis: reachability queries, cycle detection, critical path analysis, structural diffs between graph versions. Zero LLM tokens for structural questions.</p>
+            </div>
+        </div>
+    </div>
+    <p class="body-text" style="margin-top: 12px;">Each tier is independently useful. Tier 1 ships today with zero dependencies &mdash; you don&rsquo;t need Graphviz installed to use the knowledge layer.</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 13 — SOURCES & METHODOLOGY                              -->
+<!-- ============================================================ -->
+<div class="slide">
+    <div class="section-label">Sources</div>
+    <h2 class="medium-headline">Research Methodology</h2>
+    <div class="body-text" style="line-height: 1.7; max-width: 700px;">
+        <p><strong>Data as of:</strong> March 14, 2026</p>
+        <p><strong>Feature status:</strong> Active (Phase 1 &mdash; Knowledge Layer shipped)</p>
+        <p style="margin-top: 12px;"><strong>Repository:</strong> <a href="https://github.com/microsoft/amplifier-bundle-dot-graph" style="color: var(--accent);">microsoft/amplifier-bundle-dot-graph</a></p>
+        <p style="margin-top: 12px;"><strong>Discovery research performed:</strong></p>
+        <ul style="margin-left: 20px; margin-top: 6px;">
+            <li>12+ multi-agent dispatches across 3 waves scanning Amplifier sessions</li>
+            <li>6,240 sessions scanned for DOT/Graphviz usage patterns</li>
+            <li>70+ existing DOT artifacts cataloged from session mining</li>
+            <li>10 research documents produced (DISCOVERY-INDEX.md, DOT-ARTIFACTS-CATALOG.md, etc.)</li>
+        </ul>
+        <p style="margin-top: 12px;"><strong>Implementation:</strong></p>
+        <ul style="margin-left: 20px; margin-top: 6px;">
+            <li>Single-session build: discovery &rarr; design &rarr; implementation &rarr; validation &rarr; push</li>
+            <li>502 tests passing (bundle validation suite)</li>
+            <li>All demo diagrams generated by the bundle&rsquo;s own dot-author agent</li>
+        </ul>
+        <p style="margin-top: 12px;"><strong>Gaps:</strong> Phase 2/3 capabilities (tool module, graph intelligence) are designed but not yet implemented. Test count (502) is from the bundle validation suite; does not include unit tests for future tool modules.</p>
+        <p style="margin-top: 6px;"><strong>Primary contributor:</strong> Bundle author (single session).</p>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 14 — CTA                                                -->
+<!-- ============================================================ -->
+<div class="slide center">
+    <div class="section-label">Try It</div>
+    <h2 class="headline" style="margin-top: 12px;">Draw the system.<br>Find the bugs.</h2>
+    <div class="code-block" style="text-align: left; margin-top: 20px;"><span class="code-comment"># Add to your bundle</span>
+<span class="code-key">includes:</span>
+  - <span class="code-key">bundle:</span> <span class="code-value">dot-graph:behaviors/dot-graph</span></div>
+    <div style="margin-top: 28px; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+        <a href="https://github.com/microsoft/amplifier-bundle-dot-graph" style="color: var(--accent); font-size: var(--font-body); font-weight: 600; text-decoration: none; padding: 12px 28px; border: 1px solid var(--accent); border-radius: 12px;">github.com/microsoft/amplifier-bundle-dot-graph &rarr;</a>
+        <p class="small-text">Phase 1 available now &nbsp;&middot;&nbsp; Zero dependencies &nbsp;&middot;&nbsp; One include line</p>
+    </div>
+</div>
+
+<!-- ── Navigation ── -->
+<div class="nav" id="nav"></div>
+<div class="slide-counter" id="counter"></div>
+<a href="https://github.com/microsoft/amplifier-bundle-dot-graph" class="more-stories">microsoft/amplifier-bundle-dot-graph</a>
+
+<script>
+const slides = document.querySelectorAll('.slide');
+let currentSlide = 0;
+
+function showSlide(n) {
+    slides[currentSlide].classList.remove('active');
+    currentSlide = (n + slides.length) % slides.length;
+    slides[currentSlide].classList.add('active');
+    updateNav();
+}
+
+function updateNav() {
+    const nav = document.getElementById('nav');
+    const counter = document.getElementById('counter');
+    nav.innerHTML = '';
+    slides.forEach((_, i) => {
+        const dot = document.createElement('div');
+        dot.className = 'nav-dot' + (i === currentSlide ? ' active' : '');
+        dot.onclick = (e) => { e.stopPropagation(); showSlide(i); };
+        nav.appendChild(dot);
+    });
+    counter.textContent = (currentSlide + 1) + ' / ' + slides.length;
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); showSlide(currentSlide + 1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); showSlide(currentSlide - 1); }
+});
+
+document.addEventListener('click', (e) => {
+    if (e.target.closest('.nav') || e.target.closest('a') || e.target.closest('.code-block')) return;
+    if (e.clientX > window.innerWidth / 2) showSlide(currentSlide + 1);
+    else showSlide(currentSlide - 1);
+});
+
+let touchStartX = 0;
+document.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
+document.addEventListener('touchend', (e) => {
+    const diff = touchStartX - e.changedTouches[0].screenX;
+    if (Math.abs(diff) > 50) { diff > 0 ? showSlide(currentSlide + 1) : showSlide(currentSlide - 1); }
+}, { passive: true });
+
+updateNav();
+</script>
+</body>
+</html>

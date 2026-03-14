@@ -12,7 +12,7 @@
 dot -V
 ```
 
-Expected output: `dot - graphviz version 12.2.1 (20250115.1956)`
+Expected output (your version may differ): `dot - graphviz version X.Y.Z (YYYYMMDD.HHMM)`
 
 If you see `dot: command not found`, follow the platform instructions below.
 

@@ -38,9 +38,7 @@ def test_line_count_in_range(doc_content):
 
 def test_graphviz_is_optional(doc_content):
     """File must note that Graphviz is OPTIONAL."""
-    assert "optional" in doc_content.lower() or "OPTIONAL" in doc_content, (
-        "Must state that Graphviz is optional"
-    )
+    assert "optional" in doc_content.lower(), "Must state that Graphviz is optional"
 
 
 def test_works_without_graphviz(doc_content):
@@ -69,7 +67,7 @@ def test_quick_check_has_dot_version_command(doc_content):
 def test_quick_check_has_expected_output(doc_content):
     """Quick Check must show expected output format."""
     # The expected output typically includes "graphviz version"
-    assert "graphviz version" in doc_content.lower() or "graphviz" in doc_content, (
+    assert "graphviz version" in doc_content.lower(), (
         "Quick Check must show expected output from dot -V"
     )
 
@@ -96,9 +94,7 @@ def test_has_macos_brew_instructions(doc_content):
 
 def test_has_ubuntu_debian_instructions(doc_content):
     """Must contain Ubuntu/Debian apt installation instructions."""
-    assert "apt" in doc_content.lower(), (
-        "Must include Ubuntu/Debian apt installation"
-    )
+    assert "apt" in doc_content.lower(), "Must include Ubuntu/Debian apt installation"
     assert "ubuntu" in doc_content.lower() or "Ubuntu" in doc_content, (
         "Must include Ubuntu section"
     )
@@ -109,9 +105,7 @@ def test_has_ubuntu_debian_instructions(doc_content):
 
 def test_has_fedora_rhel_instructions(doc_content):
     """Must contain Fedora/RHEL/CentOS dnf installation instructions."""
-    assert "dnf" in doc_content.lower(), (
-        "Must include Fedora/RHEL dnf installation"
-    )
+    assert "dnf" in doc_content.lower(), "Must include Fedora/RHEL dnf installation"
     assert "fedora" in doc_content.lower() or "Fedora" in doc_content, (
         "Must include Fedora section"
     )
@@ -162,21 +156,20 @@ def test_docker_has_ubuntu_example(doc_content):
     )
 
 
-def test_has_seven_platform_sections(doc_content):
-    """Must have installation instructions for 7 platforms (macOS, Ubuntu/Debian, Fedora/RHEL,
-    Windows, Conda, Docker Alpine, Docker Ubuntu)."""
+def test_has_six_platform_indicators(doc_content):
+    """Must have installation instructions for at least 6 platform indicators (macOS/brew,
+    Ubuntu/Debian/apt, Fedora/RHEL/dnf, Windows, Conda, Docker Alpine). Docker Ubuntu is
+    verified separately by test_docker_has_ubuntu_example."""
     platform_indicators = [
-        "brew",           # macOS
-        "apt",            # Ubuntu/Debian
-        "dnf",            # Fedora/RHEL
-        "windows",        # Windows
-        "conda",          # Conda
-        "alpine",         # Docker Alpine
+        "brew",  # macOS
+        "apt",  # Ubuntu/Debian
+        "dnf",  # Fedora/RHEL
+        "windows",  # Windows
+        "conda",  # Conda
+        "alpine",  # Docker Alpine
     ]
     found = sum(1 for p in platform_indicators if p in doc_content.lower())
-    assert found >= 6, (
-        f"Expected at least 6 of 7 platform indicators, found {found}"
-    )
+    assert found >= 6, f"Expected all 6 platform indicators, found {found}"
 
 
 # --- Python Dependencies section ---
@@ -236,16 +229,20 @@ def test_has_verification_section(doc_content):
 
 def test_verification_has_bash_script(doc_content):
     """Verification section must contain a bash script."""
-    assert "```bash" in doc_content or "#!/bin/bash" in doc_content or "bash" in doc_content.lower(), (
-        "Verification section must include a bash script"
-    )
+    assert (
+        "```bash" in doc_content
+        or "#!/bin/bash" in doc_content
+        or "bash" in doc_content.lower()
+    ), "Verification section must include a bash script"
 
 
 def test_verification_checks_graphviz_cli(doc_content):
     """Verification script must check Graphviz CLI."""
-    assert "dot -V" in doc_content or "command -v dot" in doc_content or "which dot" in doc_content, (
-        "Verification script must check for dot command"
-    )
+    assert (
+        "dot -V" in doc_content
+        or "command -v dot" in doc_content
+        or "which dot" in doc_content
+    ), "Verification script must check for dot command"
 
 
 def test_verification_checks_layout_engines(doc_content):
@@ -266,10 +263,21 @@ def test_verification_checks_python_packages(doc_content):
 
 
 def test_verification_has_render_test(doc_content):
-    """Verification script must include a render test."""
-    # Should test rendering a simple graph
-    assert "digraph" in doc_content.lower() or "render" in doc_content.lower(), (
-        "Verification section must include a render test"
+    """Verification script must include a render test scoped within the Verification section."""
+    lines = doc_content.splitlines()
+    # Find the Verification section header
+    verif_start = None
+    for i, line in enumerate(lines):
+        if line.strip().startswith("## Verification"):
+            verif_start = i
+            break
+    assert verif_start is not None, "No '## Verification' section found"
+    # Only inspect content from that section onward
+    verif_content = "\n".join(lines[verif_start:])
+    assert (
+        "digraph" in verif_content.lower() or "render test" in verif_content.lower()
+    ), (
+        "Verification section must include a render test (digraph or 'render test' marker)"
     )
 
 
@@ -278,9 +286,9 @@ def test_verification_has_render_test(doc_content):
 
 def test_has_troubleshooting_section(doc_content):
     """Must contain a Troubleshooting section."""
-    assert "Troubleshooting" in doc_content or "troubleshooting" in doc_content.lower(), (
-        "Must contain a Troubleshooting section"
-    )
+    assert (
+        "Troubleshooting" in doc_content or "troubleshooting" in doc_content.lower()
+    ), "Must contain a Troubleshooting section"
 
 
 def test_troubleshooting_has_dot_not_found(doc_content):
@@ -292,16 +300,14 @@ def test_troubleshooting_has_dot_not_found(doc_content):
 
 def test_troubleshooting_has_font_errors(doc_content):
     """Troubleshooting must cover font errors."""
-    assert "font" in doc_content.lower(), (
-        "Troubleshooting must cover font errors"
-    )
+    assert "font" in doc_content.lower(), "Troubleshooting must cover font errors"
 
 
 def test_troubleshooting_has_pydot_invocation_exception(doc_content):
     """Troubleshooting must cover pydot InvocationException."""
-    assert "InvocationException" in doc_content or "invocation" in doc_content.lower(), (
-        "Troubleshooting must cover pydot InvocationException"
-    )
+    assert (
+        "InvocationException" in doc_content or "invocation" in doc_content.lower()
+    ), "Troubleshooting must cover pydot InvocationException"
 
 
 def test_troubleshooting_has_svg_font_issue(doc_content):
@@ -334,10 +340,7 @@ def test_troubleshooting_has_five_items(doc_content):
         pytest.fail("No troubleshooting section found")
 
     # Count subsection headers after troubleshooting
-    subsections = [
-        ln for ln in lines[trouble_start:]
-        if ln.strip().startswith("###")
-    ]
+    subsections = [ln for ln in lines[trouble_start:] if ln.strip().startswith("###")]
     assert len(subsections) >= 5, (
         f"Troubleshooting must have at least 5 issues, found {len(subsections)}"
     )
@@ -346,9 +349,13 @@ def test_troubleshooting_has_five_items(doc_content):
 def test_troubleshooting_items_have_diagnosis_and_fix(doc_content):
     """Troubleshooting items must provide diagnosis and fix guidance."""
     content_lower = doc_content.lower()
-    assert "diagnos" in content_lower or "cause" in content_lower or "check" in content_lower, (
-        "Troubleshooting must include diagnosis guidance"
-    )
-    assert "fix" in content_lower or "solution" in content_lower or "install" in content_lower, (
-        "Troubleshooting must include fix guidance"
-    )
+    assert (
+        "diagnos" in content_lower
+        or "cause" in content_lower
+        or "check" in content_lower
+    ), "Troubleshooting must include diagnosis guidance"
+    assert (
+        "fix" in content_lower
+        or "solution" in content_lower
+        or "install" in content_lower
+    ), "Troubleshooting must include fix guidance"

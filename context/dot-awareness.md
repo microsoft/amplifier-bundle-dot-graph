@@ -34,4 +34,5 @@ You have access to DOT/Graphviz graph authoring, analysis, and intelligence capa
 
 ## Delegation
 
-For all DOT authoring and review work, delegate to `dot-author`. It has authoritative knowledge of DOT syntax, layout algorithms, and graph intelligence patterns.
+- **DOT authoring** (create, edit, refine diagrams): ALWAYS delegate to `dot-author`. It has authoritative knowledge of DOT syntax, layout algorithms, and graph intelligence patterns.
+- **DOT quality review** (evaluate, audit, validate diagrams): ALWAYS delegate to `diagram-reviewer`. It provides independent, objective PASS/WARN/FAIL verdicts. Do NOT rely on `dot-author` to review its own output.

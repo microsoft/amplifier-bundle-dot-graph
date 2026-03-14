@@ -1,3 +1,6 @@
+[tool.setuptools]
+packages = []  # Bundle repo, not a Python library
+
 [tool.pytest.ini_options]
 # Scope default collection to tests/ only.
 # Module tests under modules/tool-dot-graph/tests/ require PYTHONPATH to be set

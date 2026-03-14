@@ -34,7 +34,7 @@ Used by the `diagram-reviewer` agent and the `dot_validate` tool during automate
 | Element | Attribute | Example |
 |---|---|---|
 | Graph label | `label="..."` | `label="System Overview"` |
-| Font family | `fontname="..."` | `fontname="Helvetica"` |
+| Font name | `fontname="..."` | `fontname="Helvetica"` |
 | Layout direction | `rankdir=...` | `rankdir=LR` |
 
 ### Required for >20 Nodes

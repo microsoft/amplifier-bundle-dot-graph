@@ -252,7 +252,9 @@ def test_anti_patterns_has_structural_table(doc_content):
 def test_structural_anti_patterns_has_6(doc_content):
     """Structural anti-patterns table must have at least 6 entries."""
     # Check for all 6 known structural anti-pattern concepts
-    structural_terms = ["cluster", "node", "edge", "rank", "orphan", "cycle"]
+    # Note: "constraint" comes from "Add constraint=false" in the structural table
+    # (avoids "rank" which would falsely match "rankdir" in Required Elements)
+    structural_terms = ["cluster", "node", "edge", "constraint", "orphan", "cycle"]
     found = sum(1 for term in structural_terms if term in doc_content.lower())
     assert found >= 6, (
         f"Expected references to all 6 structural anti-pattern concepts, found {found}/6"
@@ -260,8 +262,10 @@ def test_structural_anti_patterns_has_6(doc_content):
 
 
 def test_anti_patterns_has_style_table(doc_content):
-    """Anti-Patterns must include a Style subsection."""
-    assert "Style" in doc_content, "Must contain Style anti-patterns"
+    """Anti-Patterns must include a Style subsection header."""
+    assert "### Style" in doc_content, (
+        "Must contain '### Style' subsection header in Anti-Patterns"
+    )
 
 
 def test_anti_patterns_has_naming_table(doc_content):

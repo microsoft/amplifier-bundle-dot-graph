@@ -87,10 +87,15 @@ def test_bundle_md_body_has_heading():
     )
 
 
-def test_bundle_md_body_has_dot_awareness_mention():
-    """Markdown body must contain @mention for dot-graph:context/dot-awareness.md."""
+def test_bundle_md_body_no_duplicate_context_include():
+    """Markdown body must NOT duplicate context that the behavior already includes.
+
+    The dot-awareness.md context is loaded via behaviors/dot-graph.yaml.
+    Including it again in bundle.md would cause duplicate context injection.
+    See: validate-bundle-repo recipe finding.
+    """
     content = BUNDLE_MD_PATH.read_text()
     _, body = _parse_frontmatter(content)
-    assert "@dot-graph:context/dot-awareness.md" in body, (
-        "Markdown body must contain '@dot-graph:context/dot-awareness.md'"
+    assert "@dot-graph:context/dot-awareness.md" not in body, (
+        "bundle.md must NOT @mention dot-awareness.md — the behavior already includes it"
     )

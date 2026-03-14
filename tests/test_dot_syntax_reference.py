@@ -338,9 +338,8 @@ def test_has_ports_section(doc_content):
 
 def test_has_compass_points(doc_content):
     """Must show all 8 compass points."""
-    content = doc_content
     # All 8 compass points are abbreviated — verify key ones are mentioned
-    assert "ne" in content and "sw" in content and "nw" in content, (
+    assert "ne" in doc_content and "sw" in doc_content and "nw" in doc_content, (
         "Must show compass points ne, sw, nw at minimum"
     )
 

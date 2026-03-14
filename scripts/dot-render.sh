@@ -132,6 +132,10 @@ echo ""
 
 if "$ENGINE" -T"$FORMAT" "$DOT_FILE" -o "$OUTPUT" 2>&1; then
     SIZE=$(wc -c < "$OUTPUT")
+    if [[ "$SIZE" -eq 0 ]]; then
+        echo "❌  Render produced an empty file: $OUTPUT" >&2
+        exit 1
+    fi
     echo "✅  Rendered successfully: $OUTPUT  (${SIZE} bytes)"
 else
     echo "❌  Render failed: $ENGINE -T$FORMAT $DOT_FILE -o $OUTPUT" >&2

@@ -469,3 +469,112 @@ class TestScriptStructure:
         assert "json" in content, "Script must support json format"
         assert "ps" in content, "Script must list ps format"
         assert "eps" in content, "Script must list eps format"
+
+    def test_help_examples_shows_engine_override(self):
+        """Help EXAMPLES must include an example with an engine override argument."""
+        result = run_script("--help")
+        output = result.stdout + result.stderr
+        # Examples should show a 3-argument invocation (file format engine)
+        # that demonstrates the engine override capability
+        lines_with_dot = [
+            line
+            for line in output.splitlines()
+            if ".dot" in line and not line.strip().startswith("#")
+        ]
+        # At least one example should have 3 tokens (file format engine)
+        three_arg_examples = [
+            line
+            for line in lines_with_dot
+            if len(line.split()) >= 3
+            and not line.strip().startswith("dot-render.sh --help")
+            and not line.strip().startswith("dot-render.sh -h")
+        ]
+        assert three_arg_examples, (
+            "Help EXAMPLES must show at least one invocation with file, format, and engine arguments"
+        )
+
+
+# ── Empty output detection ──────────────────────────────────────────────────────────────────────
+
+
+class TestEmptyOutputDetection:
+    def test_empty_output_file_exits_one(self):
+        """Script must exit 1 if the render command produces an empty output file."""
+        import stat as stat_mod
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a valid .dot source file
+            dot_file = os.path.join(tmpdir, "test.dot")
+            with open(dot_file, "w") as f:
+                f.write(VALID_DOT)
+
+            # Create a fake engine script that writes an empty output file and exits 0
+            fake_engine = os.path.join(tmpdir, "fake-dot")
+            with open(fake_engine, "w") as f:
+                f.write("#!/usr/bin/env bash\n")
+                f.write("# Parse -o flag to find output path\n")
+                f.write("while [[ $# -gt 0 ]]; do\n")
+                f.write('  case "$1" in\n')
+                f.write('    -o) shift; touch "$1" ;;\n')
+                f.write("    *) ;;\n")
+                f.write("  esac\n")
+                f.write("  shift\n")
+                f.write("done\n")
+                f.write("exit 0\n")
+            os.chmod(fake_engine, os.stat(fake_engine).st_mode | stat_mod.S_IEXEC)
+
+            # Run with fake engine via PATH manipulation
+            env = os.environ.copy()
+            env["PATH"] = tmpdir + ":" + env.get("PATH", "")
+
+            result = subprocess.run(
+                [str(SCRIPT_PATH), dot_file, "svg", "fake-dot"],
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            assert result.returncode == 1, (
+                f"Expected exit 1 when output file is empty, got {result.returncode}\n"
+                f"stdout: {result.stdout}\nstderr: {result.stderr}"
+            )
+
+    def test_empty_output_shows_error_message(self):
+        """Script must emit an error message when the output file is empty."""
+        import stat as stat_mod
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dot_file = os.path.join(tmpdir, "test.dot")
+            with open(dot_file, "w") as f:
+                f.write(VALID_DOT)
+
+            fake_engine = os.path.join(tmpdir, "fake-dot")
+            with open(fake_engine, "w") as f:
+                f.write("#!/usr/bin/env bash\n")
+                f.write("while [[ $# -gt 0 ]]; do\n")
+                f.write('  case "$1" in\n')
+                f.write('    -o) shift; touch "$1" ;;\n')
+                f.write("    *) ;;\n")
+                f.write("  esac\n")
+                f.write("  shift\n")
+                f.write("done\n")
+                f.write("exit 0\n")
+            os.chmod(fake_engine, os.stat(fake_engine).st_mode | stat_mod.S_IEXEC)
+
+            env = os.environ.copy()
+            env["PATH"] = tmpdir + ":" + env.get("PATH", "")
+
+            result = subprocess.run(
+                [str(SCRIPT_PATH), dot_file, "svg", "fake-dot"],
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            output = result.stdout + result.stderr
+            assert output.strip(), (
+                "Must emit an error message when output file is empty"
+            )
+            assert (
+                "❌" in output
+                or "empty" in output.lower()
+                or "0 byte" in output.lower()
+            ), f"Error message should indicate empty/failed output, got: {output}"

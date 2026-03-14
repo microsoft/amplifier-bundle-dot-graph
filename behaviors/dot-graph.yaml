@@ -1,0 +1,17 @@
+bundle:
+  name: dot-graph-behavior
+  version: 0.1.0
+  description: DOT/Graphviz graph authoring, analysis, and intelligence capabilities
+
+tools:
+  - module: tool-dot-graph
+    source: git+https://github.com/microsoft/amplifier-bundle-dot-graph@main#subdirectory=modules/tool-dot-graph
+
+agents:
+  include:
+    - dot-graph:dot-author
+    - dot-graph:diagram-reviewer
+
+context:
+  include:
+    - dot-graph:context/dot-awareness.md

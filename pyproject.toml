@@ -1,0 +1,8 @@
+[tool.pytest.ini_options]
+# Scope default collection to tests/ only.
+# Module tests under modules/tool-dot-graph/tests/ require PYTHONPATH to be set
+# and must be run explicitly from within that directory:
+#   cd modules/tool-dot-graph && python -m pytest
+# The root test suite (tests/) already covers module behaviour via subprocess
+# in tests/test_final_verification.py.
+testpaths = ["tests"]

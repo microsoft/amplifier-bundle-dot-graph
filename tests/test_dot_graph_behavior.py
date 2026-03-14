@@ -5,15 +5,29 @@ TDD: This test is written BEFORE the behaviors/dot-graph.yaml file is created.
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).parent.parent
 BEHAVIOR_PATH = REPO_ROOT / "behaviors" / "dot-graph.yaml"
 
 
-def _load_yaml(path: Path) -> dict:
-    """Load and parse a YAML file. Returns the parsed dict."""
-    return yaml.safe_load(path.read_text())
+@pytest.fixture(scope="module")
+def data() -> dict:
+    """Load behaviors/dot-graph.yaml once per test module."""
+    return yaml.safe_load(BEHAVIOR_PATH.read_text())
+
+
+def _get_tool(data: dict, module_name: str) -> dict | None:
+    """Return the tool entry with the given module name, or None if not found."""
+    return next(
+        (
+            t
+            for t in data["tools"]
+            if isinstance(t, dict) and t.get("module") == module_name
+        ),
+        None,
+    )
 
 
 # --- File existence ---
@@ -36,52 +50,45 @@ def test_behavior_file_is_valid_yaml():
 # --- Top-level keys ---
 
 
-def test_behavior_has_bundle_key():
+def test_behavior_has_bundle_key(data):
     """behaviors/dot-graph.yaml must have a top-level 'bundle' key."""
-    data = _load_yaml(BEHAVIOR_PATH)
     assert "bundle" in data, "behaviors/dot-graph.yaml must have 'bundle' key"
 
 
-def test_behavior_has_tools_key():
+def test_behavior_has_tools_key(data):
     """behaviors/dot-graph.yaml must have a top-level 'tools' key."""
-    data = _load_yaml(BEHAVIOR_PATH)
     assert "tools" in data, "behaviors/dot-graph.yaml must have 'tools' key"
 
 
-def test_behavior_has_agents_key():
+def test_behavior_has_agents_key(data):
     """behaviors/dot-graph.yaml must have a top-level 'agents' key."""
-    data = _load_yaml(BEHAVIOR_PATH)
     assert "agents" in data, "behaviors/dot-graph.yaml must have 'agents' key"
 
 
-def test_behavior_has_context_key():
+def test_behavior_has_context_key(data):
     """behaviors/dot-graph.yaml must have a top-level 'context' key."""
-    data = _load_yaml(BEHAVIOR_PATH)
     assert "context" in data, "behaviors/dot-graph.yaml must have 'context' key"
 
 
 # --- bundle section ---
 
 
-def test_behavior_bundle_name():
+def test_behavior_bundle_name(data):
     """bundle.name must be 'dot-graph-behavior'."""
-    data = _load_yaml(BEHAVIOR_PATH)
     assert data["bundle"]["name"] == "dot-graph-behavior", (
         f"bundle.name must be 'dot-graph-behavior', got: {data['bundle'].get('name')}"
     )
 
 
-def test_behavior_bundle_version():
+def test_behavior_bundle_version(data):
     """bundle.version must be '0.1.0'."""
-    data = _load_yaml(BEHAVIOR_PATH)
     assert data["bundle"]["version"] == "0.1.0", (
         f"bundle.version must be '0.1.0', got: {data['bundle'].get('version')}"
     )
 
 
-def test_behavior_bundle_description():
+def test_behavior_bundle_description(data):
     """bundle.description must be present and non-empty."""
-    data = _load_yaml(BEHAVIOR_PATH)
     assert "description" in data["bundle"], "bundle must have 'description' key"
     assert data["bundle"]["description"], "bundle.description must not be empty"
 
@@ -89,47 +96,29 @@ def test_behavior_bundle_description():
 # --- tools section ---
 
 
-def test_behavior_tools_is_list():
+def test_behavior_tools_is_list(data):
     """tools must be a list."""
-    data = _load_yaml(BEHAVIOR_PATH)
     assert isinstance(data["tools"], list), "tools must be a list"
 
 
-def test_behavior_tools_has_tool_dot_graph():
+def test_behavior_tools_has_tool_dot_graph(data):
     """tools must contain a module entry with module 'tool-dot-graph'."""
-    data = _load_yaml(BEHAVIOR_PATH)
     module_names = [t.get("module") for t in data["tools"] if isinstance(t, dict)]
     assert "tool-dot-graph" in module_names, (
         f"tools must contain module 'tool-dot-graph', found: {module_names}"
     )
 
 
-def test_behavior_tools_dot_graph_has_source():
+def test_behavior_tools_dot_graph_has_source(data):
     """tool-dot-graph entry must have a source field."""
-    data = _load_yaml(BEHAVIOR_PATH)
-    tool = next(
-        (
-            t
-            for t in data["tools"]
-            if isinstance(t, dict) and t.get("module") == "tool-dot-graph"
-        ),
-        None,
-    )
+    tool = _get_tool(data, "tool-dot-graph")
     assert tool is not None, "Must have tool-dot-graph entry"
     assert "source" in tool, "tool-dot-graph must have a 'source' field"
 
 
-def test_behavior_tools_dot_graph_source_value():
+def test_behavior_tools_dot_graph_source_value(data):
     """tool-dot-graph source must point to the correct git URL with subdirectory."""
-    data = _load_yaml(BEHAVIOR_PATH)
-    tool = next(
-        (
-            t
-            for t in data["tools"]
-            if isinstance(t, dict) and t.get("module") == "tool-dot-graph"
-        ),
-        None,
-    )
+    tool = _get_tool(data, "tool-dot-graph")
     assert tool is not None, "Must have tool-dot-graph entry"
     expected_source = "git+https://github.com/microsoft/amplifier-bundle-dot-graph@main#subdirectory=modules/tool-dot-graph"
     assert tool["source"] == expected_source, (
@@ -140,29 +129,25 @@ def test_behavior_tools_dot_graph_source_value():
 # --- agents section ---
 
 
-def test_behavior_agents_has_include():
+def test_behavior_agents_has_include(data):
     """agents must have an 'include' key."""
-    data = _load_yaml(BEHAVIOR_PATH)
     assert "include" in data["agents"], "agents must have an 'include' key"
 
 
-def test_behavior_agents_include_is_list():
+def test_behavior_agents_include_is_list(data):
     """agents.include must be a list."""
-    data = _load_yaml(BEHAVIOR_PATH)
     assert isinstance(data["agents"]["include"], list), "agents.include must be a list"
 
 
-def test_behavior_agents_includes_dot_author():
+def test_behavior_agents_includes_dot_author(data):
     """agents.include must contain 'dot-graph:dot-author'."""
-    data = _load_yaml(BEHAVIOR_PATH)
     assert "dot-graph:dot-author" in data["agents"]["include"], (
         f"agents.include must contain 'dot-graph:dot-author', got: {data['agents']['include']}"
     )
 
 
-def test_behavior_agents_includes_diagram_reviewer():
+def test_behavior_agents_includes_diagram_reviewer(data):
     """agents.include must contain 'dot-graph:diagram-reviewer'."""
-    data = _load_yaml(BEHAVIOR_PATH)
     assert "dot-graph:diagram-reviewer" in data["agents"]["include"], (
         f"agents.include must contain 'dot-graph:diagram-reviewer', got: {data['agents']['include']}"
     )
@@ -171,23 +156,20 @@ def test_behavior_agents_includes_diagram_reviewer():
 # --- context section ---
 
 
-def test_behavior_context_has_include():
+def test_behavior_context_has_include(data):
     """context must have an 'include' key."""
-    data = _load_yaml(BEHAVIOR_PATH)
     assert "include" in data["context"], "context must have an 'include' key"
 
 
-def test_behavior_context_include_is_list():
+def test_behavior_context_include_is_list(data):
     """context.include must be a list."""
-    data = _load_yaml(BEHAVIOR_PATH)
     assert isinstance(data["context"]["include"], list), (
         "context.include must be a list"
     )
 
 
-def test_behavior_context_includes_dot_awareness():
+def test_behavior_context_includes_dot_awareness(data):
     """context.include must contain 'dot-graph:context/dot-awareness.md'."""
-    data = _load_yaml(BEHAVIOR_PATH)
     assert "dot-graph:context/dot-awareness.md" in data["context"]["include"], (
         f"context.include must contain 'dot-graph:context/dot-awareness.md', "
         f"got: {data['context']['include']}"

@@ -14,7 +14,7 @@ DOC_PATH = REPO_ROOT / "docs" / "DOT-QUALITY-STANDARDS.md"
 @pytest.fixture(scope="module")
 def doc_content():
     """Read DOT-QUALITY-STANDARDS.md once per test module."""
-    return DOC_PATH.read_text()
+    return DOC_PATH.read_text(encoding="utf-8")
 
 
 # --- File existence and size ---
@@ -148,9 +148,21 @@ def test_has_shape_vocabulary(doc_content):
 
 
 def test_shape_vocabulary_has_12_shapes(doc_content):
-    """Shape Vocabulary must contain at least 12 shapes."""
-    # Check for a representative sample of the 12 required shapes
-    required_shapes = ["box", "ellipse", "diamond", "cylinder", "hexagon"]
+    """Shape Vocabulary must contain all 12 specified shapes."""
+    required_shapes = [
+        "box",
+        "ellipse",
+        "diamond",
+        "cylinder",
+        "hexagon",
+        "component",
+        "tripleoctagon",
+        "parallelogram",
+        "house",
+        "folder",
+        "note",
+        "point",
+    ]
     for shape in required_shapes:
         assert shape in doc_content, f"Shape vocabulary must include '{shape}'"
 
@@ -176,7 +188,7 @@ def test_color_semantics_has_7_colors(doc_content):
     """Color Semantics must contain the 7 required colors."""
     # Per spec: default blue, green success, red error, yellow warning,
     # orange data, purple external, gray inactive
-    required_colors = ["green", "red", "yellow", "orange", "purple", "gray"]
+    required_colors = ["blue", "green", "red", "yellow", "orange", "purple", "gray"]
     for color in required_colors:
         assert color in doc_content.lower(), f"Color semantics must include '{color}'"
 
@@ -203,7 +215,7 @@ def test_has_edge_style_semantics(doc_content):
 def test_edge_style_has_5_styles(doc_content):
     """Edge Style Semantics must contain the 5 required styles."""
     # Per spec: solid sync, dashed async, dotted weak, bold critical, red error
-    required_styles = ["solid", "dashed", "dotted", "bold"]
+    required_styles = ["solid", "dashed", "dotted", "bold", "color=red"]
     for style in required_styles:
         assert style in doc_content.lower(), (
             f"Edge style semantics must include '{style}'"
@@ -239,11 +251,11 @@ def test_anti_patterns_has_structural_table(doc_content):
 
 def test_structural_anti_patterns_has_6(doc_content):
     """Structural anti-patterns table must have at least 6 entries."""
-    # Check for some known structural anti-patterns
+    # Check for all 6 known structural anti-pattern concepts
     structural_terms = ["cluster", "node", "edge", "rank", "orphan", "cycle"]
     found = sum(1 for term in structural_terms if term in doc_content.lower())
-    assert found >= 4, (
-        f"Expected references to structural anti-pattern concepts, found {found}/6"
+    assert found >= 6, (
+        f"Expected references to all 6 structural anti-pattern concepts, found {found}/6"
     )
 
 
@@ -284,10 +296,26 @@ def test_has_quality_gate_thresholds(doc_content):
 
 
 def test_quality_gates_has_8_checks(doc_content):
-    """Quality Gate Thresholds must define PASS/WARN/FAIL criteria."""
+    """Quality Gate Thresholds table must define 8 checks with PASS/WARN/FAIL criteria."""
+    # Verify the three column headers are present
     assert "PASS" in doc_content, "Quality gates must include PASS criteria"
     assert "WARN" in doc_content, "Quality gates must include WARN criteria"
     assert "FAIL" in doc_content, "Quality gates must include FAIL criteria"
+    # Verify all 8 check rows are present by their identifying keywords
+    required_checks = [
+        "Line count",
+        "Node count",
+        "Required attributes",
+        "Orphan node",
+        "Cluster usage",
+        "Legend present",
+        "Color palette",
+        "Naming convention",
+    ]
+    for check in required_checks:
+        assert check.lower() in doc_content.lower(), (
+            f"Quality gate thresholds must include '{check}' check"
+        )
 
 
 # --- The Reconciliation Principle section ---

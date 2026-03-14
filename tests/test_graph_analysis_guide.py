@@ -51,10 +51,14 @@ def test_core_idea_mentions_dot_as_graph_structures(doc_content):
 
 def test_core_idea_has_five_example_questions(doc_content):
     """Core Idea must list 5 example questions with analysis type mappings."""
-    # Check for question indicators — numbered list or bullet points with '?'
-    question_count = doc_content.count("?")
+    # Scope to the Core Idea section (between '## The Core Idea' and the next '---')
+    start = doc_content.find("## The Core Idea")
+    end = doc_content.find("\n---\n", start)
+    core_idea_section = doc_content[start:end] if end != -1 else doc_content[start:]
+    question_count = core_idea_section.count("?")
     assert question_count >= 5, (
-        f"Core Idea must include at least 5 example questions, found {question_count} '?'"
+        f"Core Idea must include at least 5 example questions, "
+        f"found {question_count} '?' in Core Idea section"
     )
 
 
@@ -108,7 +112,7 @@ def test_has_path_finding_operation(doc_content):
 def test_has_critical_path_operation(doc_content):
     """Must include Critical Path operation for bottleneck identification."""
     content_lower = doc_content.lower()
-    assert "critical path" in content_lower or "critical" in content_lower, (
+    assert "critical path" in content_lower, (
         "Must include Critical Path analysis operation"
     )
 

@@ -126,6 +126,14 @@ If a section is empty, write `None.` — do not omit sections.
 - **Be constructive** — for every error, state what the correct form should be
 - **Don't over-fail** — warnings belong in Warnings, not Errors; reserve FAIL for issues that break the diagram or violate hard rules
 
+## When Tools Are Unavailable
+
+If the DOT tools (`dot_validate`, `dot_render`) are not available:
+
+- **Manual syntax check:** Verify DOT syntax by inspection — balanced braces, valid attributes, correct edge operators (`->` for digraph, `--` for graph)
+- **Checklist-based review:** Apply all 5 levels of the review checklist using text analysis alone — most checks (structure, quality, style, reconciliation) do not require tool execution
+- **Render suggestion:** If validation or rendering would strengthen the review, tell the user they can paste the DOT into any Graphviz viewer (VS Code extension, graphviz.org, or `dot -Tsvg file.dot -o file.svg`)
+
 ---
 
 @foundation:context/shared/common-agent-base.md

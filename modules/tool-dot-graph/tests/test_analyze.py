@@ -39,6 +39,16 @@ UNDIRECTED = "graph G { a -- b -- c }"
 # 6 nodes, 6 edges — complex DAG with multiple branches
 COMPLEX_DAG = "digraph G { a -> b; a -> c; b -> d; c -> d; d -> e; d -> f }"
 
+# Two-layer fan-out: a -> {b0..b10} -> {c0..c9} -> z gives 11*10 = 110 simple paths.
+# Used to verify the 100-path cap triggers truncated=True.
+PATHS_OVER_CAP = (
+    "digraph G { "
+    + " ".join(f"a -> b{i};" for i in range(11))
+    + " ".join(f"b{i} -> c{j};" for i in range(11) for j in range(10))
+    + " ".join(f"c{j} -> z;" for j in range(10))
+    + " }"
+)
+
 
 # ---------------------------------------------------------------------------
 # Error handling tests
@@ -518,6 +528,19 @@ def test_paths_nonexistent_source():
     assert "z" in result["error"], (
         f"Error must mention the node name 'z', got: {result['error']}"
     )
+
+
+def test_paths_truncation():
+    """More than 100 simple paths triggers truncation: path_count=100, truncated=True."""
+    result = analyze_dot(
+        PATHS_OVER_CAP, {"analysis": "paths", "source_node": "a", "target_node": "z"}
+    )
+
+    assert result["success"] is True, f"Paths must succeed, got: {result}"
+    assert result["path_count"] == 100, (
+        f"Truncated result must contain exactly 100 paths, got: {result['path_count']}"
+    )
+    assert result["truncated"] is True, "Graph with 110 paths must set truncated=True"
 
 
 # ---------------------------------------------------------------------------

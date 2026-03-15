@@ -79,7 +79,7 @@ def analyze_dot(dot_content: str, options: dict | None = None) -> dict:
 
     # Special routing: diff and subgraph_extract are dispatched before NetworkX conversion.
     if analysis == "diff":
-        return _dispatch_diff(dot_content, options)
+        return _diff(dot_content, options)
     if analysis == "subgraph_extract":
         return _dispatch_subgraph_extract(dot_content, options)
 
@@ -105,8 +105,8 @@ def analyze_dot(dot_content: str, options: dict | None = None) -> dict:
     if analysis == "critical_path":
         return _critical_path(G)
 
-    # Remaining operations not yet implemented in this task.
-    return _parse_error(f"Analysis '{analysis}' is not yet implemented")
+    # Should be unreachable: all _KNOWN_ANALYSES operations are dispatched above.
+    raise AssertionError(f"Unhandled analysis type in dispatcher: {analysis!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -665,14 +665,6 @@ def _subgraph_extract(pydot_graph: pydot.Dot, _dot_content: str, options: dict) 
 # ---------------------------------------------------------------------------
 # Diff operation
 # ---------------------------------------------------------------------------
-
-
-def _dispatch_diff(dot_content: str, options: dict) -> dict:
-    """Dispatch diff operation (routed before NetworkX conversion).
-
-    Compares two DOT graphs for structural differences (nodes and edges).
-    """
-    return _diff(dot_content, options)
 
 
 def _diff(dot_content_a: str, options: dict) -> dict:

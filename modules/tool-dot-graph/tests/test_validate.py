@@ -433,6 +433,35 @@ def test_warnings_do_not_affect_valid():
     )
 
 
+def test_anonymous_subgraph_does_not_crash():
+    """Anonymous subgraph (no name) must not crash _collect_clusters.
+
+    Valid DOT allows anonymous subgraphs: subgraph { a -> b }
+    pydot returns None for get_name() on anonymous subgraphs.
+    Calling .strip() on None raises AttributeError — this test guards that path.
+    """
+    from amplifier_module_tool_dot_graph.validate import validate_dot
+
+    # Anonymous subgraph — no cluster_ prefix, no name at all
+    dot = """
+    digraph G {
+        outside -> x
+        subgraph {
+            x -> y
+        }
+    }
+    """
+    # Must not raise AttributeError
+    result = validate_dot(dot)
+
+    assert "valid" in result, (
+        "Result must have 'valid' key even with anonymous subgraph"
+    )
+    assert "issues" in result, (
+        "Result must have 'issues' key even with anonymous subgraph"
+    )
+
+
 def test_all_three_layers_run_by_default():
     """Without specifying layers, all three layers (syntax, structural, render) are checked."""
     from amplifier_module_tool_dot_graph.validate import validate_dot

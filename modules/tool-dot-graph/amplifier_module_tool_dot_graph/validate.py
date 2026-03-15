@@ -296,7 +296,7 @@ def _collect_all_nodes(graph: pydot.Dot) -> set[str]:
 
 def _recurse_nodes(subgraph: pydot.Dot | pydot.Subgraph, names: set[str]) -> None:
     for node in subgraph.get_node_list():
-        raw = node.get_name().strip('"')
+        raw = str(node.get_name()).strip('"')
         if raw and raw not in _PSEUDO_NODES:
             names.add(raw)
     for sg in subgraph.get_subgraph_list():
@@ -315,8 +315,8 @@ def _recurse_edges(
     edges: list[tuple[str, str]],
 ) -> None:
     for edge in subgraph.get_edge_list():
-        src = edge.get_source().strip('"')
-        dst = edge.get_destination().strip('"')
+        src = str(edge.get_source()).strip('"')
+        dst = str(edge.get_destination()).strip('"')
         edges.append((src, dst))
     for sg in subgraph.get_subgraph_list():
         _recurse_edges(sg, edges)
@@ -326,7 +326,10 @@ def _collect_clusters(graph: pydot.Dot) -> dict[str, set[str]]:
     """Collect cluster subgraphs (name starts with 'cluster') and their node sets."""
     clusters: dict[str, set[str]] = {}
     for sg in graph.get_subgraph_list():
-        name = sg.get_name().strip('"')
+        raw_name = sg.get_name()
+        if raw_name is None:
+            continue  # anonymous subgraph — cannot be a named cluster, skip
+        name = str(raw_name).strip('"')
         if name.lower().startswith("cluster"):
             node_set: set[str] = set()
             # Collect nodes declared inside this cluster.
@@ -345,8 +348,8 @@ def _collect_edge_endpoint_names(
 ) -> None:
     """Collect all node names that appear as edge endpoints in subgraph (recursive)."""
     for edge in subgraph.get_edge_list():
-        names.add(edge.get_source().strip('"'))
-        names.add(edge.get_destination().strip('"'))
+        names.add(str(edge.get_source()).strip('"'))
+        names.add(str(edge.get_destination()).strip('"'))
     for sg in subgraph.get_subgraph_list():
         _collect_edge_endpoint_names(sg, names)
 

@@ -462,6 +462,19 @@ def test_anonymous_subgraph_does_not_crash():
     )
 
 
+def test_unknown_layer_raises_value_error():
+    """Passing an unknown layer name raises ValueError with informative message.
+
+    Silently accepting unknown layers (e.g., layers=['typo']) returns valid=True
+    with no issues, masking the caller's mistake. A clear ValueError improves
+    debuggability — the caller knows immediately that their layer name is wrong.
+    """
+    from amplifier_module_tool_dot_graph.validate import validate_dot
+
+    with pytest.raises(ValueError, match="Unknown layer"):
+        validate_dot("digraph G { a -> b }", layers=["typo"])
+
+
 def test_all_three_layers_run_by_default():
     """Without specifying layers, all three layers (syntax, structural, render) are checked."""
     from amplifier_module_tool_dot_graph.validate import validate_dot

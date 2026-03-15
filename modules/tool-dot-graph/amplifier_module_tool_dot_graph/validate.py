@@ -25,6 +25,9 @@ _ENTRY_HINTS: frozenset[str] = frozenset(
 # pydot pseudo-node names injected by default style declarations.
 _PSEUDO_NODES: frozenset[str] = frozenset({"node", "edge", "graph"})
 
+# Valid layer names accepted by validate_dot().
+_KNOWN_LAYERS: frozenset[str] = frozenset({"syntax", "structural", "render"})
+
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -50,6 +53,13 @@ def validate_dot(
     """
     if layers is None:
         layers = ["syntax", "structural", "render"]
+
+    unknown = set(layers) - _KNOWN_LAYERS
+    if unknown:
+        raise ValueError(
+            f"Unknown layer(s): {sorted(unknown)}. "
+            f"Valid layers are: {sorted(_KNOWN_LAYERS)}"
+        )
 
     all_issues: list[dict] = []
     stats: dict = {"nodes": 0, "edges": 0, "clusters": 0, "lines": 0}
@@ -323,7 +333,13 @@ def _recurse_edges(
 
 
 def _collect_clusters(graph: pydot.Dot) -> dict[str, set[str]]:
-    """Collect cluster subgraphs (name starts with 'cluster') and their node sets."""
+    """Collect cluster subgraphs (name starts with 'cluster') and their node sets.
+
+    Note: only top-level subgraphs are examined for cluster membership.
+    Nested clusters (clusters within clusters) are not tracked — this is
+    intentional given DOT's rare usage of nested clusters and the absence
+    of a spec requirement for deeper recursion.
+    """
     clusters: dict[str, set[str]] = {}
     for sg in graph.get_subgraph_list():
         raw_name = sg.get_name()

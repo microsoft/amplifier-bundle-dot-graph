@@ -1,8 +1,8 @@
 """Tests for tool-dot-graph module.
 
-Verifies that mount() registers a placeholder tool with the coordinator,
-satisfying the Amplifier protocol_compliance requirement that a tool is
-mounted before Phase 2 provides the full implementation.
+Verifies that mount() registers the real Phase 2 tool with the coordinator,
+satisfying the Amplifier protocol_compliance requirement and exercising the
+validate/render/setup routing implementation.
 """
 
 import inspect
@@ -190,8 +190,8 @@ async def test_mount_returns_module_metadata():
 
 
 @pytest.mark.asyncio
-async def test_placeholder_tool_execute_is_callable():
-    """The placeholder tool has a callable execute method."""
+async def test_mounted_tool_execute_is_callable():
+    """The mounted tool has a callable execute method."""
     from amplifier_module_tool_dot_graph import mount
 
     coordinator = MagicMock()
@@ -205,8 +205,8 @@ async def test_placeholder_tool_execute_is_callable():
 
 
 @pytest.mark.asyncio
-async def test_placeholder_tool_execute_returns_result():
-    """The placeholder tool's execute() returns a result object with success and output fields."""
+async def test_mounted_tool_execute_returns_result():
+    """The mounted tool's execute() returns a result object with success and output fields."""
     from amplifier_module_tool_dot_graph import mount
 
     coordinator = MagicMock()

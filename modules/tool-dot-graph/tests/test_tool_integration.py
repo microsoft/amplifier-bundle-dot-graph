@@ -1,14 +1,15 @@
-"""Integration tests for the real DotGraphTool (Phase 2).
+"""Integration tests for the real DotGraphTool (Phase 3 complete).
 
-12 tests covering:
-- Operation routing: validate, render, setup, analyze, unknown (6 tests including render)
-- Input schema: setup operation in enum, options sub-properties (2 tests)
-- Mount contract: real tool version, tool can actually validate (2 tests)
+17 tests covering:
+- Operation routing: validate, render, setup, analyze (stats, cycles, error cases), unknown (8 tests)
+- Input schema: setup operation in enum, options sub-properties, analyze options (3 tests)
+- Mount contract: real tool version 0.3.0, tool can actually validate (3 tests)
 - Error handling: invalid layer name returns structured error, not exception (1 test)
 - Layer selection: syntax-only, structural-only layers (1 test)
+- Render: mocked render operation (1 test)
 
 These tests verify that __init__.py routes operations to the real
-validate, render, and setup_helper modules (Phase 2 implementation).
+validate, render, setup_helper, and analyze modules.
 """
 
 import json
@@ -30,7 +31,7 @@ def _parse_output(result: Any) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Operation routing tests (6 tests)
+# Operation routing tests (8 tests)
 # ---------------------------------------------------------------------------
 
 
@@ -138,22 +139,91 @@ async def test_setup_operation_returns_environment():
 
 
 @pytest.mark.asyncio
-async def test_analyze_operation_returns_phase3_pending():
-    """analyze operation returns success=False with Phase 3 pending message."""
+async def test_analyze_stats_routes_correctly():
+    """analyze operation with analysis=stats routes to analyze_dot and returns node_count=2."""
     from amplifier_module_tool_dot_graph import DotGraphTool
 
     tool = DotGraphTool()
-    result = await tool.execute({"operation": "analyze", "dot_content": SIMPLE_DOT})
+    result = await tool.execute(
+        {
+            "operation": "analyze",
+            "dot_content": SIMPLE_DOT,
+            "options": {"analysis": "stats"},
+        }
+    )
 
-    assert result.success is False, (
-        "analyze must return success=False (Phase 3 pending)"
+    assert result.success is True, (
+        f"analyze stats must return success=True for valid DOT, got: {result.output!r}"
     )
     data = _parse_output(result)
-    assert "error" in data, "analyze response must have 'error' key"
-    error_msg = data["error"]
-    assert "Phase 3" in error_msg or "not yet implemented" in error_msg, (
-        f"analyze error must mention Phase 3 or 'not yet implemented', got: {error_msg!r}"
+    assert "node_count" in data, "stats result must include 'node_count'"
+    assert data["node_count"] == 2, (
+        f"SIMPLE_DOT 'digraph G {{a -> b}}' has 2 nodes, got node_count={data['node_count']}"
     )
+
+
+@pytest.mark.asyncio
+async def test_analyze_missing_analysis_returns_error():
+    """analyze operation without 'analysis' in options returns success=False with error."""
+    from amplifier_module_tool_dot_graph import DotGraphTool
+
+    tool = DotGraphTool()
+    result = await tool.execute(
+        {
+            "operation": "analyze",
+            "dot_content": SIMPLE_DOT,
+            "options": {},
+        }
+    )
+
+    assert result.success is False, (
+        "analyze without 'analysis' key must return success=False"
+    )
+    data = _parse_output(result)
+    assert "error" in data, "Missing analysis key must return 'error' in response"
+
+
+@pytest.mark.asyncio
+async def test_analyze_cycles_routes_correctly():
+    """analyze operation with analysis=cycles returns has_cycles=False for a DAG."""
+    from amplifier_module_tool_dot_graph import DotGraphTool
+
+    tool = DotGraphTool()
+    result = await tool.execute(
+        {
+            "operation": "analyze",
+            "dot_content": SIMPLE_DOT,
+            "options": {"analysis": "cycles"},
+        }
+    )
+
+    assert result.success is True, (
+        f"analyze cycles must return success=True for valid DAG, got: {result.output!r}"
+    )
+    data = _parse_output(result)
+    assert "has_cycles" in data, "cycles result must include 'has_cycles'"
+    assert data["has_cycles"] is False, (
+        f"SIMPLE_DOT 'digraph G {{a -> b}}' is a DAG with no cycles, got has_cycles={data['has_cycles']}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_analyze_invalid_dot_returns_error():
+    """analyze operation with invalid DOT content returns success=False with error."""
+    from amplifier_module_tool_dot_graph import DotGraphTool
+
+    tool = DotGraphTool()
+    result = await tool.execute(
+        {
+            "operation": "analyze",
+            "dot_content": INVALID_DOT,
+            "options": {"analysis": "stats"},
+        }
+    )
+
+    assert result.success is False, "analyze with invalid DOT must return success=False"
+    data = _parse_output(result)
+    assert "error" in data, "Invalid DOT analyze must return 'error' in response"
 
 
 @pytest.mark.asyncio
@@ -203,7 +273,7 @@ async def test_render_operation_routes_correctly():
 
 
 # ---------------------------------------------------------------------------
-# Input schema tests (2 tests)
+# Input schema tests (3 tests)
 # ---------------------------------------------------------------------------
 
 
@@ -241,14 +311,41 @@ def test_input_schema_documents_options():
     assert "layers" in option_props, "options.properties must include 'layers'"
 
 
+def test_input_schema_documents_analyze_options():
+    """input_schema options property includes analyze-specific sub-properties."""
+    from amplifier_module_tool_dot_graph import DotGraphTool
+
+    tool = DotGraphTool()
+    schema = tool.input_schema
+
+    assert "options" in schema["properties"], "Schema must include 'options' property"
+    option_props = schema["properties"]["options"]["properties"]
+
+    assert "analysis" in option_props, (
+        "options.properties must include 'analysis' for analyze operation"
+    )
+    assert "source_node" in option_props, (
+        "options.properties must include 'source_node' for reachability/paths operations"
+    )
+    assert "target_node" in option_props, (
+        "options.properties must include 'target_node' for paths operation"
+    )
+    assert "cluster_name" in option_props, (
+        "options.properties must include 'cluster_name' for subgraph_extract operation"
+    )
+    assert "dot_content_b" in option_props, (
+        "options.properties must include 'dot_content_b' for diff operation"
+    )
+
+
 # ---------------------------------------------------------------------------
-# Mount contract tests (2 tests)
+# Mount contract tests (3 tests)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_mount_registers_real_tool():
-    """mount() returns version 0.2.0, indicating the real implementation (not 0.1.0 placeholder)."""
+    """mount() returns version 0.3.0, indicating the real implementation with analyze routing."""
     from amplifier_module_tool_dot_graph import mount
 
     coordinator = MagicMock()
@@ -256,14 +353,29 @@ async def test_mount_registers_real_tool():
 
     result = await mount(coordinator)
 
-    assert result["version"] == "0.2.0", (
-        f"Expected version 0.2.0 (real implementation), got: {result['version']!r}"
+    assert result["version"] == "0.3.0", (
+        f"Expected version 0.3.0 (analyze routing complete), got: {result['version']!r}"
     )
     assert result["name"] == "tool-dot-graph", (
         f"Expected name 'tool-dot-graph', got: {result['name']!r}"
     )
     assert "dot_graph" in result["provides"], (
         f"Expected 'dot_graph' in provides, got: {result['provides']}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_mount_returns_version_030():
+    """mount() metadata version is exactly 0.3.0."""
+    from amplifier_module_tool_dot_graph import mount
+
+    coordinator = MagicMock()
+    coordinator.mount = AsyncMock()
+
+    result = await mount(coordinator)
+
+    assert result["version"] == "0.3.0", (
+        f"Expected version 0.3.0, got: {result['version']!r}"
     )
 
 

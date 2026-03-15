@@ -1,11 +1,10 @@
 """
 DOT graph tool module for Amplifier.
 
-Provides tools for generating, validating, and analyzing DOT-format graphs
+Provides tools for generating, validating, rendering, and analyzing DOT-format graphs
 using pydot and networkx.
 
-Phase 2: Routes tool calls to validate, render, and setup_helper modules.
-Phase 3 (pending): Will add analyze operations backed by networkx.
+Routes tool calls to validate, render, setup_helper, and analyze modules.
 """
 
 import json
@@ -14,7 +13,7 @@ from typing import Any
 
 from amplifier_core import ToolResult
 
-from amplifier_module_tool_dot_graph import render, setup_helper, validate
+from amplifier_module_tool_dot_graph import analyze, render, setup_helper, validate
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +21,13 @@ logger = logging.getLogger(__name__)
 class DotGraphTool:
     """DOT graph tool routing validate, render, setup, and analyze operations.
 
-    Phase 2 implementation provides:
+    Provides:
     - Validation: three-layer syntax, structural, and render-quality checks via pydot
     - Rendering: graphviz CLI wrapper for SVG/PNG/PDF output
     - Setup: environment check for graphviz, pydot, and networkx availability
-
-    Phase 3 (pending): analyze — reachability, cycle detection, critical path,
-    and structural diff via networkx.
+    - Analysis: reachability, cycle detection, critical path, and structural diff via networkx
+      Operations: stats, reachability, unreachable, cycles, paths,
+                  critical_path, subgraph_extract, diff
     """
 
     @property
@@ -39,16 +38,19 @@ class DotGraphTool:
     def description(self) -> str:
         return """DOT graph tool — validate, render, and analyze DOT-format graphs.
 
-Phase 2 implementation provides:
-- Validation: three-layer syntax, structural, and render-quality checks via pydot
-- Rendering: graphviz CLI wrapper for SVG/PNG/PDF output
-- Setup: environment check for graphviz, pydot, and networkx availability
-
 Operations:
 - validate: Parse and validate DOT content through up to three layers (syntax, structural, render)
 - render: Render DOT content to SVG, PNG, PDF, or other formats via graphviz CLI
 - setup: Check environment for graphviz, pydot, and networkx availability
-- analyze: Structural graph analysis (Phase 3 pending)"""
+- analyze: Structural graph analysis via networkx
+  - stats: Node count, edge count, density, DAG detection, connected components
+  - reachability: All nodes reachable from a source node
+  - unreachable: Nodes with no incoming edges (excluding known entry points)
+  - cycles: Detect all simple cycles in a directed graph
+  - paths: All simple paths between two nodes (capped at 100)
+  - critical_path: Longest path in a DAG
+  - subgraph_extract: Extract a named cluster subgraph into standalone DOT
+  - diff: Structural differences between two DOT graphs"""
 
     @property
     def input_schema(self) -> dict:
@@ -66,7 +68,7 @@ Operations:
                 },
                 "options": {
                     "type": "object",
-                    "description": "Operation-specific options (format, layout engine, etc.)",
+                    "description": "Operation-specific options (format, layout engine, analysis type, etc.)",
                     "properties": {
                         "format": {
                             "type": "string",
@@ -96,6 +98,38 @@ Operations:
                                 "(syntax, structural, render). Defaults to all three."
                             ),
                             "items": {"type": "string"},
+                        },
+                        "analysis": {
+                            "type": "string",
+                            "enum": [
+                                "stats",
+                                "reachability",
+                                "unreachable",
+                                "cycles",
+                                "paths",
+                                "critical_path",
+                                "subgraph_extract",
+                                "diff",
+                            ],
+                            "description": "Analysis operation to perform (required for analyze operation)",
+                        },
+                        "source_node": {
+                            "type": "string",
+                            "description": (
+                                "Source node name for reachability and paths analysis operations"
+                            ),
+                        },
+                        "target_node": {
+                            "type": "string",
+                            "description": "Target node name for paths analysis operation",
+                        },
+                        "cluster_name": {
+                            "type": "string",
+                            "description": "Cluster name to extract for subgraph_extract analysis operation",
+                        },
+                        "dot_content_b": {
+                            "type": "string",
+                            "description": "Second DOT graph string to compare against for diff analysis operation",
                         },
                     },
                 },
@@ -143,14 +177,8 @@ Operations:
             return ToolResult(success=True, output=json.dumps(result))
 
         if operation == "analyze":
-            result = {
-                "error": "analyze operation is not yet implemented (Phase 3 pending)",
-                "hint": (
-                    "Phase 3 will provide reachability, cycle detection, critical path, "
-                    "and structural diff via networkx."
-                ),
-            }
-            return ToolResult(success=False, output=json.dumps(result))
+            result = analyze.analyze_dot(dot_content, options)
+            return ToolResult(success=result["success"], output=json.dumps(result))
 
         # Unknown operation
         result = {
@@ -165,7 +193,7 @@ async def mount(
 ) -> dict[str, Any]:
     """Mount the dot_graph tool into the coordinator.
 
-    Registers the real tool implementation with validate, render, and setup routing.
+    Registers the real tool implementation with validate, render, setup, and analyze routing.
 
     Args:
         coordinator: The Amplifier coordinator instance
@@ -180,11 +208,11 @@ async def mount(
 
     logger.info(
         "tool-dot-graph mounted: registered 'dot_graph' tool "
-        "with validate/render/setup routing (Phase 2)"
+        "with validate/render/setup/analyze routing (v0.3.0)"
     )
 
     return {
         "name": "tool-dot-graph",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "provides": ["dot_graph"],
     }

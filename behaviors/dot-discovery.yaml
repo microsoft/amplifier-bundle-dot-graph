@@ -1,0 +1,11 @@
+bundle:
+  name: dot-graph-discovery
+  version: 0.1.0
+  description: DOT/Graphviz codebase discovery pipeline
+
+includes:
+  - bundle: dot-graph:behaviors/dot-core
+
+context:
+  include:
+    - dot-graph:context/discovery-awareness.md

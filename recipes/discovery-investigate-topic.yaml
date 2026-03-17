@@ -1,0 +1,116 @@
+name: "discovery-investigate-topic"
+description: >
+  Per-topic investigation sub-recipe for the Parallax Discovery pipeline.
+  Dispatches 1-3 investigation agents (code-tracer, behavior-observer,
+  integration-mapper) depending on the fidelity tier:
+    - quick: no agents invoked (recipe not called by outer pipeline)
+    - standard: code-tracer + integration-mapper (2 agents)
+    - deep: code-tracer + behavior-observer + integration-mapper (3 agents)
+version: "1.0.0"
+author: "DOT Graph Bundle"
+tags: ["discovery", "investigation", "sub-recipe", "dot-graph"]
+
+context:
+  topic: {}        # Object with 'name' and 'slug' keys, provided by caller
+  fidelity: "standard"
+  repo_path: ""
+  output_dir: ""
+
+steps:
+  # ---------------------------------------------------------------------------
+  # Step 1: Code Tracer — HOW things work
+  # Traces actual code execution paths using LSP and filesystem tools.
+  # Runs at standard and deep fidelity (skipped for quick).
+  # ---------------------------------------------------------------------------
+  - id: "code-tracer"
+    agent: "dot-graph:discovery-code-tracer"
+    condition: "{{fidelity}} != 'quick'"
+    output: "code_tracer_result"
+    timeout: 1800
+    prompt: |
+      You are the code-tracer agent investigating the topic: {{topic.name}}.
+
+      Your role is the HOW agent. Trace actual code execution paths through real
+      source code using LSP and filesystem tools. Cite every finding with
+      file:line evidence. Follow call chains through multiple files and
+      repositories. Use LSP operations (hover, goToDefinition, findReferences,
+      incomingCalls, outgoingCalls) for semantic understanding.
+
+      Repository path: {{repo_path}}
+
+      Write your findings to:
+        {{output_dir}}/modules/{{topic.slug}}/agents/code-tracer/
+
+      Required artifacts:
+        - findings.md   — key findings with file:line citations
+        - diagram.dot   — DOT graph illustrating the code paths you traced
+        - unknowns.md   — open questions and unresolved paths
+
+      Focus exclusively on HOW the {{topic.name}} mechanism works in code.
+
+  # ---------------------------------------------------------------------------
+  # Step 2: Behavior Observer — WHAT patterns emerge
+  # Observes behavioral patterns by examining many real artifacts (10+ instances).
+  # Runs at deep fidelity only.
+  # ---------------------------------------------------------------------------
+  - id: "behavior-observer"
+    agent: "dot-graph:discovery-behavior-observer"
+    condition: "{{fidelity}} == 'deep'"
+    output: "behavior_observer_result"
+    timeout: 1800
+    prompt: |
+      You are the behavior-observer agent investigating the topic: {{topic.name}}.
+
+      Your role is the WHAT agent. Observe behavioral patterns by examining at
+      least 10 real artifacts related to {{topic.name}}. Patterns only emerge
+      from examining MANY instances — a single file read misses the forest for
+      the trees. Catalog structure, quantify patterns, and identify anti-patterns
+      from what actually exists, not what documentation says should exist.
+
+      Repository path: {{repo_path}}
+
+      Write your findings to:
+        {{output_dir}}/modules/{{topic.slug}}/agents/behavior-observer/
+
+      Required artifacts:
+        - findings.md   — behavioral patterns observed across instances
+        - catalog.md    — enumerated catalog of real instances examined
+        - patterns.md   — quantified pattern prevalence (counts and percentages)
+        - diagram.dot   — DOT graph illustrating patterns and their relationships
+        - unknowns.md   — gaps, anomalies, and open questions
+
+      Examine at least 10 real instances of {{topic.name}}-related artifacts.
+      Report what actually exists, not what the docs claim.
+
+  # ---------------------------------------------------------------------------
+  # Step 3: Integration Mapper — WHERE/WHY things connect
+  # Maps cross-boundary integration and composition effects.
+  # Runs at standard and deep fidelity (skipped for quick).
+  # ---------------------------------------------------------------------------
+  - id: "integration-mapper"
+    agent: "dot-graph:discovery-integration-mapper"
+    condition: "{{fidelity}} != 'quick'"
+    output: "integration_mapper_result"
+    timeout: 1800
+    prompt: |
+      You are the integration-mapper agent investigating the topic: {{topic.name}}.
+
+      Your role is the WHERE/WHY agent. Map how {{topic.name}} integrates across
+      component boundaries. The most architecturally significant insights live at
+      BOUNDARIES — where single-perspective agents have blind spots. Look for
+      composition effects: emergent behavior that only appears when mechanisms
+      interact. Map cross-cutting concerns that code-tracer and behavior-observer
+      miss.
+
+      Repository path: {{repo_path}}
+
+      Write your findings to:
+        {{output_dir}}/modules/{{topic.slug}}/agents/integration-mapper/
+
+      Required artifacts:
+        - integration-map.md — cross-boundary integration points and data flows
+        - diagram.dot        — DOT graph showing integration boundaries and flows
+        - unknowns.md        — unresolved boundary questions and missing connections
+
+      For {{topic.name}}, map how it composes with every related mechanism.
+      Answer: "How does {{topic.name}} integrate with the broader system?"

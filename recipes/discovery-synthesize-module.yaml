@@ -1,0 +1,152 @@
+name: "discovery-synthesize-module"
+description: >
+  Per-module synthesis sub-recipe for the Parallax Discovery pipeline.
+  Reads all agent investigation outputs for a module and produces a consensus
+  DOT diagram (diagram.dot) and findings document (findings.md). Includes a
+  quality gate loop: synthesize -> validate -> check-quality -> retry if
+  invalid (max 3 iterations). If validation still fails after 3 retries, the
+  best attempt is kept for manual review.
+version: "1.0.0"
+author: "DOT Graph Bundle"
+tags: ["discovery", "synthesis", "quality-gate", "sub-recipe", "dot-graph"]
+
+context:
+  module_name: ""       # Required: name of the module being synthesized
+  module_dir: ""        # Required: path to module directory containing agent outputs
+  fidelity: "standard"  # Required: fidelity tier (quick | standard | deep)
+  output_dir: ""        # Required: path to .discovery output directory
+  _retry_count: "0"     # Internal: current retry iteration
+  _validation_errors: "" # Internal: errors from previous validation attempt
+
+steps:
+  # ---------------------------------------------------------------------------
+  # Step 1: Synthesize — produce consensus diagram and findings
+  # Reads all agent artifacts from {{module_dir}}/agents/ and produces a
+  # consensus diagram.dot and findings.md to {{module_dir}}/.
+  # On retry, {{_validation_errors}} provides feedback from the validator.
+  # ---------------------------------------------------------------------------
+  - id: "synthesize"
+    agent: "dot-graph:discovery-synthesizer"
+    output: "synthesis_result"
+    timeout: 1200
+    prompt: |
+      You are the synthesis agent for module: {{module_name}}.
+
+      Your task is to read all agent investigation artifacts for this module and
+      produce a high-quality consensus DOT diagram and findings document.
+
+      Input: Read all agent artifacts from:
+        {{module_dir}}/agents/
+
+      Output: Write the following artifacts to {{module_dir}}/:
+        - diagram.dot  — consensus DOT graph representing the module's structure,
+                         behavior, and integration boundaries, synthesized from
+                         all agent perspectives
+        - findings.md  — synthesized findings document with cross-cutting insights,
+                         discrepancies noted (not reconciled), and confidence levels
+
+      {% if _validation_errors %}
+      Previous validation failed with the following errors:
+      {{_validation_errors}}
+
+      Please address these validation errors in your revised diagram.dot.
+      {% endif %}
+
+      CARDINAL RULE: Never reconcile discrepancies by fiat.
+      If agents disagree on a mechanism or boundary, document the discrepancy
+      with evidence from each perspective. Do NOT silently pick one side.
+      The diagram should represent what the evidence supports; unresolved
+      questions belong in findings.md under "Open Discrepancies."
+
+      Fidelity tier: {{fidelity}}
+      Output directory: {{output_dir}}
+
+  # ---------------------------------------------------------------------------
+  # Step 2: Validate — check diagram.dot syntax and structure via pydot
+  # Verifies that diagram.dot exists in module_dir and is valid DOT syntax.
+  # Reports node_count, edge_count, and any validation errors.
+  # ---------------------------------------------------------------------------
+  - id: "validate"
+    type: "bash"
+    output: "validation_result"
+    parse_json: true
+    timeout: 30
+    command: |
+      python3 - <<'EOF'
+      import json
+      import sys
+      from pathlib import Path
+
+      module_dir = "{{module_dir}}"
+      diagram_path = Path(module_dir) / "diagram.dot"
+
+      result = {
+          "valid": False,
+          "errors": [],
+          "node_count": 0,
+          "edge_count": 0,
+          "diagram_path": str(diagram_path),
+      }
+
+      if not diagram_path.exists():
+          result["errors"].append(f"diagram.dot not found at {diagram_path}")
+          print(json.dumps(result))
+          sys.exit(0)
+
+      try:
+          import pydot
+
+          graphs = pydot.graph_from_dot_file(str(diagram_path))
+          if not graphs:
+              result["errors"].append("pydot could not parse diagram.dot — empty result")
+              print(json.dumps(result))
+              sys.exit(0)
+
+          graph = graphs[0]
+          nodes = graph.get_nodes()
+          edges = graph.get_edges()
+
+          result["valid"] = True
+          result["node_count"] = len(nodes)
+          result["edge_count"] = len(edges)
+
+      except Exception as e:  # Catch all pydot errors — we report them in the result dict, not as step failures
+          result["errors"].append(f"pydot validation error: {e}")
+
+      print(json.dumps(result))
+      EOF
+
+  # ---------------------------------------------------------------------------
+  # Step 3: Check quality — determine if retry is needed
+  # Evaluates the validation result. If valid, the quality gate passes and the
+  # loop exits. If invalid, errors are captured and the loop retries synthesize.
+  # Max 3 retries; after exhaustion, keeps the best attempt.
+  # ---------------------------------------------------------------------------
+  - id: "check-quality"
+    type: "bash"
+    output: "quality_check"
+    parse_json: true
+    timeout: 10
+    while_condition: "{{quality_check.quality_passed}} == false"
+    break_when: "{{quality_check.quality_passed}} == true"
+    max_iterations: 3
+    loop_back_to: "synthesize"
+    command: |
+      python3 - <<'EOF'
+      import json
+
+      validation_result = {{validation_result}}
+
+      is_valid = validation_result.get("valid", False)
+      errors = validation_result.get("errors", [])
+
+      quality_check = {
+          "quality_passed": is_valid,
+          "validation_errors": "\n".join(errors) if errors else "",
+          "node_count": validation_result.get("node_count", 0),
+          "edge_count": validation_result.get("edge_count", 0),
+          "retry_needed": not is_valid,
+      }
+
+      print(json.dumps(quality_check))
+      EOF

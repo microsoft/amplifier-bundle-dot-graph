@@ -15,7 +15,11 @@ COMBINER_INSTRUCTIONS_PATH = (
 @pytest.fixture(scope="module")
 def content():
     """Read the combiner instructions file once for all tests in this module."""
-    return COMBINER_INSTRUCTIONS_PATH.read_text()
+    if not COMBINER_INSTRUCTIONS_PATH.exists():
+        pytest.skip(
+            "Instructions file not found — see test_combiner_instructions_exists"
+        )
+    return COMBINER_INSTRUCTIONS_PATH.read_text(encoding="utf-8")
 
 
 def test_combiner_instructions_exists():

@@ -430,3 +430,44 @@ def test_legend_present_in_overview_output(dot_dir: str):
     assert "cluster_legend" in content, (
         f"overview.dot must contain 'cluster_legend', got:\n{content}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Subsystems subdir layout tests (Improvement 1)
+# ---------------------------------------------------------------------------
+
+
+def test_subsystem_dot_written_in_subsystems_subdir(dot_dir: str):
+    """Subsystem DOT files must be written to output_dir/subsystems/ not output_dir/."""
+    manifest = _build_minimal_manifest(dot_dir)
+
+    with tempfile.TemporaryDirectory() as out:
+        result = assemble_hierarchy(manifest, out)
+        assert result["success"] is True, (
+            f"assemble_hierarchy must succeed, got: {result}"
+        )
+        ss1_path = result["outputs"]["subsystems"]["ss1"]
+        # Path must be inside subsystems/ subdirectory
+        assert "subsystems" in ss1_path, (
+            f"Subsystem path must be inside 'subsystems/' subdir, got: {ss1_path}"
+        )
+        # File must exist at the declared path
+        assert Path(ss1_path).exists(), f"Subsystem ss1.dot must exist at {ss1_path}"
+
+
+def test_subsystems_subdir_created(dot_dir: str):
+    """assemble_hierarchy must create the subsystems/ subdirectory."""
+    manifest = _build_minimal_manifest(dot_dir)
+
+    with tempfile.TemporaryDirectory() as out:
+        result = assemble_hierarchy(manifest, out)
+        assert result["success"] is True, (
+            f"assemble_hierarchy must succeed, got: {result}"
+        )
+        subsystems_dir = Path(out) / "subsystems"
+        assert subsystems_dir.exists(), (
+            f"subsystems/ subdir must be created at {subsystems_dir}"
+        )
+
+
+# ---------------------------------------------------------------------------

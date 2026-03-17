@@ -11,12 +11,13 @@ author: "DOT Graph Bundle"
 tags: ["discovery", "synthesis", "quality-gate", "sub-recipe", "dot-graph"]
 
 context:
-  module_name: ""       # Required: name of the module being synthesized
-  module_dir: ""        # Required: path to module directory containing agent outputs
-  fidelity: "standard"  # Required: fidelity tier (quick | standard | deep)
-  output_dir: ""        # Required: path to .discovery output directory
-  _retry_count: "0"     # Internal: current retry iteration
-  _validation_errors: "" # Internal: errors from previous validation attempt
+  module_name: ""          # Required: name of the module being synthesized
+  module_dir: ""           # Required: path to OUTPUT module directory (output/modules/{slug})
+  investigation_dir: ""    # Required: path to INVESTIGATION module directory (investigation/modules/{slug})
+  fidelity: "standard"     # Required: fidelity tier (quick | standard | deep)
+  output_dir: ""           # Required: path to .discovery output directory
+  _retry_count: "0"        # Internal: current retry iteration
+  _validation_errors: ""   # Internal: errors from previous validation attempt
 
 steps:
   # ---------------------------------------------------------------------------
@@ -52,7 +53,7 @@ steps:
           produce a high-quality consensus DOT diagram and findings document.
 
           Input: Read all agent artifacts from:
-            {{module_dir}}/agents/
+            {{investigation_dir}}/agents/
 
           Output: Write the following artifacts to {{module_dir}}/:
             - diagram.dot  — consensus DOT graph representing the module's structure,

@@ -105,8 +105,10 @@ def assemble_hierarchy(manifest: dict, output_dir: str) -> dict:
         # Regenerate all subsystems
         subsystems_to_regenerate = set(subsystems_def.keys())
 
-    # --- Ensure output directory exists ---
+    # --- Ensure output directory exists (and subsystems/ subdir) ---
     os.makedirs(output_dir, exist_ok=True)
+    subsystems_dir = str(Path(output_dir) / "subsystems")
+    os.makedirs(subsystems_dir, exist_ok=True)
 
     # --- Generate subsystem DOT files ---
     subsystem_paths: dict[str, str] = {}
@@ -117,7 +119,7 @@ def assemble_hierarchy(manifest: dict, output_dir: str) -> dict:
         if ss_name not in subsystems_to_regenerate:
             skipped.append(ss_name)
             # If the file already exists (from a prior run), still record its path
-            ss_path = str(Path(output_dir) / f"{ss_name}.dot")
+            ss_path = str(Path(subsystems_dir) / f"{ss_name}.dot")
             if Path(ss_path).exists():
                 subsystem_paths[ss_name] = ss_path
             continue
@@ -126,7 +128,7 @@ def assemble_hierarchy(manifest: dict, output_dir: str) -> dict:
         ss_graph = _build_subsystem_dot(ss_name, ss_modules, parsed_modules)
         _add_legend(ss_graph, f"Subsystem: {ss_name}")
 
-        ss_path = str(Path(output_dir) / f"{ss_name}.dot")
+        ss_path = str(Path(subsystems_dir) / f"{ss_name}.dot")
         Path(ss_path).write_text(ss_graph.to_string())
         subsystem_paths[ss_name] = ss_path
         regenerated.append(ss_name)

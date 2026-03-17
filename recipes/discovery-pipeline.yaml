@@ -247,11 +247,15 @@ stages:
               slug = topic.get("slug", "")
               if not slug:
                   continue
-              module_dir = Path(output_dir) / "modules" / slug
+              # Investigation artifacts: raw per-agent outputs
+              investigation_dir = Path(output_dir) / "investigation" / "modules" / slug
               for agent_name in agent_names:
-                  agent_dir = module_dir / "agents" / agent_name
+                  agent_dir = investigation_dir / "agents" / agent_name
                   agent_dir.mkdir(parents=True, exist_ok=True)
-              created.append(str(module_dir))
+              # Output artifacts: consensus DOT + findings (written by synthesizer)
+              output_module_dir = Path(output_dir) / "output" / "modules" / slug
+              output_module_dir.mkdir(parents=True, exist_ok=True)
+              created.append(str(investigation_dir))
 
           print(json.dumps({"created_dirs": created, "topic_count": len(created)}))
           EOF
@@ -291,7 +295,8 @@ stages:
         recipe: "@dot-graph:recipes/discovery-synthesize-module.yaml"
         context:
           module_name: "{{topic.name}}"
-          module_dir: "{{change_result.output_dir}}/modules/{{topic.slug}}"
+          module_dir: "{{change_result.output_dir}}/output/modules/{{topic.slug}}"
+          investigation_dir: "{{change_result.output_dir}}/investigation/modules/{{topic.slug}}"
           fidelity: "{{fidelity}}"
           output_dir: "{{change_result.output_dir}}"
         output: "reconciliation_results"
@@ -324,7 +329,8 @@ stages:
           # Try amplifier_module_tool_dot_graph.assemble
           try:
               from amplifier_module_tool_dot_graph import assemble
-              modules_dir = Path(output_dir) / "modules"
+              # Consensus DOTs are written to output/modules/{slug}/ by the synthesizer
+              modules_dir = Path(output_dir) / "output" / "modules"
               # Build assemble_hierarchy manifest: topics → modules in "discovery" subsystem
               modules_def = {
                   topic.get("slug", ""): {
@@ -337,7 +343,9 @@ stages:
                   "modules": modules_def,
                   "subsystems": {"discovery": {"modules": list(modules_def.keys())}},
               }
-              hierarchy = assemble.assemble_hierarchy(assemble_manifest, output_dir)
+              # Write assembled graphs to output/ subdirectory
+              assembly_output_dir = str(Path(output_dir) / "output")
+              hierarchy = assemble.assemble_hierarchy(assemble_manifest, assembly_output_dir)
               manifest["assembly"] = hierarchy
               for topic in topics:
                   slug = topic.get("slug", "")
@@ -354,7 +362,7 @@ stages:
           except Exception as e:
               # Fallback: manual manifest construction
               try:
-                  modules_dir = Path(output_dir) / "modules"
+                  modules_dir = Path(output_dir) / "output" / "modules"
                   for topic in topics:
                       slug = topic.get("slug", "")
                       module_dir = modules_dir / slug

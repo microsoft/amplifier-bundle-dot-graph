@@ -3,12 +3,19 @@ Tests for context/discovery-combiner-instructions.md existence and required cont
 Covers the Convergence and Divergence Analysis Methodology for the combiner agent.
 """
 
+import pytest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent
 COMBINER_INSTRUCTIONS_PATH = (
     REPO_ROOT / "context" / "discovery-combiner-instructions.md"
 )
+
+
+@pytest.fixture(scope="module")
+def content():
+    """Read the combiner instructions file once for all tests in this module."""
+    return COMBINER_INSTRUCTIONS_PATH.read_text()
 
 
 def test_combiner_instructions_exists():
@@ -19,16 +26,14 @@ def test_combiner_instructions_exists():
     )
 
 
-def test_combiner_instructions_line_count():
+def test_combiner_instructions_line_count(content):
     """File must be between 80 and 180 lines (spec: 80-180 lines)."""
-    content = COMBINER_INSTRUCTIONS_PATH.read_text()
     lines = content.splitlines()
     assert 80 <= len(lines) <= 180, f"Expected 80-180 lines, got {len(lines)}"
 
 
-def test_combiner_instructions_has_heading():
+def test_combiner_instructions_has_heading(content):
     """File must contain a heading about combining, convergence, or divergence."""
-    content = COMBINER_INSTRUCTIONS_PATH.read_text()
     assert any(
         keyword in content
         for keyword in [
@@ -44,9 +49,8 @@ def test_combiner_instructions_has_heading():
     ), "Must contain a heading about combining, convergence, or divergence"
 
 
-def test_combiner_instructions_read_order_top_down_first():
+def test_combiner_instructions_read_order_top_down_first(content):
     """File must prescribe reading top-down first before bottom-up."""
-    content = COMBINER_INSTRUCTIONS_PATH.read_text()
     # Must mention top-down and bottom-up, with top-down coming first
     assert "top-down" in content.lower() or "top down" in content.lower(), (
         "Must mention top-down reading"
@@ -67,9 +71,8 @@ def test_combiner_instructions_read_order_top_down_first():
     )
 
 
-def test_combiner_instructions_four_categories():
+def test_combiner_instructions_four_categories(content):
     """File must mention at least 3 of the 4 finding categories."""
-    content = COMBINER_INSTRUCTIONS_PATH.read_text()
     lower = content.lower()
     categories_found = 0
     # Convergence — both found it
@@ -90,9 +93,8 @@ def test_combiner_instructions_four_categories():
     )
 
 
-def test_combiner_instructions_color_scheme():
+def test_combiner_instructions_color_scheme(content):
     """File must mention color scheme for the four categories."""
-    content = COMBINER_INSTRUCTIONS_PATH.read_text()
     # Must mention colors — either by hex codes or color names
     has_hex = any(
         color in content for color in ["#c8e6c9", "#fff9c4", "#bbdefb", "#ffcdd2"]
@@ -105,17 +107,15 @@ def test_combiner_instructions_color_scheme():
     )
 
 
-def test_combiner_instructions_divergence_id_format():
+def test_combiner_instructions_divergence_id_format(content):
     """File must mention D-01 divergence ID format."""
-    content = COMBINER_INSTRUCTIONS_PATH.read_text()
     assert any(fmt in content for fmt in ["D-01", "D-02", "D-NN", "D-0"]), (
         "Must mention D-01 divergence ID format"
     )
 
 
-def test_combiner_instructions_anti_rationalization():
+def test_combiner_instructions_anti_rationalization(content):
     """File must prohibit reconciling divergences (anti-rationalization rule)."""
-    content = COMBINER_INSTRUCTIONS_PATH.read_text()
     lower = content.lower()
     assert any(
         phrase in lower
@@ -131,9 +131,8 @@ def test_combiner_instructions_anti_rationalization():
     ), "Must prohibit reconciling divergences (anti-rationalization rule)"
 
 
-def test_combiner_instructions_divergence_value():
+def test_combiner_instructions_divergence_value(content):
     """File must state that divergences are the most valuable finding."""
-    content = COMBINER_INSTRUCTIONS_PATH.read_text()
     lower = content.lower()
     assert any(
         phrase in lower
@@ -146,7 +145,6 @@ def test_combiner_instructions_divergence_value():
     ), "Must state that divergences are the most valuable finding"
 
 
-def test_combiner_instructions_mentions_diagram_dot():
+def test_combiner_instructions_mentions_diagram_dot(content):
     """File must mention diagram.dot as a required artifact."""
-    content = COMBINER_INSTRUCTIONS_PATH.read_text()
     assert "diagram.dot" in content, "Must mention diagram.dot as a required artifact"

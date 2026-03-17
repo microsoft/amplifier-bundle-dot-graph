@@ -1,6 +1,5 @@
 """
 Tests for agents/discovery-subsystem-synthesizer.md existence and required content.
-TDD: This test is written BEFORE the agents/discovery-subsystem-synthesizer.md file is created.
 """
 
 from pathlib import Path
@@ -55,10 +54,13 @@ def test_discovery_subsystem_synthesizer_frontmatter_has_description():
 
 
 def test_discovery_subsystem_synthesizer_description_has_two_examples():
-    """Description must contain at least 2 <example> blocks."""
+    """Description must contain at least 2 <example> blocks in the YAML frontmatter."""
     content = SUBSYSTEM_SYNTHESIZER_AGENT_PATH.read_text()
-    assert content.count("<example>") >= 2, (
-        f"Description must contain at least 2 <example> blocks, found {content.count('<example>')}"
+    # Count only within the raw YAML frontmatter block to avoid false positives from the body
+    end = content.index("---", 3)
+    yaml_block = content[3:end]
+    assert yaml_block.count("<example>") >= 2, (
+        f"Description must contain at least 2 <example> blocks, found {yaml_block.count('<example>')}"
     )
 
 

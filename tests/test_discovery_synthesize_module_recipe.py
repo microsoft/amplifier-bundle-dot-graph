@@ -61,7 +61,16 @@ def _get_step_by_id(data: dict, step_id: str) -> dict | None:
     for step in _get_steps(data):
         if step.get("id") == step_id:
             return step
+        # Search nested steps (e.g., while loop body steps)
+        for nested_step in step.get("steps", []):
+            if nested_step.get("id") == step_id:
+                return nested_step
     return None
+
+
+def _get_quality_gate_step(data: dict) -> dict | None:
+    """Get the top-level quality-gate while-loop step."""
+    return _get_step_by_id(data, "quality-gate")
 
 
 def test_recipe_name():
@@ -174,10 +183,23 @@ def test_recipe_has_flat_steps_not_staged():
 
 
 def test_recipe_has_3_steps():
-    """Recipe must have exactly 3 steps."""
+    """Recipe must have 1 top-level quality-gate while-loop step containing exactly 3 inner steps."""
     data = _load_recipe()
     steps = data.get("steps", [])
-    assert len(steps) == 3, f"Expected exactly 3 steps, got {len(steps)}"
+    # The recipe uses a while-loop structure: 1 top-level quality-gate step
+    # containing 3 inner steps (synthesize, validate, check-quality)
+    assert len(steps) == 1, (
+        f"Expected exactly 1 top-level step (quality-gate while loop), got {len(steps)}"
+    )
+    qg_step = steps[0]
+    assert qg_step.get("id") == "quality-gate", (
+        f"Top-level step must be 'quality-gate', got: {qg_step.get('id')!r}"
+    )
+    inner_steps = qg_step.get("steps", [])
+    assert len(inner_steps) == 3, (
+        f"quality-gate must contain exactly 3 inner steps "
+        f"(synthesize, validate, check-quality), got {len(inner_steps)}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -408,45 +430,51 @@ def test_check_quality_timeout():
 
 
 def test_quality_gate_has_while_condition():
-    """check-quality step must have a while_condition for the loop."""
+    """quality-gate step must have a while_condition for the loop."""
     data = _load_recipe()
-    step = _get_step_by_id(data, "check-quality")
-    assert step is not None
+    step = _get_quality_gate_step(data)
+    assert step is not None, "No 'quality-gate' step found"
     assert "while_condition" in step, (
-        "check-quality step must have a 'while_condition' for the quality gate loop"
+        "quality-gate step must have a 'while_condition' for the quality gate loop"
     )
     while_cond = step["while_condition"]
-    assert "quality_passed" in while_cond, (
-        f"while_condition must reference 'quality_passed': {while_cond!r}"
+    assert isinstance(while_cond, str) and while_cond.strip(), (
+        f"while_condition must be a non-empty string, got: {while_cond!r}"
     )
 
 
 def test_quality_gate_has_max_iterations_3():
-    """check-quality step must have max_iterations=3."""
+    """quality-gate step must have max_while_iterations=3."""
     data = _load_recipe()
-    step = _get_step_by_id(data, "check-quality")
-    assert step is not None
-    assert step.get("max_iterations") == 3, (
-        f"check-quality max_iterations must be 3, got: {step.get('max_iterations')!r}"
+    step = _get_quality_gate_step(data)
+    assert step is not None, "No 'quality-gate' step found"
+    assert step.get("max_while_iterations") == 3, (
+        f"quality-gate max_while_iterations must be 3, got: {step.get('max_while_iterations')!r}"
     )
 
 
 def test_quality_gate_has_loop_back_to_synthesize():
-    """check-quality step must loop_back_to='synthesize'."""
+    """quality-gate while loop must have synthesize as the first inner step (loop body re-entry point)."""
     data = _load_recipe()
-    step = _get_step_by_id(data, "check-quality")
-    assert step is not None
-    assert step.get("loop_back_to") == "synthesize", (
-        f"check-quality loop_back_to must be 'synthesize', got: {step.get('loop_back_to')!r}"
+    step = _get_quality_gate_step(data)
+    assert step is not None, "No 'quality-gate' step found"
+    inner_steps = step.get("steps", [])
+    assert len(inner_steps) > 0, (
+        "quality-gate must have inner steps (while loop body)"
+    )
+    first_inner = inner_steps[0]
+    assert first_inner.get("id") == "synthesize", (
+        f"First inner step of quality-gate must be 'synthesize' (loop body re-entry point), "
+        f"got: {first_inner.get('id')!r}"
     )
 
 
 def test_quality_gate_has_break_when():
-    """check-quality step must have a break_when condition."""
+    """quality-gate step must have a break_when condition referencing quality_passed."""
     data = _load_recipe()
-    step = _get_step_by_id(data, "check-quality")
-    assert step is not None
-    assert "break_when" in step, "check-quality step must have a 'break_when' condition"
+    step = _get_quality_gate_step(data)
+    assert step is not None, "No 'quality-gate' step found"
+    assert "break_when" in step, "quality-gate step must have a 'break_when' condition"
     break_cond = step["break_when"]
     assert "quality_passed" in break_cond, (
         f"break_when must reference 'quality_passed': {break_cond!r}"
@@ -454,15 +482,15 @@ def test_quality_gate_has_break_when():
 
 
 def test_quality_gate_while_and_break_are_complementary():
-    """while_condition and break_when should be complementary (false/true)."""
+    """while_condition and break_when must be complementary: loop=true, break on quality_passed==true."""
     data = _load_recipe()
-    step = _get_step_by_id(data, "check-quality")
-    assert step is not None
+    step = _get_quality_gate_step(data)
+    assert step is not None, "No 'quality-gate' step found"
     while_cond = step.get("while_condition", "")
     break_cond = step.get("break_when", "")
-    # while loops when quality_passed is false, breaks when true
-    assert "false" in while_cond.lower() or "== false" in while_cond.lower(), (
-        f"while_condition should loop when quality_passed is false: {while_cond!r}"
+    # while loops continuously (while_condition="true"), break_when exits on quality_passed==true
+    assert while_cond.strip().lower() == "true", (
+        f"while_condition should be 'true' (loop runs until break_when triggers): {while_cond!r}"
     )
     assert "true" in break_cond.lower() or "== true" in break_cond.lower(), (
         f"break_when should break when quality_passed is true: {break_cond!r}"

@@ -3,18 +3,23 @@
 Takes per-module DOT files and a manifest, merges them into subsystem DOT files
 with subgraph clusters and a bounded overview.dot.
 
-Public API: assemble_hierarchy(manifest, output_dir) -> dict
+Public API: assemble_hierarchy(manifest, output_dir, render_png=False) -> dict
 """
 
 from __future__ import annotations
 
 import contextlib
 import io
+import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pydot
+
+from amplifier_module_tool_dot_graph import render as _render
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -33,7 +38,11 @@ _PSEUDO_NODES: frozenset[str] = frozenset({"node", "edge", "graph"})
 # ---------------------------------------------------------------------------
 
 
-def assemble_hierarchy(manifest: dict, output_dir: str) -> dict:
+def assemble_hierarchy(
+    manifest: dict,
+    output_dir: str,
+    render_png: bool = False,
+) -> dict:
     """Assemble hierarchical DOT files from per-module DOT files.
 
     Args:
@@ -42,6 +51,9 @@ def assemble_hierarchy(manifest: dict, output_dir: str) -> dict:
             subsystems: {ss_name: {modules: [mod_name]}}
             invalidated_modules: [str]  (optional)
         output_dir: Directory to write output DOT files.
+        render_png: If True, render each output DOT file to PNG via graphviz.
+            Render failures are non-fatal and recorded in 'warnings'.
+            Default: False.
 
     Returns:
         On success:
@@ -139,6 +151,26 @@ def assemble_hierarchy(manifest: dict, output_dir: str) -> dict:
 
     overview_path = str(Path(output_dir) / "overview.dot")
     Path(overview_path).write_text(overview_graph.to_string())
+
+    # --- Optionally render all output DOT files to PNG ---
+    if render_png:
+        png_paths: list[str] = []
+        all_dot_paths = [overview_path] + list(subsystem_paths.values())
+        for dot_path in all_dot_paths:
+            png_path = dot_path.replace(".dot", ".png")
+            try:
+                dot_content = Path(dot_path).read_text()
+                render_result = _render.render_dot(dot_content, "png", "dot", png_path)
+                if render_result.get("success"):
+                    png_paths.append(png_path)
+                else:
+                    warnings.append(
+                        f"PNG render failed for '{dot_path}': "
+                        f"{render_result.get('error', 'unknown error')}"
+                    )
+            except Exception as exc:  # noqa: BLE001
+                warnings.append(f"PNG render error for '{dot_path}': {exc}")
+                logger.debug("PNG render exception for %s", dot_path, exc_info=True)
 
     stats = {
         "total_nodes": total_nodes,

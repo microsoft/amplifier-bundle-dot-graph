@@ -166,6 +166,14 @@ Operations:
                             "description": "List of invalidated module names for incremental assembly",
                             "items": {"type": "string"},
                         },
+                        "render_png": {
+                            "type": "boolean",
+                            "description": (
+                                "If true, render each assembled DOT file to PNG via graphviz. "
+                                "Render failures are non-fatal and recorded in warnings. "
+                                "Applies to the assemble operation. Default: true."
+                            ),
+                        },
                     },
                 },
             },
@@ -237,7 +245,13 @@ Operations:
             invalidated_modules = options.get("invalidated_modules")
             if invalidated_modules:
                 manifest = {**manifest, "invalidated_modules": invalidated_modules}
-            result = assemble.assemble_hierarchy(manifest, output_dir)
+            # render_png defaults to True in the tool interface;
+            # assemble_hierarchy itself defaults to False so tests without
+            # graphviz don't break when called directly.
+            render_png: bool = bool(options.get("render_png", True))
+            result = assemble.assemble_hierarchy(
+                manifest, output_dir, render_png=render_png
+            )
             return ToolResult(
                 success=result.get("success", True), output=json.dumps(result)
             )

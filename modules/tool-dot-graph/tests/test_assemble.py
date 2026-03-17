@@ -471,3 +471,38 @@ def test_subsystems_subdir_created(dot_dir: str):
 
 
 # ---------------------------------------------------------------------------
+# render_png parameter tests (Improvement 3)
+# ---------------------------------------------------------------------------
+
+
+def test_render_png_false_does_not_call_renderer(dot_dir: str):
+    """render_png=False (default) completes without raising and no PNG is produced."""
+    manifest = _build_minimal_manifest(dot_dir)
+
+    with tempfile.TemporaryDirectory() as out:
+        result = assemble_hierarchy(manifest, out, render_png=False)
+        assert result["success"] is True, (
+            f"assemble_hierarchy with render_png=False must succeed, got: {result}"
+        )
+        # No .png files should exist in the output directory
+        png_files = list(Path(out).rglob("*.png"))
+
+    assert png_files == [], (
+        f"render_png=False must produce no PNG files, found: {png_files}"
+    )
+
+
+def test_render_png_default_is_false(dot_dir: str):
+    """Default render_png=False — calling without the parameter must not produce PNGs."""
+    manifest = _build_minimal_manifest(dot_dir)
+
+    with tempfile.TemporaryDirectory() as out:
+        result = assemble_hierarchy(manifest, out)
+        assert result["success"] is True, (
+            f"assemble_hierarchy must succeed, got: {result}"
+        )
+        png_files = list(Path(out).rglob("*.png"))
+
+    assert png_files == [], (
+        f"Default render_png=False must produce no PNG files, found: {png_files}"
+    )

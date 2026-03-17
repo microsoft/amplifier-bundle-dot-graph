@@ -477,7 +477,7 @@ async def test_assemble_routes_correctly():
     assert result.success is True, (
         f"assemble with valid manifest and output_dir must return success=True, got: {result.output!r}"
     )
-    mock_assemble.assert_called_once_with({"modules": []}, "/tmp/test_output")
+    mock_assemble.assert_called_once_with({"modules": []}, "/tmp/test_output", render_png=True)
     data = _parse_output(result)
     assert data["graphs_written"] == 3, (
         f"assemble result must pass through graphs_written, got: {data}"

@@ -20,6 +20,7 @@ context:
   repo_path: ""             # Required: path to target repository
   fidelity: "standard"      # Optional: quick | standard | deep (default: standard)
   output_dir: ""            # Optional: defaults to {{repo_path}}/.discovery
+  render_png: "true"        # Optional: render assembled DOTs to PNG (default: true)
   _approval_message: ""     # Populated by engine on approval
 
 stages:
@@ -387,7 +388,52 @@ stages:
           EOF
 
       # -----------------------------------------------------------------------
-      # Step 3: Final validate — validate all produced .dot files via pydot
+      # Step 3: Render graphs — optionally render assembled DOT files to PNG
+      # Skipped when render_png != 'true'. Renders overview.dot and all
+      # subsystem DOTs in the output/ directory to PNG via graphviz CLI.
+      # Render failures are non-fatal: they are logged but do not stop the
+      # pipeline.
+      # -----------------------------------------------------------------------
+      - id: "render-graphs"
+        type: "bash"
+        condition: "{{render_png}} == 'true'"
+        output: "render_result"
+        parse_json: true
+        timeout: 120
+        command: |
+          python3 - <<'EOF'
+          import json
+          from pathlib import Path
+
+          output_dir = "{{change_result.output_dir}}"
+          result = {"rendered": [], "errors": []}
+
+          try:
+              from amplifier_module_tool_dot_graph import render as dot_render
+              output_path = Path(output_dir) / "output"
+              dot_files = list(output_path.rglob("*.dot")) if output_path.exists() else []
+
+              for dot_file in dot_files:
+                  png_path = str(dot_file).replace(".dot", ".png")
+                  try:
+                      dot_content = dot_file.read_text()
+                      render_result = dot_render.render_dot(dot_content, "png", "dot", png_path)
+                      if render_result.get("success"):
+                          result["rendered"].append(png_path)
+                      else:
+                          result["errors"].append(
+                              f"{dot_file}: {render_result.get('error', 'unknown error')}"
+                          )
+                  except Exception as e:
+                      result["errors"].append(f"{dot_file}: {e}")
+          except ImportError as e:
+              result["errors"].append(f"render module unavailable: {e}")
+
+          print(json.dumps(result))
+          EOF
+
+      # -----------------------------------------------------------------------
+      # Step 4: Final validate — validate all produced .dot files via pydot
       # Finds every .dot file under output_dir, validates each with pydot,
       # and reports valid/error counts.
       # -----------------------------------------------------------------------

@@ -627,3 +627,62 @@ def test_recipe_has_final_output():
     assert final_output == "metadata_result", (
         f"final_output must be 'metadata_result', got: {final_output!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# render_png context variable (Improvement 3)
+# ---------------------------------------------------------------------------
+
+
+def test_recipe_context_has_render_png():
+    """Context must declare 'render_png' variable with default 'true'."""
+    data = _load_recipe()
+    ctx = data.get("context", {})
+    assert "render_png" in ctx, (
+        f"Context must declare 'render_png' variable. Found keys: {list(ctx.keys())}"
+    )
+    assert ctx["render_png"] == "true", (
+        f"render_png default must be 'true', got: {ctx['render_png']!r}"
+    )
+
+
+def test_synthesize_stage_has_render_graphs_step():
+    """Synthesize stage must have a step with id='render-graphs'."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "synthesize", "render-graphs")
+    assert step is not None, (
+        f"No step with id='render-graphs' found in synthesize stage. "
+        f"Step IDs: {[s.get('id') for s in _get_stage_steps(data, 'synthesize')]}"
+    )
+
+
+def test_render_graphs_is_bash_type():
+    """render-graphs step must have type='bash'."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "synthesize", "render-graphs")
+    assert step is not None
+    assert step.get("type") == "bash", (
+        f"render-graphs step must have type='bash', got: {step.get('type')!r}"
+    )
+
+
+def test_render_graphs_has_condition_on_render_png():
+    """render-graphs step must have a condition referencing render_png."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "synthesize", "render-graphs")
+    assert step is not None
+    condition = step.get("condition", "")
+    assert condition, "render-graphs step must have a condition"
+    assert "render_png" in condition, (
+        f"render-graphs condition must reference 'render_png': {condition!r}"
+    )
+
+
+def test_render_graphs_output_variable():
+    """render-graphs step must have output='render_result'."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "synthesize", "render-graphs")
+    assert step is not None
+    assert step.get("output") == "render_result", (
+        f"render-graphs output must be 'render_result', got: {step.get('output')!r}"
+    )

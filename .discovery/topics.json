@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Tool Module Architecture",
+    "slug": "tool-module-architecture",
+    "description": "How the 6-operation dot_graph tool module is structured and routes operations (validate/render/setup/analyze/prescan/assemble)"
+  },
+  {
+    "name": "Discovery Pipeline Recipe Flow",
+    "slug": "discovery-pipeline-recipe-flow",
+    "description": "How the 3-recipe pipeline (outer + 2 sub-recipes) orchestrates a codebase investigation from scan to synthesis"
+  },
+  {
+    "name": "Agent Constellation",
+    "slug": "agent-constellation",
+    "description": "How the 7 discovery agents (prescan, code-tracer, behavior-observer, integration-mapper, synthesizer, dot-author, diagram-reviewer) relate and interact"
+  },
+  {
+    "name": "Knowledge and Behavior Layer",
+    "slug": "knowledge-behavior-layer",
+    "description": "How 5 skills, 3 behaviors, and 2 context files compose to provide DOT graph knowledge to agents"
+  }
+]

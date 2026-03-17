@@ -1,0 +1,88 @@
+digraph discovery_pipeline_flow {
+    label="Discovery Pipeline Recipe Flow"
+    labelloc=t
+    rankdir=TB
+    compound=true
+    node [fontname="Helvetica" style="rounded,filled"]
+    edge [fontname="Helvetica" fontsize=10 color="#666666"]
+
+    subgraph cluster_stage1 {
+        label="Stage 1: Scan"
+        style=filled fillcolor="#E3F2FD"
+        node [fillcolor="#BBDEFB"]
+        ChangeDetect  [label="change-detect\n(bash)\ntier: full|incremental|skip"]
+        StructScan    [label="structural-scan\n(bash)\nprescan.prescan_repo()"]
+        TopicSelect   [label="topic-select\n(agent)\ndiscovery-prescan"]
+        ApprovalGate  [label="APPROVAL GATE\nHuman reviews topics" shape=diamond fillcolor="#FFF9C4"]
+        ChangeDetect -> StructScan [label="tier != skip"]
+        StructScan -> TopicSelect [label="tier != skip"]
+        TopicSelect -> ApprovalGate
+    }
+
+    subgraph cluster_stage2 {
+        label="Stage 2: Investigate"
+        style=filled fillcolor="#E8F5E9"
+        node [fillcolor="#C8E6C9"]
+        PrepTopics    [label="prepare-topics\n(bash)\ncreate dirs"]
+        InvLoop       [label="investigate-topics\n(recipe foreach)\nper topic" shape=component]
+        PrepTopics -> InvLoop
+    }
+
+    subgraph cluster_investigate {
+        label="Per-Topic Sub-Recipe"
+        style=filled fillcolor="#F3E5F5"
+        node [fillcolor="#E1BEE7"]
+        CodeTracer  [label="code-tracer\n(agent)\nHOW: code paths"]
+        BehObserver [label="behavior-observer\n(agent)\nWHAT: patterns\n[deep only]"]
+        IntMapper   [label="integration-mapper\n(agent)\nWHERE/WHY: boundaries"]
+        CodeTracer -> IntMapper [style=invis]
+        BehObserver -> IntMapper [style=invis]
+    }
+
+    subgraph cluster_stage3 {
+        label="Stage 3: Synthesize"
+        style=filled fillcolor="#FFF3E0"
+        node [fillcolor="#FFE0B2"]
+        RecModule     [label="reconcile-modules\n(recipe foreach)\nper topic" shape=component]
+        Assemble      [label="assemble\n(bash)\nassemble_hierarchy()"]
+        FinalValidate [label="final-validate\n(bash)\npydot check"]
+        UpdateMeta    [label="update-metadata\n(bash)\nlast-run.json"]
+        RecModule -> Assemble -> FinalValidate -> UpdateMeta
+    }
+
+    subgraph cluster_synthesize {
+        label="Per-Topic Synthesis Sub-Recipe (quality gate)"
+        style=filled fillcolor="#FCE4EC"
+        node [fillcolor="#F8BBD9"]
+        QGate  [label="quality-gate\n(while loop, max 3x)"]
+        Synth  [label="synthesize\n(agent)\nconsensus diagram"]
+        Valid  [label="validate\n(bash)\npydot check"]
+        Check  [label="check-quality\n(bash)\npass/retry?"]
+        QGate -> Synth -> Valid -> Check
+        Check -> QGate [label="retry if\nnot valid" style=dashed color="#E57373"]
+    }
+
+    // Cross-stage connections
+    ApprovalGate -> PrepTopics [label="APPROVED" color="#43A047"]
+    InvLoop -> RecModule [ltail=cluster_stage2 lhead=cluster_stage3]
+
+    // Sub-recipe connections
+    InvLoop -> CodeTracer [lhead=cluster_investigate label="foreach topic"]
+    RecModule -> Synth [lhead=cluster_synthesize label="foreach topic"]
+
+    subgraph cluster_outputs {
+        label="Outputs (.discovery/)"
+        style=filled fillcolor="#F5F5F5"
+        node [fillcolor="#EEEEEE" shape=note]
+        DirDots  [label="modules/{slug}/agents/*/diagram.dot"]
+        ModDiag  [label="modules/{slug}/diagram.dot\n(consensus)"]
+        Overview [label="overview.dot"]
+        Manifest [label="manifest.json"]
+        LastRun  [label="last-run.json"]
+    }
+
+    CodeTracer -> DirDots [lhead=cluster_outputs style=dashed label="writes"]
+    Synth -> ModDiag [style=dashed label="writes"]
+    Assemble -> Overview [style=dashed label="writes"]
+    UpdateMeta -> LastRun [style=dashed label="writes"]
+}

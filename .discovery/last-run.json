@@ -1,0 +1,10 @@
+{
+  "commit_hash": "21133c4aac51bd2a40b6cb32d4433278c7b5000d",
+  "timestamp": "2026-03-17T14:33:09.846340+00:00",
+  "fidelity": "standard",
+  "repo_path": "/home/bkrabach/dev/amplifier-bundle-dot-graph",
+  "valid_count": 14,
+  "error_count": 0,
+  "simulation_mode": true,
+  "simulation_note": "Phase E integration test \u2014 stages 2-3 simulated due to bundle agent configuration issue"
+}

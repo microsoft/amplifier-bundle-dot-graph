@@ -1,0 +1,89 @@
+digraph knowledge_integration {
+    label="Knowledge Layer — Integration Boundaries"
+    labelloc=t
+    rankdir=TB
+    compound=true
+    node [fontname="Helvetica" style="rounded,filled"]
+    edge [fontname="Helvetica" fontsize=10]
+
+    Consumer [label="Bundle Consumer\n(any Amplifier session)" shape=ellipse fillcolor="#C8E6C9"]
+
+    subgraph cluster_bundle {
+        label="amplifier-bundle-dot-graph"
+        style=filled fillcolor="#E3F2FD"
+        node [fillcolor="#BBDEFB"]
+
+        BundleMD [label="bundle.md\n(entry point)"]
+
+        subgraph cluster_behaviors {
+            label="Behaviors"
+            style=filled fillcolor="#F3E5F5"
+            node [fillcolor="#E1BEE7"]
+            DotGraph  [label="dot-graph.yaml\n(composite)"]
+            DotCore   [label="dot-core.yaml\n(foundation)"]
+            DotDisc   [label="dot-discovery.yaml\n(discovery)"]
+        }
+
+        subgraph cluster_skills {
+            label="Skills"
+            style=filled fillcolor="#FFF9C4"
+            node [fillcolor="#FFF59D" shape=note]
+            S1 [label="dot-syntax"]
+            S2 [label="dot-patterns"]
+            S3 [label="dot-quality"]
+            S4 [label="dot-graph-intelligence"]
+            S5 [label="dot-as-analysis"]
+        }
+
+        subgraph cluster_context {
+            label="Context"
+            style=filled fillcolor="#E8F5E9"
+            node [fillcolor="#C8E6C9" shape=note]
+            C1 [label="dot-awareness.md\n(always-on)"]
+            C2 [label="discovery-awareness.md\n(discovery only)"]
+        }
+    }
+
+    subgraph cluster_external {
+        label="External (GitHub)"
+        style=filled fillcolor="#FCE4EC"
+        node [fillcolor="#F8BBD9" shape=parallelogram]
+        ToolDG  [label="tool-dot-graph\n(this repo)"]
+        ToolSk  [label="tool-skills\n(external repo)"]
+    }
+
+    // Consumer gets the bundle
+    Consumer -> BundleMD [label="includes bundle"]
+
+    // Bundle composition chain
+    BundleMD -> DotGraph [label="includes"]
+    DotGraph -> DotCore  [label="includes"]
+    DotGraph -> DotDisc  [label="includes"]
+    DotDisc  -> DotCore  [label="includes\n(inherited)"]
+
+    // Core provides tools (external)
+    DotCore -> ToolDG [label="loads tool" color="#E57373"]
+    DotCore -> ToolSk [label="loads tool" color="#E57373"]
+
+    // Skills served via tool-skills
+    ToolSk -> S1 [label="serves" style=dashed]
+    ToolSk -> S2 [label="serves" style=dashed]
+    ToolSk -> S3 [label="serves" style=dashed]
+    ToolSk -> S4 [label="serves" style=dashed]
+    ToolSk -> S5 [label="serves" style=dashed]
+
+    // Context injection
+    BundleMD -> C1 [label="inline context" style=dashed]
+    DotDisc -> C2  [label="injects" style=dashed]
+
+    subgraph cluster_legend {
+        label="Legend"
+        style=filled fillcolor="#F5F5F5"
+        node [width=1.5]
+        L1 [label="Bundle layer" fillcolor="#BBDEFB"]
+        L2 [label="External" shape=parallelogram fillcolor="#F8BBD9"]
+        L3 [label="Knowledge" shape=note fillcolor="#FFF59D"]
+        L1 -> L2 [style=invis]
+        L2 -> L3 [style=invis]
+    }
+}

@@ -1,0 +1,78 @@
+digraph tool_integration_boundaries {
+    label="Tool Module — Integration Boundaries"
+    labelloc=t
+    rankdir=TB
+    compound=true
+    node [fontname="Helvetica" style="rounded,filled"]
+    edge [fontname="Helvetica" fontsize=10]
+
+    // External callers
+    Coordinator [label="Amplifier\nCoordinator" shape=ellipse fillcolor="#C8E6C9"]
+    RecipePipeline [label="Discovery Pipeline\nRecipe (YAML)" shape=note fillcolor="#FFF9C4"]
+
+    subgraph cluster_module {
+        label="amplifier_module_tool_dot_graph"
+        style=filled fillcolor="#E3F2FD"
+        node [fillcolor="#BBDEFB"]
+
+        Mount    [label="mount()"]
+        Execute  [label="execute()\ndispatcher"]
+        Validate [label="validate.py"]
+        Render   [label="render.py"]
+        Setup    [label="setup_helper.py"]
+        Analyze  [label="analyze.py"]
+        Prescan  [label="prescan.py"]
+        Assemble [label="assemble.py"]
+    }
+
+    // External dependencies
+    subgraph cluster_deps {
+        label="External Dependencies"
+        style=filled fillcolor="#FFF3E0"
+        node [fillcolor="#FFE0B2"]
+        Pydot    [label="pydot" shape=parallelogram]
+        Networkx [label="networkx" shape=parallelogram]
+        GvCLI    [label="graphviz CLI" shape=parallelogram]
+        FS       [label="File System" shape=cylinder fillcolor="#FCE4EC"]
+    }
+
+    // Coordinator integration
+    Coordinator -> Mount [label="loads module"]
+    Mount -> Execute [label="registers as\n'dot_graph'"]
+
+    // Recipe integration (with noted bug fixes)
+    RecipePipeline -> Prescan [label="prescan_repo()\n[FIXED: was calling\nmodule as callable]" color="#E57373" style=dashed]
+    RecipePipeline -> Assemble [label="assemble_hierarchy()\n[FIXED: was passing\nwrong args]" color="#E57373" style=dashed]
+
+    // Operation routing
+    Execute -> Validate
+    Execute -> Render
+    Execute -> Setup
+    Execute -> Analyze
+    Execute -> Prescan
+    Execute -> Assemble
+
+    // Dependency usage
+    Validate -> Pydot [label="parse DOT"]
+    Assemble -> Pydot [label="build+write DOT"]
+    Analyze  -> Networkx [label="graph ops"]
+    Render   -> GvCLI [label="shell out"]
+    Setup    -> GvCLI [label="probe"]
+    Setup    -> Pydot [label="probe"]
+    Prescan  -> FS [label="os.walk"]
+    Assemble -> FS [label="write output"]
+
+    // Legend
+    subgraph cluster_legend {
+        label="Legend"
+        style=filled fillcolor="#F5F5F5"
+        node [width=1.5]
+        L1 [label="Amplifier layer" shape=ellipse fillcolor="#C8E6C9"]
+        L2 [label="Module" fillcolor="#BBDEFB"]
+        L3 [label="External dep" shape=parallelogram fillcolor="#FFE0B2"]
+        L4 [label="Bug found/fixed" shape=box style="dashed,filled" fillcolor="#FFCDD2"]
+        L1 -> L2 [style=invis]
+        L2 -> L3 [style=invis]
+        L3 -> L4 [style=invis]
+    }
+}

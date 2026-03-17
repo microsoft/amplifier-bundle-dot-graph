@@ -1,0 +1,78 @@
+digraph "overview" {
+label="Overview";
+subgraph cluster_discovery {
+label="discovery";
+subgraph "cluster_tool-module-architecture" {
+label="tool-module-architecture";
+Coordinator [label="Amplifier\nCoordinator", shape=ellipse, fillcolor="#C8E6C9"];
+Discovery [label="Discovery Pipeline\n(YAML recipes)", shape=note, fillcolor="#FFF9C4"];
+Coordinator -> Mount [label="module load\n(async)"];
+Discovery -> Prescan [label="prescan_repo()\n✓ FIXED", color="#43A047"];
+Discovery -> Assemble [label="assemble_hierarchy()\n✓ FIXED", color="#43A047"];
+Validate -> Pydot;
+Assemble -> Pydot [label="module-level import\n⚠ fails if missing"];
+Analyze -> Networkx;
+Render -> GvCLI;
+Setup -> GvCLI [label="probe"];
+Setup -> Pydot [label="probe"];
+Prescan -> FS [label="os.walk (read-only)"];
+Assemble -> FS [label="writes .dot files"];
+}
+subgraph "cluster_discovery-pipeline-recipe-flow" {
+label="discovery-pipeline-recipe-flow";
+Human [label="Human Reviewer", shape=ellipse, fillcolor="#C8E6C9"];
+Git [label="Git Repository", shape=cylinder, fillcolor="#FCE4EC"];
+FS [label=".discovery/\nOutput Dir", shape=cylinder, fillcolor="#FCE4EC"];
+IT -> CT [lhead="cluster_investigate_sub", label="foreach topic"];
+RM -> QG [lhead="cluster_synthesize_sub", label="foreach topic"];
+CD -> Git [label="reads commits", style=dashed];
+CT -> FS [label="writes agent artifacts", style=dashed];
+SY -> FS [label="reads+writes diagram.dot", style=dashed];
+AS -> FS [label="writes overview.dot", style=dashed];
+UM -> FS [label="writes last-run.json", style=dashed];
+Human -> AG [label="approves"];
+}
+subgraph "cluster_agent-constellation" {
+label="agent-constellation";
+Recipe [label="Recipe Engine\n(orchestrator)", shape=ellipse, fillcolor="#C8E6C9"];
+FS [label="File System\n(handoff medium)", shape=cylinder, fillcolor="#FCE4EC"];
+Skills [label="5 Skills\n(shared knowledge)", shape=note, fillcolor="#FFF9C4"];
+Recipe -> Prescan [label="Stage 1"];
+Recipe -> CodeTracer [label="Stage 2"];
+Recipe -> BehObs [label="Stage 2\n[deep only]", style=dashed];
+Recipe -> IntMapper [label="Stage 2"];
+Recipe -> Synth [label="Stage 3\n(quality loop)"];
+CodeTracer -> FS [label="writes", style=dashed];
+BehObs -> FS [label="writes", style=dashed];
+IntMapper -> FS [label="writes", style=dashed];
+FS -> Synth [label="reads all", style=dashed];
+Synth -> FS [label="writes consensus", style=dashed];
+Skills -> CodeTracer [style=dashed, color="#888888"];
+Skills -> Synth [style=dashed, color="#888888"];
+Skills -> DotAuthor [style=dashed, color="#888888"];
+Recipe -> DotAuthor [style=dashed, label="ad-hoc"];
+Recipe -> DiagReview [style=dashed, label="ad-hoc"];
+}
+subgraph "cluster_knowledge-behavior-layer" {
+label="knowledge-behavior-layer";
+Consumer [label="Any Amplifier Session\n(bundle consumer)", shape=ellipse, fillcolor="#C8E6C9"];
+Consumer -> BundleMD [label="includes bundle\ngets full stack"];
+BundleMD -> DotGraph;
+DotCore -> ToolDG [label="loads tool\n(GitHub URL)", color="#E57373"];
+DotCore -> ToolSk [label="loads tool\n(GitHub URL)", color="#E57373"];
+ToolSk -> S1 [style=dashed];
+ToolSk -> S2 [style=dashed];
+ToolSk -> S3 [style=dashed];
+ToolSk -> S4 [style=dashed];
+ToolSk -> S5 [style=dashed];
+BundleMD -> C1 [style=dashed, label="inline"];
+DotDisc -> C2 [style=dashed];
+}
+}
+subgraph cluster_legend {
+label="Overview\nGenerated: 2026-03-17 14:31 UTC";
+style="dashed";
+color="gray";
+"_legend_anchor" [style="invis", shape="point", width=0];
+}
+}

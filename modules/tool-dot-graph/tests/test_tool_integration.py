@@ -1,15 +1,19 @@
-"""Integration tests for the real DotGraphTool (Phase 3 complete).
+"""Integration tests for the real DotGraphTool (Phase 4 complete).
 
-17 tests covering:
+24 tests covering:
 - Operation routing: validate, render, setup, analyze (stats, cycles, error cases), unknown (8 tests)
 - Input schema: setup operation in enum, options sub-properties, analyze options (3 tests)
-- Mount contract: real tool version 0.3.0, tool can actually validate (3 tests)
+- Mount contract: real tool version 0.4.0, tool can actually validate (3 tests)
 - Error handling: invalid layer name returns structured error, not exception (1 test)
 - Layer selection: syntax-only, structural-only layers (1 test)
 - Render: mocked render operation (1 test)
+- Prescan routing: prescan routes correctly, missing repo_path error (2 tests)
+- Assemble routing: assemble routes correctly, missing manifest error (2 tests)
+- Input schema: prescan/assemble in enum and options (2 tests)
+- Mount contract: version 0.4.0 assertion (1 test)
 
 These tests verify that __init__.py routes operations to the real
-validate, render, setup_helper, and analyze modules.
+validate, render, setup_helper, analyze, prescan, and assemble modules.
 """
 
 import json
@@ -278,7 +282,7 @@ async def test_render_operation_routes_correctly():
 
 
 def test_input_schema_includes_setup_operation():
-    """input_schema operation enum includes all 4 operations: validate, render, setup, analyze."""
+    """input_schema operation enum includes all 6 operations: validate, render, setup, analyze, prescan, assemble."""
     from amplifier_module_tool_dot_graph import DotGraphTool
 
     tool = DotGraphTool()
@@ -289,6 +293,8 @@ def test_input_schema_includes_setup_operation():
     assert "render" in op_enum, "Schema enum must include 'render'"
     assert "setup" in op_enum, "Schema enum must include 'setup'"
     assert "analyze" in op_enum, "Schema enum must include 'analyze'"
+    assert "prescan" in op_enum, "Schema enum must include 'prescan'"
+    assert "assemble" in op_enum, "Schema enum must include 'assemble'"
 
 
 def test_input_schema_documents_options():
@@ -345,7 +351,7 @@ def test_input_schema_documents_analyze_options():
 
 @pytest.mark.asyncio
 async def test_mount_registers_real_tool():
-    """mount() returns version 0.3.0, indicating the real implementation with analyze routing."""
+    """mount() returns version 0.4.0, indicating the real implementation with prescan/assemble routing."""
     from amplifier_module_tool_dot_graph import mount
 
     coordinator = MagicMock()
@@ -353,29 +359,14 @@ async def test_mount_registers_real_tool():
 
     result = await mount(coordinator)
 
-    assert result["version"] == "0.3.0", (
-        f"Expected version 0.3.0 (analyze routing complete), got: {result['version']!r}"
+    assert result["version"] == "0.4.0", (
+        f"Expected version 0.4.0 (prescan/assemble routing complete), got: {result['version']!r}"
     )
     assert result["name"] == "tool-dot-graph", (
         f"Expected name 'tool-dot-graph', got: {result['name']!r}"
     )
     assert "dot_graph" in result["provides"], (
         f"Expected 'dot_graph' in provides, got: {result['provides']}"
-    )
-
-
-@pytest.mark.asyncio
-async def test_mount_returns_version_030():
-    """mount() metadata version is exactly 0.3.0."""
-    from amplifier_module_tool_dot_graph import mount
-
-    coordinator = MagicMock()
-    coordinator.mount = AsyncMock()
-
-    result = await mount(coordinator)
-
-    assert result["version"] == "0.3.0", (
-        f"Expected version 0.3.0, got: {result['version']!r}"
     )
 
 
@@ -400,4 +391,179 @@ async def test_mounted_tool_can_validate():
     data = _parse_output(result)
     assert data["valid"] is True, (
         f"Mounted tool validate must return valid=True for simple DOT, got: {data}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Prescan routing tests (2 new tests) — RED phase
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_prescan_routes_correctly():
+    """prescan operation calls prescan.prescan_repo with repo_path and returns result."""
+    from amplifier_module_tool_dot_graph import DotGraphTool
+
+    mock_prescan_result = {
+        "success": True,
+        "repo_path": "/tmp/test_repo",
+        "file_count": 42,
+        "modules": [],
+    }
+    with patch(
+        "amplifier_module_tool_dot_graph.prescan.prescan_repo",
+        return_value=mock_prescan_result,
+    ) as mock_prescan:
+        tool = DotGraphTool()
+        result = await tool.execute(
+            {"operation": "prescan", "options": {"repo_path": "/tmp/test_repo"}}
+        )
+
+    assert result.success is True, (
+        f"prescan with valid repo_path must return success=True, got: {result.output!r}"
+    )
+    mock_prescan.assert_called_once_with("/tmp/test_repo")
+    data = _parse_output(result)
+    assert data["file_count"] == 42, (
+        f"prescan result must pass through file_count, got: {data}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_prescan_missing_repo_path_error():
+    """prescan without repo_path in options returns success=False with error."""
+    from amplifier_module_tool_dot_graph import DotGraphTool
+
+    tool = DotGraphTool()
+    result = await tool.execute({"operation": "prescan", "options": {}})
+
+    assert result.success is False, (
+        "prescan without repo_path must return success=False"
+    )
+    data = _parse_output(result)
+    assert "error" in data, "Missing repo_path must return 'error' in response"
+
+
+# ---------------------------------------------------------------------------
+# Assemble routing tests (3 new tests) — RED phase
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_assemble_routes_correctly():
+    """assemble operation calls assemble.assemble_hierarchy with manifest and output_dir."""
+    from amplifier_module_tool_dot_graph import DotGraphTool
+
+    mock_assemble_result = {
+        "success": True,
+        "output_dir": "/tmp/test_output",
+        "graphs_written": 3,
+    }
+    with patch(
+        "amplifier_module_tool_dot_graph.assemble.assemble_hierarchy",
+        return_value=mock_assemble_result,
+    ) as mock_assemble:
+        tool = DotGraphTool()
+        result = await tool.execute(
+            {
+                "operation": "assemble",
+                "options": {
+                    "manifest": {"modules": []},
+                    "output_dir": "/tmp/test_output",
+                },
+            }
+        )
+
+    assert result.success is True, (
+        f"assemble with valid manifest and output_dir must return success=True, got: {result.output!r}"
+    )
+    mock_assemble.assert_called_once_with({"modules": []}, "/tmp/test_output")
+    data = _parse_output(result)
+    assert data["graphs_written"] == 3, (
+        f"assemble result must pass through graphs_written, got: {data}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_assemble_missing_manifest_error():
+    """assemble without manifest in options returns success=False with error."""
+    from amplifier_module_tool_dot_graph import DotGraphTool
+
+    tool = DotGraphTool()
+    result = await tool.execute(
+        {"operation": "assemble", "options": {"output_dir": "/tmp/test_output"}}
+    )
+
+    assert result.success is False, (
+        "assemble without manifest must return success=False"
+    )
+    data = _parse_output(result)
+    assert "error" in data, "Missing manifest must return 'error' in response"
+
+
+@pytest.mark.asyncio
+async def test_assemble_missing_output_dir_error():
+    """assemble without output_dir in options returns success=False with error."""
+    from amplifier_module_tool_dot_graph import DotGraphTool
+
+    tool = DotGraphTool()
+    result = await tool.execute(
+        {"operation": "assemble", "options": {"manifest": {"modules": []}}}
+    )
+
+    assert result.success is False, (
+        "assemble without output_dir must return success=False"
+    )
+    data = _parse_output(result)
+    assert "error" in data, "Missing output_dir must return 'error' in response"
+
+
+# ---------------------------------------------------------------------------
+# Input schema new operations test (1 new test) — RED phase
+# ---------------------------------------------------------------------------
+
+
+def test_input_schema_includes_prescan_assemble():
+    """input_schema includes prescan/assemble in enum and new option properties."""
+    from amplifier_module_tool_dot_graph import DotGraphTool
+
+    tool = DotGraphTool()
+    schema = tool.input_schema
+
+    op_enum = schema["properties"]["operation"]["enum"]
+    assert "prescan" in op_enum, "Schema enum must include 'prescan'"
+    assert "assemble" in op_enum, "Schema enum must include 'assemble'"
+
+    option_props = schema["properties"]["options"]["properties"]
+    assert "repo_path" in option_props, (
+        "options.properties must include 'repo_path' for prescan operation"
+    )
+    assert "manifest" in option_props, (
+        "options.properties must include 'manifest' for assemble operation"
+    )
+    assert "output_dir" in option_props, (
+        "options.properties must include 'output_dir' for assemble operation"
+    )
+    assert "invalidated_modules" in option_props, (
+        "options.properties must include 'invalidated_modules' for incremental assembly"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Mount version 0.4.0 test (1 new test) — RED phase
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_mount_returns_version_040():
+    """mount() metadata version is 0.4.0 (prescan/assemble routing added)."""
+    from amplifier_module_tool_dot_graph import mount
+
+    coordinator = MagicMock()
+    coordinator.mount = AsyncMock()
+
+    result = await mount(coordinator)
+
+    assert result["version"] == "0.4.0", (
+        f"Expected version 0.4.0 (prescan/assemble routing complete), got: {result['version']!r}"
     )

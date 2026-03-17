@@ -4,7 +4,7 @@ DOT graph tool module for Amplifier.
 Provides tools for generating, validating, rendering, and analyzing DOT-format graphs
 using pydot and networkx.
 
-Routes tool calls to validate, render, setup_helper, and analyze modules.
+Routes tool calls to validate, render, setup_helper, analyze, prescan, and assemble modules.
 """
 
 import json
@@ -13,13 +13,20 @@ from typing import Any
 
 from amplifier_core import ToolResult
 
-from amplifier_module_tool_dot_graph import analyze, render, setup_helper, validate
+from amplifier_module_tool_dot_graph import (
+    analyze,
+    assemble,
+    prescan,
+    render,
+    setup_helper,
+    validate,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class DotGraphTool:
-    """DOT graph tool routing validate, render, setup, and analyze operations.
+    """DOT graph tool routing validate, render, setup, analyze, prescan, and assemble operations.
 
     Provides:
     - Validation: three-layer syntax, structural, and render-quality checks via pydot
@@ -28,6 +35,8 @@ class DotGraphTool:
     - Analysis: reachability, cycle detection, critical path, and structural diff via networkx
       Operations: stats, reachability, unreachable, cycles, paths,
                   critical_path, subgraph_extract, diff
+    - Prescan: structural codebase scanner for discovery pipeline
+    - Assemble: hierarchical DOT assembly (modules -> subsystems -> overview)
     """
 
     @property
@@ -50,7 +59,9 @@ Operations:
   - paths: All simple paths between two nodes (capped at 100)
   - critical_path: Longest path in a DAG
   - subgraph_extract: Extract a named cluster subgraph into standalone DOT
-  - diff: Structural differences between two DOT graphs"""
+  - diff: Structural differences between two DOT graphs
+- prescan: Structural codebase scan — walk a repo and produce language/module/file inventory
+- assemble: Hierarchical DOT assembly — merge per-module DOTs into subsystem + overview graphs"""
 
     @property
     def input_schema(self) -> dict:
@@ -59,7 +70,14 @@ Operations:
             "properties": {
                 "operation": {
                     "type": "string",
-                    "enum": ["validate", "render", "setup", "analyze"],
+                    "enum": [
+                        "validate",
+                        "render",
+                        "setup",
+                        "analyze",
+                        "prescan",
+                        "assemble",
+                    ],
                     "description": "Operation to perform on the DOT graph",
                 },
                 "dot_content": {
@@ -131,6 +149,23 @@ Operations:
                             "type": "string",
                             "description": "Second DOT graph string to compare against for diff analysis operation",
                         },
+                        "repo_path": {
+                            "type": "string",
+                            "description": "Repository path to scan for prescan operation",
+                        },
+                        "manifest": {
+                            "type": "object",
+                            "description": "Assembly manifest for assemble operation",
+                        },
+                        "output_dir": {
+                            "type": "string",
+                            "description": "Output directory for assemble operation",
+                        },
+                        "invalidated_modules": {
+                            "type": "array",
+                            "description": "List of invalidated module names for incremental assembly",
+                            "items": {"type": "string"},
+                        },
                     },
                 },
             },
@@ -180,10 +215,44 @@ Operations:
             result = analyze.analyze_dot(dot_content, options)
             return ToolResult(success=result["success"], output=json.dumps(result))
 
+        if operation == "prescan":
+            repo_path = options.get("repo_path")
+            if not repo_path:
+                error_result = {"error": "prescan requires 'repo_path' in options"}
+                return ToolResult(success=False, output=json.dumps(error_result))
+            result = prescan.prescan_repo(repo_path)
+            return ToolResult(
+                success=result.get("success", True), output=json.dumps(result)
+            )
+
+        if operation == "assemble":
+            manifest = options.get("manifest")
+            output_dir = options.get("output_dir")
+            if not manifest:
+                error_result = {"error": "assemble requires 'manifest' in options"}
+                return ToolResult(success=False, output=json.dumps(error_result))
+            if not output_dir:
+                error_result = {"error": "assemble requires 'output_dir' in options"}
+                return ToolResult(success=False, output=json.dumps(error_result))
+            invalidated_modules = options.get("invalidated_modules")
+            if invalidated_modules:
+                manifest = {**manifest, "invalidated_modules": invalidated_modules}
+            result = assemble.assemble_hierarchy(manifest, output_dir)
+            return ToolResult(
+                success=result.get("success", True), output=json.dumps(result)
+            )
+
         # Unknown operation
         result = {
             "error": f"Unknown operation '{operation}'",
-            "supported": ["validate", "render", "setup", "analyze"],
+            "supported": [  # keep in sync with input_schema enum
+                "validate",
+                "render",
+                "setup",
+                "analyze",
+                "prescan",
+                "assemble",
+            ],
         }
         return ToolResult(success=False, output=json.dumps(result))
 
@@ -193,7 +262,7 @@ async def mount(
 ) -> dict[str, Any]:
     """Mount the dot_graph tool into the coordinator.
 
-    Registers the real tool implementation with validate, render, setup, and analyze routing.
+    Registers the real tool implementation with validate, render, setup, analyze, prescan, and assemble routing.
 
     Args:
         coordinator: The Amplifier coordinator instance
@@ -208,11 +277,11 @@ async def mount(
 
     logger.info(
         "tool-dot-graph mounted: registered 'dot_graph' tool "
-        "with validate/render/setup/analyze routing (v0.3.0)"
+        "with validate/render/setup/analyze/prescan/assemble routing (v0.4.0)"
     )
 
     return {
         "name": "tool-dot-graph",
-        "version": "0.3.0",
+        "version": "0.4.0",
         "provides": ["dot_graph"],
     }

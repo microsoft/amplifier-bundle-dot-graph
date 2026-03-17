@@ -7,3 +7,6 @@
 [submodule "amplifier-foundation"]
 	path = amplifier-foundation
 	url = https://github.com/microsoft/amplifier-foundation.git
+[submodule "amplifier-bundle-dev-machine"]
+	path = amplifier-bundle-dev-machine
+	url = https://github.com/ramparte/amplifier-bundle-dev-machine.git

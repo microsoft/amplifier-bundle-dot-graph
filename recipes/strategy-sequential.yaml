@@ -1,0 +1,110 @@
+name: "strategy-sequential"
+description: >
+  Sequential composition strategy for Parallax Discovery. Proves composability by
+  calling strategy-bottomup and strategy-topdown in sequence, then unifying both
+  outputs with discovery-combine. Bottom-up runs first to build empirical ground
+  truth from the code itself; top-down runs second with access to the bottom-up
+  results as additional context; finally, discovery-combine merges both views into
+  a unified diagram that classifies findings as Convergence, Top-down-only,
+  Bottom-up-only, or Divergence. An approval gate between bottom-up and top-down
+  lets you review empirical findings before the conceptual investigation begins.
+version: "1.0.0"
+author: "DOT Graph Bundle"
+tags: ["discovery", "strategy", "sequential", "dot-graph", "multi-agent", "composable"]
+
+context:
+  repo_path: ""             # Required: path to target repository
+  output_dir: "{{repo_path}}/.discovery"  # Optional: root output dir (default: {{repo_path}}/.discovery)
+  fidelity: "standard"      # Optional: quick | standard | deep (default: standard)
+  render_png: "true"        # Optional: whether to render PNGs (default: true)
+
+stages:
+  # ---------------------------------------------------------------------------
+  # Stage 1: bottomup — run strategy-bottomup to build empirical ground truth
+  # Traverses the repository bottom-up (post-order), synthesizing each directory
+  # level before its parent. Produces DOT diagrams in output_dir/investigation/bottomup.
+  # An approval gate follows: review bottomup results before top-down begins.
+  # ---------------------------------------------------------------------------
+  - name: "bottomup"
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Run strategy-bottomup sub-recipe
+      # Performs full post-order traversal and synthesis of the codebase.
+      # Output lands in {{output_dir}}/investigation/bottomup.
+      # -----------------------------------------------------------------------
+      - id: "run-bottomup"
+        type: "recipe"
+        recipe: "@dot-graph:recipes/strategy-bottomup.yaml"
+        context:
+          repo_path: "{{repo_path}}"
+          output_dir: "{{output_dir}}/investigation/bottomup"
+          fidelity: "{{fidelity}}"
+          render_png: "{{render_png}}"
+        output: "bottomup_result"
+        timeout: 14400
+
+    approval_gate:
+      required: true
+      prompt: |
+        Bottom-up investigation complete. Review {{output_dir}}/investigation/bottomup
+        before top-down investigation begins.
+
+        Repository:  {{repo_path}}
+        Fidelity:    {{fidelity}}
+        Bottom-up output: {{output_dir}}/investigation/bottomup
+
+        The bottom-up strategy has completed its post-order traversal and synthesis.
+        Review the produced DOT diagrams and findings before proceeding to the
+        top-down conceptual investigation, which will use these results as context.
+
+        Approve to continue with top-down investigation.
+
+  # ---------------------------------------------------------------------------
+  # Stage 2: topdown — run strategy-topdown informed by bottomup results
+  # Performs a top-down conceptual discovery (scan → investigate → synthesize).
+  # Passes bottomup_context so the top-down agents can leverage empirical findings.
+  # Produces DOT diagrams in output_dir/investigation/topdown.
+  # ---------------------------------------------------------------------------
+  - name: "topdown"
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Run strategy-topdown sub-recipe with bottomup context
+      # Passes the bottomup output directory as bottomup_context so top-down
+      # agents can reference the empirical findings already discovered.
+      # -----------------------------------------------------------------------
+      - id: "run-topdown"
+        type: "recipe"
+        recipe: "@dot-graph:recipes/strategy-topdown.yaml"
+        context:
+          repo_path: "{{repo_path}}"
+          output_dir: "{{output_dir}}/investigation/topdown"
+          fidelity: "{{fidelity}}"
+          render_png: "{{render_png}}"
+          bottomup_context: "{{output_dir}}/investigation/bottomup"
+        output: "topdown_result"
+        timeout: 14400
+
+  # ---------------------------------------------------------------------------
+  # Stage 3: combine — unify both strategy outputs into a single diagram
+  # Runs discovery-combine to classify findings as Convergence, Top-down-only,
+  # Bottom-up-only, or Divergence (tracked as D-01, D-02...).
+  # Final combined output lands in output_dir/output.
+  # ---------------------------------------------------------------------------
+  - name: "combine"
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Run discovery-combine sub-recipe
+      # Reads all DOT files from both strategy directories and dispatches the
+      # discovery-combiner agent to produce combined.dot + discrepancies.md.
+      # -----------------------------------------------------------------------
+      - id: "run-combine"
+        type: "recipe"
+        recipe: "@dot-graph:recipes/discovery-combine.yaml"
+        context:
+          repo_path: "{{repo_path}}"
+          topdown_dir: "{{output_dir}}/investigation/topdown"
+          bottomup_dir: "{{output_dir}}/investigation/bottomup"
+          output_dir: "{{output_dir}}/output"
+          render_png: "{{render_png}}"
+        output: "combine_result"
+        timeout: 3600

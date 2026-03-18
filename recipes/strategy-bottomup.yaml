@@ -355,7 +355,7 @@ stages:
                   stderr=subprocess.DEVNULL,
               ).strip()
           except Exception as e:
-              commit_hash = ""
+              commit_hash = ""  # best-effort; git unavailable or not a git repo
 
           metadata = {
               "strategy": "bottomup",

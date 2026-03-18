@@ -73,7 +73,7 @@ def _get_full_yaml_text() -> str:
 
 @pytest.fixture(scope="module")
 def recipe_data() -> dict:
-    """Module-scoped fixture: load and cache the parsed recipe dict once per session."""
+    """Module-scoped fixture: load and cache the parsed recipe dict once per test module."""
     return _load_recipe()
 
 

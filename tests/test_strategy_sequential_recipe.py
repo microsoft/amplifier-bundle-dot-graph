@@ -8,7 +8,7 @@ Validates:
 - Context variables: repo_path, output_dir default, fidelity default,
   render_png default (4 tests)
 - Staged structure with exactly 3 stages (2 tests)
-- Stage names in correct order: bottomup, topdown, combine (3 tests)
+- Stage names in correct order: bottomup, topdown, combine (4 tests)
 - Approval gate on bottomup stage only (2 tests)
 - bottomup stage: run-bottomup step, type=recipe, strategy-bottomup reference (3 tests)
 - topdown stage: run-topdown step, type=recipe, strategy-topdown reference (3 tests)
@@ -18,7 +18,7 @@ Validates:
 - Sub-recipe files exist on disk: strategy-bottomup, strategy-topdown,
   discovery-combine (3 tests)
 
-Total: 35 tests
+Total: 36 tests
 """
 
 from pathlib import Path
@@ -263,6 +263,11 @@ def test_bottomup_stage_has_approval_gate():
     assert "approval_gate" in stage, (
         "bottomup stage must have an 'approval_gate' — human reviews bottom-up "
         "results before top-down investigation begins"
+    )
+    gate = stage["approval_gate"]
+    assert gate.get("required") is True, (
+        f"approval_gate must have required=true to block execution until approved, "
+        f"got: {gate.get('required')!r}"
     )
 
 

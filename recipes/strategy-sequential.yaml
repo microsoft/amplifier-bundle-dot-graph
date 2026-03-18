@@ -108,3 +108,5 @@ stages:
           render_png: "{{render_png}}"
         output: "combine_result"
         timeout: 3600
+
+final_output: "combine_result"

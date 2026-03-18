@@ -122,7 +122,7 @@ def test_behavior_agents_has_include(data):
 
 
 def test_behavior_agents_includes_all_discovery_agents(data):
-    """agents.include must contain all 5 discovery agent references."""
+    """agents.include must contain the original 5 discovery agent references."""
     expected_agents = [
         "dot-graph:discovery-prescan",
         "dot-graph:discovery-code-tracer",

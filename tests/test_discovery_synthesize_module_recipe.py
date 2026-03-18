@@ -459,9 +459,7 @@ def test_quality_gate_has_loop_back_to_synthesize():
     step = _get_quality_gate_step(data)
     assert step is not None, "No 'quality-gate' step found"
     inner_steps = step.get("steps", [])
-    assert len(inner_steps) > 0, (
-        "quality-gate must have inner steps (while loop body)"
-    )
+    assert len(inner_steps) > 0, "quality-gate must have inner steps (while loop body)"
     first_inner = inner_steps[0]
     assert first_inner.get("id") == "synthesize", (
         f"First inner step of quality-gate must be 'synthesize' (loop body re-entry point), "

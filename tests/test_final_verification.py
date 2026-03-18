@@ -115,18 +115,14 @@ def test_dot_validate_sh_is_executable():
     """Step 3a: scripts/dot-validate.sh is executable."""
     script = REPO_ROOT / "scripts" / "dot-validate.sh"
     assert script.is_file(), "dot-validate.sh not found"
-    assert os.access(script, os.X_OK), (
-        "dot-validate.sh is not executable"
-    )
+    assert os.access(script, os.X_OK), "dot-validate.sh is not executable"
 
 
 def test_dot_render_sh_is_executable():
     """Step 3b: scripts/dot-render.sh is executable."""
     script = REPO_ROOT / "scripts" / "dot-render.sh"
     assert script.is_file(), "dot-render.sh not found"
-    assert os.access(script, os.X_OK), (
-        "dot-render.sh is not executable"
-    )
+    assert os.access(script, os.X_OK), "dot-render.sh is not executable"
 
 
 def test_scripts_respond_to_help():

@@ -197,16 +197,12 @@ stages:
 
           output_dir = "{{output_dir}}"
 
-          # Load topics — prefer context variable, fall back to topics.json file
-          topics_json = r"""{{topics}}"""
-          try:
-              topics = json.loads(topics_json)
-          except (json.JSONDecodeError, ValueError):
-              topics_path = Path(output_dir) / "topics.json"
-              if topics_path.exists():
-                  topics = json.loads(topics_path.read_text())
-              else:
-                  raise RuntimeError(f"No topics: context empty and {topics_path} not found")
+          # Load topics from the file that save-topics wrote (avoids template
+          # serialization issues with {{topics}} — Python repr vs JSON quotes)
+          topics_path = Path(output_dir) / "topics.json"
+          if not topics_path.exists():
+              raise RuntimeError(f"No topics found at {topics_path} — did save-topics run?")
+          topics = json.loads(topics_path.read_text())
 
           agent_names = ["code-tracer", "behavior-observer", "integration-mapper"]
           created = []

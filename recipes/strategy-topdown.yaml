@@ -1,0 +1,302 @@
+name: "strategy-topdown"
+description: >
+  Standalone top-down conceptual discovery strategy for Parallax Discovery.
+  Runs a fully unattended 3-stage pipeline (scan, investigate, synthesize) that
+  discovers codebase architecture from the top down — scanning the high-level
+  structure first, selecting investigation topics, dispatching parallel agent
+  teams per topic, then synthesizing findings into subsystem and overview DOT
+  diagrams. Unlike the interactive discovery-pipeline, this strategy has no
+  approval gates and is suitable for automated or background analysis.
+version: "1.0.0"
+author: "DOT Graph Bundle"
+tags: ["discovery", "strategy", "top-down", "dot-graph", "multi-agent"]
+
+recursion:
+  max_depth: 3
+  max_total_steps: 100
+
+context:
+  repo_path: ""             # Required: path to target repository
+  output_dir: "{{repo_path}}/.discovery/investigation/topdown"  # Optional: defaults to {{repo_path}}/.discovery/investigation/topdown
+  fidelity: "standard"      # Optional: quick | standard | deep (default: standard)
+
+stages:
+  # ---------------------------------------------------------------------------
+  # Stage 1: Scan — discover codebase structure and select investigation topics
+  # No approval gate — strategy-topdown runs fully unattended
+  # ---------------------------------------------------------------------------
+  - name: "scan"
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Structural scan — map the repository layout
+      # Invokes prescan via amplifier_module_tool_dot_graph.prescan with
+      # fallback to basic directory listing.
+      # Resolves default output_dir and writes prescan-result.json.
+      # -----------------------------------------------------------------------
+      - id: "structural-scan"
+        type: "bash"
+        output: "scan_result"
+        parse_json: true
+        timeout: 60
+        command: |
+          python3 - <<'EOF'
+          import json
+          import os
+          from pathlib import Path
+
+          repo_path = "{{repo_path}}"
+          output_dir = "{{output_dir}}"
+
+          # Resolve default output_dir if empty
+          if not output_dir:
+              output_dir = str(Path(repo_path) / ".discovery" / "investigation" / "topdown")
+
+          # Create output directory
+          Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+          result = {
+              "repo_path": repo_path,
+              "output_dir": output_dir,
+              "structure": {},
+              "error": None,
+          }
+
+          # Try amplifier_module_tool_dot_graph.prescan
+          try:
+              from amplifier_module_tool_dot_graph import prescan
+              structure = prescan.prescan_repo(repo_path)
+              result["structure"] = structure
+          except Exception as e:
+              # Fallback: basic directory listing
+              try:
+                  top_level = []
+                  for entry in sorted(Path(repo_path).iterdir()):
+                      if entry.name.startswith("."):
+                          continue
+                      top_level.append({
+                          "name": entry.name,
+                          "type": "dir" if entry.is_dir() else "file",
+                      })
+                  result["structure"] = {"top_level": top_level, "source": "fallback"}
+                  result["error"] = f"prescan unavailable ({e}), used fallback listing"
+              except Exception as e2:
+                  result["error"] = f"structural scan failed: {e2}"
+
+          # Write prescan-result.json
+          prescan_path = Path(output_dir) / "prescan-result.json"
+          prescan_path.write_text(json.dumps(result, indent=2))
+
+          print(json.dumps(result))
+          EOF
+
+      # -----------------------------------------------------------------------
+      # Step 2: Topic selection — choose 3–7 investigation topics
+      # Dispatches the discovery-prescan agent to select topics based on the
+      # structural scan. Standard: 3-5 topics; deep: 5-7 topics.
+      # -----------------------------------------------------------------------
+      - id: "topic-select"
+        agent: "dot-graph:discovery-prescan"
+        output: "topics"
+        parse_json: true
+        timeout: 600
+        prompt: |
+          You are the discovery-prescan agent for a top-down discovery strategy run.
+
+          Your task: analyze the structural scan results and select 3-7 investigation
+          topics that would best illuminate the architecture of this repository.
+
+          Repository: {{scan_result.repo_path}}
+          Fidelity tier: {{fidelity}}
+          Output directory: {{scan_result.output_dir}}
+
+          Structural scan results:
+          {{scan_result}}
+
+          Topic count guidelines:
+          - standard fidelity: select 3-5 topics
+          - deep fidelity: select 5-7 topics
+
+          For each topic, identify a meaningful architectural concern, mechanism, or
+          subsystem — something that, if well-understood, would clarify how the
+          repository works as a whole.
+
+          Return your response as a JSON array only (no markdown, no explanation):
+          [
+            {
+              "name": "Human-readable topic name",
+              "slug": "kebab-case-slug",
+              "description": "One sentence describing what this topic covers and why it matters"
+            },
+            ...
+          ]
+
+      # -----------------------------------------------------------------------
+      # Step 3: Save topics — write topics.json to output directory
+      # -----------------------------------------------------------------------
+      - id: "save-topics"
+        type: "bash"
+        command: |
+          python3 - <<'EOF'
+          import json
+          from pathlib import Path
+
+          output_dir = "{{scan_result.output_dir}}"
+          topics = {{topics}}
+
+          topics_path = Path(output_dir) / "topics.json"
+          topics_path.write_text(json.dumps(topics, indent=2))
+          print(f"Written {len(topics)} topics to {topics_path}")
+          EOF
+
+  # ---------------------------------------------------------------------------
+  # Stage 2: Investigate — dispatch agent teams per topic
+  # ---------------------------------------------------------------------------
+  - name: "investigate"
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Prepare topic directories
+      # Creates the per-topic directory structure under output_dir/modules/{slug}/
+      # including subdirectories for each agent output.
+      # -----------------------------------------------------------------------
+      - id: "prepare-topics"
+        type: "bash"
+        output: "prep_result"
+        parse_json: true
+        timeout: 15
+        command: |
+          python3 - <<'EOF'
+          import json
+          from pathlib import Path
+
+          output_dir = "{{scan_result.output_dir}}"
+          topics = {{topics}}
+
+          agent_names = ["code-tracer", "behavior-observer", "integration-mapper"]
+          created = []
+
+          for topic in topics:
+              slug = topic.get("slug", "")
+              if not slug:
+                  continue
+              # Per-topic agent directories
+              for agent_name in agent_names:
+                  agent_dir = Path(output_dir) / "modules" / slug / "agents" / agent_name
+                  agent_dir.mkdir(parents=True, exist_ok=True)
+              created.append(str(Path(output_dir) / "modules" / slug))
+
+          print(json.dumps({"created_dirs": created, "topic_count": len(created)}))
+          EOF
+
+      # -----------------------------------------------------------------------
+      # Step 2: Investigate topics — dispatch sub-recipe per topic
+      # Runs discovery-investigate-topic.yaml for each selected topic.
+      # Each invocation dispatches 2 agents (standard) or 3 agents (deep).
+      # -----------------------------------------------------------------------
+      - id: "investigate-topics"
+        type: "recipe"
+        foreach: "{{topics}}"
+        as: "topic"
+        recipe: "@dot-graph:recipes/discovery-investigate-topic.yaml"
+        context:
+          topic: "{{topic}}"
+          fidelity: "{{fidelity}}"
+          repo_path: "{{scan_result.repo_path}}"
+          output_dir: "{{scan_result.output_dir}}"
+        output: "investigation_results"
+        timeout: 7200
+
+  # ---------------------------------------------------------------------------
+  # Stage 3: Synthesize — produce consensus diagrams and final manifest
+  # ---------------------------------------------------------------------------
+  - name: "synthesize"
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Reconcile modules — synthesize per-topic agent findings
+      # Runs discovery-synthesize-module.yaml for each topic to produce a
+      # consensus diagram.dot and findings.md in each module directory.
+      # -----------------------------------------------------------------------
+      - id: "reconcile-modules"
+        type: "recipe"
+        foreach: "{{topics}}"
+        as: "topic"
+        recipe: "@dot-graph:recipes/discovery-synthesize-module.yaml"
+        context:
+          module_name: "{{topic.name}}"
+          module_dir: "{{scan_result.output_dir}}/modules/{{topic.slug}}"
+          investigation_dir: "{{scan_result.output_dir}}/modules/{{topic.slug}}"
+          fidelity: "{{fidelity}}"
+          output_dir: "{{scan_result.output_dir}}"
+        output: "reconciliation_results"
+        timeout: 7200
+
+      # -----------------------------------------------------------------------
+      # Step 2: Subsystem synthesis — synthesize all topic findings into a
+      # unified subsystem-level DOT diagram
+      # -----------------------------------------------------------------------
+      - id: "subsystem-synthesis"
+        type: "recipe"
+        recipe: "@dot-graph:recipes/synthesize-subsystem.yaml"
+        context:
+          subsystem_name: "topdown-discovery"
+          topics: "{{topics}}"
+          output_dir: "{{scan_result.output_dir}}"
+          fidelity: "{{fidelity}}"
+        output: "subsystem_result"
+        timeout: 3600
+
+      # -----------------------------------------------------------------------
+      # Step 3: Overview synthesis — produce final cross-subsystem overview
+      # -----------------------------------------------------------------------
+      - id: "overview-synthesis"
+        type: "recipe"
+        recipe: "@dot-graph:recipes/synthesize-overview.yaml"
+        context:
+          output_dir: "{{scan_result.output_dir}}"
+          fidelity: "{{fidelity}}"
+        output: "overview_result"
+        timeout: 3600
+
+      # -----------------------------------------------------------------------
+      # Step 4: Update metadata — write last-run.json
+      # Records strategy, commit hash, timestamp, fidelity, and repo_path.
+      # -----------------------------------------------------------------------
+      - id: "update-metadata"
+        type: "bash"
+        output: "metadata_result"
+        parse_json: true
+        timeout: 10
+        command: |
+          python3 - <<'EOF'
+          import json
+          import subprocess
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          output_dir = "{{scan_result.output_dir}}"
+          repo_path = "{{scan_result.repo_path}}"
+          fidelity = "{{fidelity}}"
+
+          # Get current git commit
+          try:
+              commit_hash = subprocess.check_output(
+                  ["git", "-C", repo_path, "rev-parse", "HEAD"],
+                  text=True,
+                  stderr=subprocess.DEVNULL,
+              ).strip()
+          except Exception:
+              commit_hash = ""
+
+          metadata = {
+              "strategy": "topdown",
+              "commit_hash": commit_hash,
+              "timestamp": datetime.now(timezone.utc).isoformat(),
+              "fidelity": fidelity,
+              "repo_path": repo_path,
+          }
+
+          last_run_path = Path(output_dir) / "last-run.json"
+          last_run_path.write_text(json.dumps(metadata, indent=2))
+          print(json.dumps({"written": str(last_run_path), **metadata}))
+          EOF
+
+final_output: "metadata_result"

@@ -198,7 +198,9 @@ stages:
         as: "topic"
         recipe: "@dot-graph:recipes/discovery-investigate-topic.yaml"
         context:
-          topic: "{{topic}}"
+          topic_name: "{{topic.name}}"
+          topic_slug: "{{topic.slug}}"
+          topic_description: "{{topic.description}}"
           fidelity: "{{fidelity}}"
           repo_path: "{{scan_result.repo_path}}"
           output_dir: "{{scan_result.output_dir}}"

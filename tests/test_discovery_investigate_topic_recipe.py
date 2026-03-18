@@ -5,11 +5,11 @@ TDD: Tests written BEFORE the recipe file is created.
 Validates:
 - File existence and valid YAML parse
 - Top-level metadata (name, description, version, author, tags)
-- Context variables (topic, fidelity, repo_path, output_dir)
+- Context variables (topic_name, topic_slug, topic_description, fidelity, repo_path, output_dir)
 - Flat (non-staged) steps structure
 - Exactly 3 agent steps with correct IDs and agent references
 - Fidelity-based conditions for each step
-- Agent prompts reference topic and output_dir context variables
+- Agent prompts reference topic_name/topic_slug and output_dir context variables
 """
 
 from pathlib import Path
@@ -98,12 +98,30 @@ def test_recipe_tags():
 # ---------------------------------------------------------------------------
 
 
-def test_recipe_context_has_topic():
-    """Context must declare 'topic' variable."""
+def test_recipe_context_has_topic_name():
+    """Context must declare 'topic_name' variable (flattened from topic object)."""
     data = _load_recipe()
     ctx = data.get("context", {})
-    assert "topic" in ctx, (
-        f"Context must declare 'topic' variable. Found keys: {list(ctx.keys())}"
+    assert "topic_name" in ctx, (
+        f"Context must declare 'topic_name' variable. Found keys: {list(ctx.keys())}"
+    )
+
+
+def test_recipe_context_has_topic_slug():
+    """Context must declare 'topic_slug' variable (flattened from topic object)."""
+    data = _load_recipe()
+    ctx = data.get("context", {})
+    assert "topic_slug" in ctx, (
+        f"Context must declare 'topic_slug' variable. Found keys: {list(ctx.keys())}"
+    )
+
+
+def test_recipe_context_has_topic_description():
+    """Context must declare 'topic_description' variable (flattened from topic object)."""
+    data = _load_recipe()
+    ctx = data.get("context", {})
+    assert "topic_description" in ctx, (
+        f"Context must declare 'topic_description' variable. Found keys: {list(ctx.keys())}"
     )
 
 
@@ -295,13 +313,16 @@ def test_integration_mapper_condition_not_quick():
 
 
 def test_code_tracer_prompt_references_topic():
-    """code-tracer prompt must reference {{topic}} context variable."""
+    """code-tracer prompt must reference {{topic_name}} and {{topic_slug}} context variables."""
     data = _load_recipe()
     step = _get_step_by_id(data, "code-tracer")
     assert step is not None
     prompt = step.get("prompt", "")
-    assert "topic" in prompt, (
-        "code-tracer prompt must reference {{topic}} context variable"
+    assert "topic_name" in prompt, (
+        "code-tracer prompt must reference {{topic_name}} context variable"
+    )
+    assert "topic_slug" in prompt, (
+        "code-tracer prompt must reference {{topic_slug}} context variable"
     )
 
 
@@ -317,13 +338,16 @@ def test_code_tracer_prompt_references_output_dir():
 
 
 def test_behavior_observer_prompt_references_topic():
-    """behavior-observer prompt must reference {{topic}} context variable."""
+    """behavior-observer prompt must reference {{topic_name}} and {{topic_slug}} context variables."""
     data = _load_recipe()
     step = _get_step_by_id(data, "behavior-observer")
     assert step is not None
     prompt = step.get("prompt", "")
-    assert "topic" in prompt, (
-        "behavior-observer prompt must reference {{topic}} context variable"
+    assert "topic_name" in prompt, (
+        "behavior-observer prompt must reference {{topic_name}} context variable"
+    )
+    assert "topic_slug" in prompt, (
+        "behavior-observer prompt must reference {{topic_slug}} context variable"
     )
 
 
@@ -339,13 +363,16 @@ def test_behavior_observer_prompt_references_output_dir():
 
 
 def test_integration_mapper_prompt_references_topic():
-    """integration-mapper prompt must reference {{topic}} context variable."""
+    """integration-mapper prompt must reference {{topic_name}} and {{topic_slug}} context variables."""
     data = _load_recipe()
     step = _get_step_by_id(data, "integration-mapper")
     assert step is not None
     prompt = step.get("prompt", "")
-    assert "topic" in prompt, (
-        "integration-mapper prompt must reference {{topic}} context variable"
+    assert "topic_name" in prompt, (
+        "integration-mapper prompt must reference {{topic_name}} context variable"
+    )
+    assert "topic_slug" in prompt, (
+        "integration-mapper prompt must reference {{topic_slug}} context variable"
     )
 
 

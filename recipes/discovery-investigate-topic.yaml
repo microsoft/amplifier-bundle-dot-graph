@@ -11,10 +11,9 @@ author: "DOT Graph Bundle"
 tags: ["discovery", "investigation", "sub-recipe", "dot-graph"]
 
 context:
-  topic:
-    name: ""         # Topic name — populated by caller (discovery-pipeline)
-    slug: ""         # Topic slug — populated by caller (discovery-pipeline)
-    description: ""  # Topic description — populated by caller
+  topic_name: ""         # Topic name — populated by caller via foreach flattening
+  topic_slug: ""         # Topic slug — populated by caller via foreach flattening
+  topic_description: ""  # Topic description — populated by caller via foreach flattening
   fidelity: "standard"
   repo_path: ""
   output_dir: ""
@@ -31,7 +30,7 @@ steps:
     output: "code_tracer_result"
     timeout: 1800
     prompt: |
-      You are the code-tracer agent investigating the topic: {{topic.name}}.
+      You are the code-tracer agent investigating the topic: {{topic_name}}.
 
       Your role is the HOW agent. Trace actual code execution paths through real
       source code using LSP and filesystem tools. Cite every finding with
@@ -42,14 +41,14 @@ steps:
       Repository path: {{repo_path}}
 
       Write your findings to:
-        {{output_dir}}/investigation/modules/{{topic.slug}}/agents/code-tracer/
+        {{output_dir}}/investigation/modules/{{topic_slug}}/agents/code-tracer/
 
       Required artifacts:
         - findings.md   — key findings with file:line citations
         - diagram.dot   — DOT graph illustrating the code paths you traced
         - unknowns.md   — open questions and unresolved paths
 
-      Focus exclusively on HOW the {{topic.name}} mechanism works in code.
+      Focus exclusively on HOW the {{topic_name}} mechanism works in code.
 
   # ---------------------------------------------------------------------------
   # Step 2: Behavior Observer — WHAT patterns emerge
@@ -62,10 +61,10 @@ steps:
     output: "behavior_observer_result"
     timeout: 1800
     prompt: |
-      You are the behavior-observer agent investigating the topic: {{topic.name}}.
+      You are the behavior-observer agent investigating the topic: {{topic_name}}.
 
       Your role is the WHAT agent. Observe behavioral patterns by examining at
-      least 10 real artifacts related to {{topic.name}}. Patterns only emerge
+      least 10 real artifacts related to {{topic_name}}. Patterns only emerge
       from examining MANY instances — a single file read misses the forest for
       the trees. Catalog structure, quantify patterns, and identify anti-patterns
       from what actually exists, not what documentation says should exist.
@@ -73,7 +72,7 @@ steps:
       Repository path: {{repo_path}}
 
       Write your findings to:
-        {{output_dir}}/investigation/modules/{{topic.slug}}/agents/behavior-observer/
+        {{output_dir}}/investigation/modules/{{topic_slug}}/agents/behavior-observer/
 
       Required artifacts:
         - findings.md   — behavioral patterns observed across instances
@@ -82,7 +81,7 @@ steps:
         - diagram.dot   — DOT graph illustrating patterns and their relationships
         - unknowns.md   — gaps, anomalies, and open questions
 
-      Examine at least 10 real instances of {{topic.name}}-related artifacts.
+      Examine at least 10 real instances of {{topic_name}}-related artifacts.
       Report what actually exists, not what the docs claim.
 
   # ---------------------------------------------------------------------------
@@ -96,9 +95,9 @@ steps:
     output: "integration_mapper_result"
     timeout: 1800
     prompt: |
-      You are the integration-mapper agent investigating the topic: {{topic.name}}.
+      You are the integration-mapper agent investigating the topic: {{topic_name}}.
 
-      Your role is the WHERE/WHY agent. Map how {{topic.name}} integrates across
+      Your role is the WHERE/WHY agent. Map how {{topic_name}} integrates across
       component boundaries. The most architecturally significant insights live at
       BOUNDARIES — where single-perspective agents have blind spots. Look for
       composition effects: emergent behavior that only appears when mechanisms
@@ -108,12 +107,12 @@ steps:
       Repository path: {{repo_path}}
 
       Write your findings to:
-        {{output_dir}}/investigation/modules/{{topic.slug}}/agents/integration-mapper/
+        {{output_dir}}/investigation/modules/{{topic_slug}}/agents/integration-mapper/
 
       Required artifacts:
         - integration-map.md — cross-boundary integration points and data flows
         - diagram.dot        — DOT graph showing integration boundaries and flows
         - unknowns.md        — unresolved boundary questions and missing connections
 
-      For {{topic.name}}, map how it composes with every related mechanism.
-      Answer: "How does {{topic.name}} integrate with the broader system?"
+      For {{topic_name}}, map how it composes with every related mechanism.
+      Answer: "How does {{topic_name}} integrate with the broader system?"

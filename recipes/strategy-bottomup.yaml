@@ -354,7 +354,7 @@ stages:
                   text=True,
                   stderr=subprocess.DEVNULL,
               ).strip()
-          except Exception:
+          except Exception as e:
               commit_hash = ""
 
           metadata = {

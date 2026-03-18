@@ -19,6 +19,7 @@ Total: 30 tests
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -66,6 +67,17 @@ def _get_full_yaml_text() -> str:
 
 
 # ---------------------------------------------------------------------------
+# Module-scoped fixture (caches parsed recipe across all tests)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def recipe_data() -> dict:
+    """Module-scoped fixture: load and cache the parsed recipe dict once per session."""
+    return _load_recipe()
+
+
+# ---------------------------------------------------------------------------
 # File existence and parse (2 tests)
 # ---------------------------------------------------------------------------
 
@@ -89,43 +101,38 @@ def test_recipe_parses_as_valid_yaml():
 # ---------------------------------------------------------------------------
 
 
-def test_recipe_name():
+def test_recipe_name(recipe_data):
     """Recipe must have name='strategy-bottomup'."""
-    data = _load_recipe()
-    assert data.get("name") == "strategy-bottomup", (
-        f"Expected name='strategy-bottomup', got: {data.get('name')!r}"
+    assert recipe_data.get("name") == "strategy-bottomup", (
+        f"Expected name='strategy-bottomup', got: {recipe_data.get('name')!r}"
     )
 
 
-def test_recipe_description_non_empty():
+def test_recipe_description_non_empty(recipe_data):
     """Recipe must have a non-empty description."""
-    data = _load_recipe()
-    desc = data.get("description", "")
+    desc = recipe_data.get("description", "")
     assert isinstance(desc, str) and desc.strip(), (
         "Recipe must have a non-empty string description"
     )
 
 
-def test_recipe_version():
+def test_recipe_version(recipe_data):
     """Recipe must have version='1.0.0'."""
-    data = _load_recipe()
-    assert data.get("version") == "1.0.0", (
-        f"Expected version='1.0.0', got: {data.get('version')!r}"
+    assert recipe_data.get("version") == "1.0.0", (
+        f"Expected version='1.0.0', got: {recipe_data.get('version')!r}"
     )
 
 
-def test_recipe_author():
+def test_recipe_author(recipe_data):
     """Recipe must have author='DOT Graph Bundle'."""
-    data = _load_recipe()
-    assert data.get("author") == "DOT Graph Bundle", (
-        f"Expected author='DOT Graph Bundle', got: {data.get('author')!r}"
+    assert recipe_data.get("author") == "DOT Graph Bundle", (
+        f"Expected author='DOT Graph Bundle', got: {recipe_data.get('author')!r}"
     )
 
 
-def test_recipe_tags():
+def test_recipe_tags(recipe_data):
     """Recipe tags must include discovery, strategy, bottom-up, dot-graph."""
-    data = _load_recipe()
-    tags = data.get("tags", [])
+    tags = recipe_data.get("tags", [])
     assert isinstance(tags, list), "tags must be a list"
     for expected_tag in ["discovery", "strategy", "bottom-up", "dot-graph"]:
         assert expected_tag in tags, (
@@ -138,19 +145,17 @@ def test_recipe_tags():
 # ---------------------------------------------------------------------------
 
 
-def test_recipe_context_has_repo_path():
+def test_recipe_context_has_repo_path(recipe_data):
     """Context must declare 'repo_path' variable."""
-    data = _load_recipe()
-    ctx = data.get("context", {})
+    ctx = recipe_data.get("context", {})
     assert "repo_path" in ctx, (
         f"Context must declare 'repo_path' variable. Found keys: {list(ctx.keys())}"
     )
 
 
-def test_recipe_context_has_output_dir():
+def test_recipe_context_has_output_dir(recipe_data):
     """Context must declare 'output_dir' variable with a default value."""
-    data = _load_recipe()
-    ctx = data.get("context", {})
+    ctx = recipe_data.get("context", {})
     assert "output_dir" in ctx, (
         f"Context must declare 'output_dir' variable. Found keys: {list(ctx.keys())}"
     )
@@ -159,10 +164,9 @@ def test_recipe_context_has_output_dir():
     )
 
 
-def test_recipe_context_fidelity_default_standard():
+def test_recipe_context_fidelity_default_standard(recipe_data):
     """Context must declare 'fidelity' variable with default 'standard'."""
-    data = _load_recipe()
-    ctx = data.get("context", {})
+    ctx = recipe_data.get("context", {})
     assert "fidelity" in ctx, (
         f"Context must declare 'fidelity' variable. Found keys: {list(ctx.keys())}"
     )
@@ -171,10 +175,9 @@ def test_recipe_context_fidelity_default_standard():
     )
 
 
-def test_recipe_context_output_dir_references_bottomup():
+def test_recipe_context_output_dir_references_bottomup(recipe_data):
     """Context output_dir default must reference 'bottomup' in its path."""
-    data = _load_recipe()
-    ctx = data.get("context", {})
+    ctx = recipe_data.get("context", {})
     output_dir = str(ctx.get("output_dir", ""))
     assert "bottomup" in output_dir, (
         f"output_dir default must reference 'bottomup', got: {output_dir!r}"
@@ -186,20 +189,20 @@ def test_recipe_context_output_dir_references_bottomup():
 # ---------------------------------------------------------------------------
 
 
-def test_recipe_has_staged_structure_not_flat():
+def test_recipe_has_staged_structure_not_flat(recipe_data):
     """Recipe must use staged structure (stages key), not flat steps."""
-    data = _load_recipe()
-    assert "stages" in data, "Recipe must have a top-level 'stages' key (staged recipe)"
-    assert "steps" not in data, (
+    assert "stages" in recipe_data, (
+        "Recipe must have a top-level 'stages' key (staged recipe)"
+    )
+    assert "steps" not in recipe_data, (
         "Recipe must NOT have a top-level 'steps' key — must be staged"
     )
-    assert isinstance(data["stages"], list), "stages must be a list"
+    assert isinstance(recipe_data["stages"], list), "stages must be a list"
 
 
-def test_recipe_has_exactly_3_stages():
+def test_recipe_has_exactly_3_stages(recipe_data):
     """Recipe must have exactly 3 stages."""
-    data = _load_recipe()
-    stages = data.get("stages", [])
+    stages = recipe_data.get("stages", [])
     assert len(stages) == 3, f"Expected exactly 3 stages, got {len(stages)}"
 
 
@@ -208,33 +211,30 @@ def test_recipe_has_exactly_3_stages():
 # ---------------------------------------------------------------------------
 
 
-def test_stage_scan_and_plan_exists():
+def test_stage_scan_and_plan_exists(recipe_data):
     """Must have a stage named 'scan-and-plan'."""
-    data = _load_recipe()
-    stage = _get_stage_by_name(data, "scan-and-plan")
+    stage = _get_stage_by_name(recipe_data, "scan-and-plan")
     assert stage is not None, (
         f"No stage named 'scan-and-plan' found. "
-        f"Stage names: {[s.get('name') for s in _get_stages(data)]}"
+        f"Stage names: {[s.get('name') for s in _get_stages(recipe_data)]}"
     )
 
 
-def test_stage_traverse_exists():
+def test_stage_traverse_exists(recipe_data):
     """Must have a stage named 'traverse'."""
-    data = _load_recipe()
-    stage = _get_stage_by_name(data, "traverse")
+    stage = _get_stage_by_name(recipe_data, "traverse")
     assert stage is not None, (
         f"No stage named 'traverse' found. "
-        f"Stage names: {[s.get('name') for s in _get_stages(data)]}"
+        f"Stage names: {[s.get('name') for s in _get_stages(recipe_data)]}"
     )
 
 
-def test_stage_assemble_exists():
+def test_stage_assemble_exists(recipe_data):
     """Must have a stage named 'assemble'."""
-    data = _load_recipe()
-    stage = _get_stage_by_name(data, "assemble")
+    stage = _get_stage_by_name(recipe_data, "assemble")
     assert stage is not None, (
         f"No stage named 'assemble' found. "
-        f"Stage names: {[s.get('name') for s in _get_stages(data)]}"
+        f"Stage names: {[s.get('name') for s in _get_stages(recipe_data)]}"
     )
 
 
@@ -243,10 +243,9 @@ def test_stage_assemble_exists():
 # ---------------------------------------------------------------------------
 
 
-def test_scan_and_plan_has_prescan_bash_step():
+def test_scan_and_plan_has_prescan_bash_step(recipe_data):
     """scan-and-plan stage must have a bash step for prescan."""
-    data = _load_recipe()
-    steps = _get_stage_steps(data, "scan-and-plan")
+    steps = _get_stage_steps(recipe_data, "scan-and-plan")
     bash_steps = [s for s in steps if s.get("type") == "bash"]
     assert len(bash_steps) > 0, (
         f"scan-and-plan stage must have at least one bash step for prescan. "
@@ -265,23 +264,21 @@ def test_scan_and_plan_has_prescan_bash_step():
     )
 
 
-def test_scan_and_plan_has_compute_traversal_bash_step():
+def test_scan_and_plan_has_compute_traversal_bash_step(recipe_data):
     """scan-and-plan stage must have a bash step with id='compute-traversal'."""
-    data = _load_recipe()
-    step = _get_stage_step_by_id(data, "scan-and-plan", "compute-traversal")
+    step = _get_stage_step_by_id(recipe_data, "scan-and-plan", "compute-traversal")
     assert step is not None, (
         f"No step with id='compute-traversal' found in scan-and-plan stage. "
-        f"Step IDs: {[s.get('id') for s in _get_stage_steps(data, 'scan-and-plan')]}"
+        f"Step IDs: {[s.get('id') for s in _get_stage_steps(recipe_data, 'scan-and-plan')]}"
     )
     assert step.get("type") == "bash", (
         f"compute-traversal step must be type='bash', got: {step.get('type')!r}"
     )
 
 
-def test_compute_traversal_output_references_traversal_plan():
+def test_compute_traversal_output_references_traversal_plan(recipe_data):
     """compute-traversal step output must reference the traversal plan."""
-    data = _load_recipe()
-    step = _get_stage_step_by_id(data, "scan-and-plan", "compute-traversal")
+    step = _get_stage_step_by_id(recipe_data, "scan-and-plan", "compute-traversal")
     assert step is not None, "compute-traversal step must exist in scan-and-plan stage"
     # The output key or command should reference the traversal plan
     output_val = str(step.get("output", ""))
@@ -297,10 +294,9 @@ def test_compute_traversal_output_references_traversal_plan():
 # ---------------------------------------------------------------------------
 
 
-def test_traverse_stage_has_foreach_over_post_order():
+def test_traverse_stage_has_foreach_over_post_order(recipe_data):
     """traverse stage must have a step with foreach iterating over post_order list."""
-    data = _load_recipe()
-    steps = _get_stage_steps(data, "traverse")
+    steps = _get_stage_steps(recipe_data, "traverse")
     foreach_steps = [s for s in steps if "foreach" in s]
     assert len(foreach_steps) > 0, (
         f"traverse stage must have a step with 'foreach'. "
@@ -312,10 +308,9 @@ def test_traverse_stage_has_foreach_over_post_order():
     )
 
 
-def test_traverse_stage_references_synthesize_level():
+def test_traverse_stage_references_synthesize_level(recipe_data):
     """traverse stage must reference the synthesize-level sub-recipe."""
-    data = _load_recipe()
-    steps = _get_stage_steps(data, "traverse")
+    steps = _get_stage_steps(recipe_data, "traverse")
     recipe_steps = [s for s in steps if "recipe" in s]
     assert len(recipe_steps) > 0, (
         "traverse stage must have a step with a 'recipe' reference"
@@ -326,10 +321,9 @@ def test_traverse_stage_references_synthesize_level():
     )
 
 
-def test_traverse_foreach_step_type_is_recipe():
+def test_traverse_foreach_step_type_is_recipe(recipe_data):
     """traverse foreach step must have type='recipe'."""
-    data = _load_recipe()
-    steps = _get_stage_steps(data, "traverse")
+    steps = _get_stage_steps(recipe_data, "traverse")
     foreach_steps = [s for s in steps if "foreach" in s]
     assert len(foreach_steps) > 0, "traverse stage must have a foreach step"
     step = foreach_steps[0]
@@ -343,26 +337,26 @@ def test_traverse_foreach_step_type_is_recipe():
 # ---------------------------------------------------------------------------
 
 
-def test_assemble_has_identify_subsystems_bash_step():
+def test_assemble_has_identify_subsystems_bash_step(recipe_data):
     """assemble stage must have a bash step with id='identify-subsystems'."""
-    data = _load_recipe()
-    step = _get_stage_step_by_id(data, "assemble", "identify-subsystems")
+    step = _get_stage_step_by_id(recipe_data, "assemble", "identify-subsystems")
     assert step is not None, (
         f"No step with id='identify-subsystems' found in assemble stage. "
-        f"Step IDs: {[s.get('id') for s in _get_stage_steps(data, 'assemble')]}"
+        f"Step IDs: {[s.get('id') for s in _get_stage_steps(recipe_data, 'assemble')]}"
     )
     assert step.get("type") == "bash", (
         f"identify-subsystems step must be type='bash', got: {step.get('type')!r}"
     )
 
 
-def test_assemble_has_subsystem_synthesis_step_referencing_synthesize_subsystem():
+def test_assemble_has_subsystem_synthesis_step_referencing_synthesize_subsystem(
+    recipe_data,
+):
     """assemble stage must have a step referencing synthesize-subsystem sub-recipe."""
-    data = _load_recipe()
-    step = _get_stage_step_by_id(data, "assemble", "subsystem-synthesis")
+    step = _get_stage_step_by_id(recipe_data, "assemble", "subsystem-synthesis")
     assert step is not None, (
         f"No step with id='subsystem-synthesis' found in assemble stage. "
-        f"Step IDs: {[s.get('id') for s in _get_stage_steps(data, 'assemble')]}"
+        f"Step IDs: {[s.get('id') for s in _get_stage_steps(recipe_data, 'assemble')]}"
     )
     recipe_ref = step.get("recipe", "")
     assert "synthesize-subsystem" in recipe_ref, (
@@ -371,13 +365,14 @@ def test_assemble_has_subsystem_synthesis_step_referencing_synthesize_subsystem(
     )
 
 
-def test_assemble_has_overview_synthesis_step_referencing_synthesize_overview():
+def test_assemble_has_overview_synthesis_step_referencing_synthesize_overview(
+    recipe_data,
+):
     """assemble stage must have a step referencing synthesize-overview sub-recipe."""
-    data = _load_recipe()
-    step = _get_stage_step_by_id(data, "assemble", "overview-synthesis")
+    step = _get_stage_step_by_id(recipe_data, "assemble", "overview-synthesis")
     assert step is not None, (
         f"No step with id='overview-synthesis' found in assemble stage. "
-        f"Step IDs: {[s.get('id') for s in _get_stage_steps(data, 'assemble')]}"
+        f"Step IDs: {[s.get('id') for s in _get_stage_steps(recipe_data, 'assemble')]}"
     )
     recipe_ref = step.get("recipe", "")
     assert "synthesize-overview" in recipe_ref, (
@@ -386,13 +381,12 @@ def test_assemble_has_overview_synthesis_step_referencing_synthesize_overview():
     )
 
 
-def test_assemble_has_update_metadata_step():
+def test_assemble_has_update_metadata_step(recipe_data):
     """assemble stage must have a step with id='update-metadata'."""
-    data = _load_recipe()
-    step = _get_stage_step_by_id(data, "assemble", "update-metadata")
+    step = _get_stage_step_by_id(recipe_data, "assemble", "update-metadata")
     assert step is not None, (
         f"No step with id='update-metadata' found in assemble stage. "
-        f"Step IDs: {[s.get('id') for s in _get_stage_steps(data, 'assemble')]}"
+        f"Step IDs: {[s.get('id') for s in _get_stage_steps(recipe_data, 'assemble')]}"
     )
 
 

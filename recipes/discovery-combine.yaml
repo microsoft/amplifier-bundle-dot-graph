@@ -1,0 +1,155 @@
+name: "discovery-combine"
+description: >
+  Combines top-down and bottom-up discovery strategy outputs into a unified
+  view of the codebase architecture. Reads all DOT files produced by
+  strategy-topdown and strategy-bottomup, dispatches the discovery-combiner
+  agent to classify findings as Convergence/Top-down-only/Bottom-up-only/
+  Divergence (tracked as D-01, D-02...), then validates the combined DOT and
+  optionally renders a PNG. Supports degraded mode: if only one strategy has
+  run, the recipe proceeds with whatever is available. Designed as a building
+  block orchestrator for the Parallax Discovery pipeline.
+version: "1.0.0"
+author: "DOT Graph Bundle"
+tags: ["discovery", "combine", "dot-graph", "parallax", "orchestrator"]
+
+context:
+  repo_path: ""             # Required: path to target repository
+  topdown_dir: "{{repo_path}}/.discovery/investigation/topdown"   # top-down strategy output dir
+  bottomup_dir: "{{repo_path}}/.discovery/investigation/bottomup"  # bottom-up strategy output dir
+  output_dir: "{{repo_path}}/.discovery/output"   # where to write final combined output
+  render_png: "true"        # whether to render PNGs (default: true)
+
+steps:
+  # ---------------------------------------------------------------------------
+  # Step 1: check-inputs — verify strategy output directories exist
+  # Uses test -d to check for each directory. Logs a warning if either is
+  # missing but does NOT fail hard — allows degraded mode where only one
+  # strategy has run.
+  # ---------------------------------------------------------------------------
+  - id: "check-inputs"
+    type: "bash"
+    timeout: 15
+    command: |
+      echo "=== discovery-combine: checking strategy output directories ==="
+
+      topdown_dir="{{topdown_dir}}"
+      bottomup_dir="{{bottomup_dir}}"
+      output_dir="{{output_dir}}"
+
+      # Check top-down directory
+      if test -d "$topdown_dir"; then
+        echo "OK: topdown_dir exists: $topdown_dir"
+        dot_count=$(find "$topdown_dir" -name "*.dot" 2>/dev/null | wc -l)
+        echo "    Found $dot_count DOT files in topdown_dir"
+      else
+        echo "WARNING: topdown_dir not found: $topdown_dir"
+        echo "         Degraded mode: combining with bottom-up results only"
+      fi
+
+      # Check bottom-up directory
+      if test -d "$bottomup_dir"; then
+        echo "OK: bottomup_dir exists: $bottomup_dir"
+        dot_count=$(find "$bottomup_dir" -name "*.dot" 2>/dev/null | wc -l)
+        echo "    Found $dot_count DOT files in bottomup_dir"
+      else
+        echo "WARNING: bottomup_dir not found: $bottomup_dir"
+        echo "         Degraded mode: combining with top-down results only"
+      fi
+
+      # Create output directory
+      mkdir -p "$output_dir" || true
+      echo "Output directory: $output_dir"
+      echo "=== check-inputs complete (degraded mode is allowed) ==="
+
+  # ---------------------------------------------------------------------------
+  # Step 2: combine — dispatch discovery-combiner agent
+  # Agent reads all DOT files from both strategy directories and produces:
+  #   - {{output_dir}}/combined.dot — unified diagram with findings classified as
+  #     Convergence (both strategies agree), Top-down-only, Bottom-up-only,
+  #     or Divergence (tracked as D-01, D-02, ...)
+  #   - {{output_dir}}/discrepancies.md — detailed divergence report
+  # ---------------------------------------------------------------------------
+  - id: "combine"
+    agent: "dot-graph:discovery-combiner"
+    output: "combine_result"
+    timeout: 1200
+    prompt: |
+      You are the discovery-combiner for the Parallax Discovery pipeline.
+
+      Your task: compare and combine the outputs from two independent discovery
+      strategies — top-down and bottom-up — to produce a unified architectural
+      view that captures where the strategies agree and where they differ.
+
+      Repository: {{repo_path}}
+      Top-down strategy output: {{topdown_dir}}
+      Bottom-up strategy output: {{bottomup_dir}}
+      Output directory: {{output_dir}}
+
+      Classify every finding into one of four categories:
+      - Convergence: both strategies identified the same element/relationship
+      - Top-down-only: found only by the top-down strategy
+      - Bottom-up-only: found only by the bottom-up strategy
+      - Divergence: strategies contradict each other (track as D-01, D-02, ...)
+
+      Read all DOT files (*.dot) from both strategy directories. For each DOT
+      file, extract nodes and edges to understand what each strategy discovered.
+
+      Output: Write the following artifacts to {{output_dir}}/:
+        - combined.dot — Unified DOT graph that represents both strategy views.
+          Use node/edge styling to distinguish convergence vs. strategy-specific
+          findings. Include a legend. Keep the diagram well-structured.
+        - discrepancies.md — Detailed divergence report listing each D-xx item:
+          what was found, which strategy found it, and what the contradiction is.
+          Also list Top-down-only and Bottom-up-only findings for completeness.
+
+      Guidelines:
+      - DO NOT reconcile divergences — preserve both perspectives faithfully
+      - Track each divergence with a unique ID (D-01, D-02, ...)
+      - Convergent findings should dominate the diagram (highest confidence)
+      - Strategy-specific findings appear with appropriate visual distinction
+      - If a strategy directory is missing or empty, note it in discrepancies.md
+        and proceed with whatever data is available (degraded mode is acceptable)
+      - Include a summary section in discrepancies.md: total counts per category
+
+  # ---------------------------------------------------------------------------
+  # Step 3: validate — validate combined.dot using the dot-graph tool
+  # Uses amplifier_module_tool_dot_graph.validate.validate_dot to check the
+  # combined diagram. Prints VALID or INVALID plus any issues. Continues even
+  # if validation shows warnings — does not hard-fail on warnings.
+  # ---------------------------------------------------------------------------
+  - id: "validate"
+    type: "bash"
+    timeout: 30
+    command: |
+      python3 -c "
+      import sys
+      sys.path.insert(0, 'modules/tool-dot-graph')
+      try:
+          from amplifier_module_tool_dot_graph import validate
+          content = open('{{output_dir}}/combined.dot').read()
+          r = validate.validate_dot(content)
+          print('VALID' if r['valid'] else 'INVALID')
+          [print(i) for i in r.get('issues', [])]
+      except FileNotFoundError:
+          print('WARNING: combined.dot not found at {{output_dir}}/combined.dot')
+          print('         Skipping validation (combine step may not have produced output)')
+      except Exception as e:
+          print(f'WARNING: validation skipped ({e})')
+      " || true
+
+  # ---------------------------------------------------------------------------
+  # Step 4: render — render combined.dot to PNG (conditional)
+  # Only runs when render_png == 'true'. Uses graphviz dot with 150 DPI.
+  # Errors are suppressed (2>/dev/null || true) — render failure is non-fatal.
+  # ---------------------------------------------------------------------------
+  - id: "render"
+    type: "bash"
+    when: "{{render_png}} == 'true'"
+    timeout: 30
+    command: |
+      dot -Tpng -Gdpi=150 {{output_dir}}/combined.dot -o {{output_dir}}/combined.png 2>/dev/null || true
+      if [ -f "{{output_dir}}/combined.png" ]; then
+        echo "Rendered: {{output_dir}}/combined.png"
+      else
+        echo "WARNING: combined.png not produced (dot unavailable or combined.dot missing)"
+      fi

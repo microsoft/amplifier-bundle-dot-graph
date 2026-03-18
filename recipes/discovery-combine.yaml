@@ -129,7 +129,7 @@ steps:
           content = open('{{output_dir}}/combined.dot').read()
           r = validate.validate_dot(content)
           print('VALID' if r['valid'] else 'INVALID')
-          [print(i) for i in r.get('issues', [])]
+          for i in r.get('issues', []): print(i)
       except FileNotFoundError:
           print('WARNING: combined.dot not found at {{output_dir}}/combined.dot')
           print('         Skipping validation (combine step may not have produced output)')
@@ -147,9 +147,10 @@ steps:
     when: "{{render_png}} == 'true'"
     timeout: 30
     command: |
-      dot -Tpng -Gdpi=150 {{output_dir}}/combined.dot -o {{output_dir}}/combined.png 2>/dev/null || true
-      if [ -f "{{output_dir}}/combined.png" ]; then
-        echo "Rendered: {{output_dir}}/combined.png"
+      output_dir="{{output_dir}}"
+      dot -Tpng -Gdpi=150 "${output_dir}/combined.dot" -o "${output_dir}/combined.png" 2>/dev/null || true
+      if [ -f "${output_dir}/combined.png" ]; then
+        echo "Rendered: ${output_dir}/combined.png"
       else
-        echo "WARNING: combined.png not produced (dot unavailable or combined.dot missing)"
+        echo "WARNING: combined.png not produced (dot may be unavailable or path issue)"
       fi

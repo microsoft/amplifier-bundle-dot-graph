@@ -13,6 +13,10 @@ agents:
     - dot-graph:discovery-behavior-observer
     - dot-graph:discovery-integration-mapper
     - dot-graph:discovery-synthesizer
+    - dot-graph:discovery-level-synthesizer
+    - dot-graph:discovery-subsystem-synthesizer
+    - dot-graph:discovery-overview-synthesizer
+    - dot-graph:discovery-combiner
 
 context:
   include:

@@ -133,3 +133,43 @@ def test_behavior_agents_includes_all_discovery_agents(data):
     actual = data["agents"]["include"]
     for agent in expected_agents:
         assert agent in actual, f"agents.include must contain '{agent}', got: {actual}"
+
+
+def test_behavior_agents_includes_level_synthesizer(data):
+    """agents.include must contain 'dot-graph:discovery-level-synthesizer'."""
+    actual = data["agents"]["include"]
+    assert "dot-graph:discovery-level-synthesizer" in actual, (
+        f"agents.include must contain 'dot-graph:discovery-level-synthesizer', got: {actual}"
+    )
+
+
+def test_behavior_agents_includes_subsystem_synthesizer(data):
+    """agents.include must contain 'dot-graph:discovery-subsystem-synthesizer'."""
+    actual = data["agents"]["include"]
+    assert "dot-graph:discovery-subsystem-synthesizer" in actual, (
+        f"agents.include must contain 'dot-graph:discovery-subsystem-synthesizer', got: {actual}"
+    )
+
+
+def test_behavior_agents_includes_overview_synthesizer(data):
+    """agents.include must contain 'dot-graph:discovery-overview-synthesizer'."""
+    actual = data["agents"]["include"]
+    assert "dot-graph:discovery-overview-synthesizer" in actual, (
+        f"agents.include must contain 'dot-graph:discovery-overview-synthesizer', got: {actual}"
+    )
+
+
+def test_behavior_agents_includes_combiner(data):
+    """agents.include must contain 'dot-graph:discovery-combiner'."""
+    actual = data["agents"]["include"]
+    assert "dot-graph:discovery-combiner" in actual, (
+        f"agents.include must contain 'dot-graph:discovery-combiner', got: {actual}"
+    )
+
+
+def test_behavior_agents_total_count(data):
+    """agents.include must contain exactly 9 agent references."""
+    actual = data["agents"]["include"]
+    assert len(actual) == 9, (
+        f"agents.include must have exactly 9 agents, got {len(actual)}: {actual}"
+    )

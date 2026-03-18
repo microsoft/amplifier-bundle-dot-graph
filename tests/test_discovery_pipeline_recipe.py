@@ -10,9 +10,9 @@ Validates:
 - 3 stages in correct order: scan → strategies → combine (4)
 - scan stage: structural-scan step (bash), topic-select step (agent: discovery-prescan),
   approval gate (5)
-- strategies stage: run-topdown step with correct sub-recipe and when condition,
-  run-bottomup step with correct sub-recipe and when condition (6)
-- combine stage: run-combine step with correct sub-recipe, has when condition (3)
+- strategies stage: run-topdown step with correct sub-recipe and condition,
+  run-bottomup step with correct sub-recipe and condition (6)
+- combine stage: run-combine step with correct sub-recipe, has condition (3)
 - Output dir wiring: strategies write to investigation/topdown and investigation/bottomup,
   combine reads from both (4)
 - All referenced sub-recipes exist on disk (3)
@@ -325,15 +325,15 @@ def test_strategies_run_topdown_references_strategy_topdown():
     )
 
 
-def test_strategies_run_topdown_has_when_condition_referencing_strategies():
-    """run-topdown step must have a 'when' condition referencing 'strategies' variable."""
+def test_strategies_run_topdown_has_condition_referencing_strategies():
+    """run-topdown step must have a 'condition' field referencing 'strategies' variable."""
     data = _load_recipe()
     step = _get_stage_step_by_id(data, "strategies", "run-topdown")
     assert step is not None
-    when = str(step.get("when", step.get("condition", "")))
-    assert when, "run-topdown step must have a 'when' or 'condition' field"
-    assert "strategies" in when or "topdown" in when, (
-        f"run-topdown when condition must reference 'strategies' or 'topdown': {when!r}"
+    cond = str(step.get("condition", ""))
+    assert cond, "run-topdown step must have a 'condition' field"
+    assert "strategies" in cond or "topdown" in cond, (
+        f"run-topdown condition must reference 'strategies' or 'topdown': {cond!r}"
     )
 
 
@@ -358,15 +358,15 @@ def test_strategies_run_bottomup_references_strategy_bottomup():
     )
 
 
-def test_strategies_run_bottomup_has_when_condition_referencing_strategies():
-    """run-bottomup step must have a 'when' condition referencing 'strategies' variable."""
+def test_strategies_run_bottomup_has_condition_referencing_strategies():
+    """run-bottomup step must have a 'condition' field referencing 'strategies' variable."""
     data = _load_recipe()
     step = _get_stage_step_by_id(data, "strategies", "run-bottomup")
     assert step is not None
-    when = str(step.get("when", step.get("condition", "")))
-    assert when, "run-bottomup step must have a 'when' or 'condition' field"
-    assert "strategies" in when or "bottomup" in when, (
-        f"run-bottomup when condition must reference 'strategies' or 'bottomup': {when!r}"
+    cond = str(step.get("condition", ""))
+    assert cond, "run-bottomup step must have a 'condition' field"
+    assert "strategies" in cond or "bottomup" in cond, (
+        f"run-bottomup condition must reference 'strategies' or 'bottomup': {cond!r}"
     )
 
 
@@ -431,15 +431,15 @@ def test_combine_run_combine_references_discovery_combine():
     )
 
 
-def test_combine_run_combine_has_when_condition_referencing_strategies():
-    """run-combine step must have a 'when' condition referencing 'strategies' == 'both'."""
+def test_combine_run_combine_has_condition_referencing_strategies():
+    """run-combine step must have a 'condition' field referencing 'strategies' == 'both'."""
     data = _load_recipe()
     step = _get_stage_step_by_id(data, "combine", "run-combine")
     assert step is not None
-    when = str(step.get("when", step.get("condition", "")))
-    assert when, "run-combine step must have a 'when' or 'condition' field"
-    assert "strategies" in when or "both" in when, (
-        f"run-combine when condition must reference 'strategies' or 'both': {when!r}"
+    cond = str(step.get("condition", ""))
+    assert cond, "run-combine step must have a 'condition' field"
+    assert "strategies" in cond or "both" in cond, (
+        f"run-combine condition must reference 'strategies' or 'both': {cond!r}"
     )
 
 

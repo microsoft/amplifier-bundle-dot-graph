@@ -144,7 +144,7 @@ steps:
   # ---------------------------------------------------------------------------
   - id: "render"
     type: "bash"
-    when: "{{render_png}} == 'true'"
+    condition: "{{render_png}} == 'true'"
     timeout: 30
     command: |
       output_dir="{{output_dir}}"

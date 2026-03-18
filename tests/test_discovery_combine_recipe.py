@@ -15,7 +15,7 @@ Validates:
   prompt references output_dir, prompt references both strategy dirs (4 tests)
 - validate step: type=bash, references combined.dot, uses validate_dot from tool,
   continues on warnings (3 tests)
-- render step: type=bash, has 'when' condition referencing render_png,
+- render step: type=bash, has 'condition' field referencing render_png,
   command uses dot -Tpng, references combined.dot (4 tests)
 - Agent is declared in behaviors/dot-discovery.yaml (1 test)
 
@@ -392,24 +392,24 @@ def test_render_step_type_is_bash():
     )
 
 
-def test_render_step_has_when_condition():
-    """render step must have a 'when' condition (conditional execution)."""
+def test_render_step_has_condition():
+    """render step must have a 'condition' field (conditional execution)."""
     data = _load_recipe()
     step = _get_step_by_id(data, "render")
     assert step is not None
-    assert "when" in step, (
-        "render step must have a 'when' condition for conditional execution"
+    assert "condition" in step, (
+        "render step must have a 'condition' field for conditional execution"
     )
 
 
-def test_render_step_when_references_render_png():
-    """render step 'when' condition must reference render_png context variable."""
+def test_render_step_condition_references_render_png():
+    """render step 'condition' field must reference render_png context variable."""
     data = _load_recipe()
     step = _get_step_by_id(data, "render")
     assert step is not None
-    when_val = str(step.get("when", ""))
-    assert "render_png" in when_val, (
-        f"render step 'when' condition must reference 'render_png', got: {when_val!r}"
+    cond_val = str(step.get("condition", ""))
+    assert "render_png" in cond_val, (
+        f"render step 'condition' must reference 'render_png', got: {cond_val!r}"
     )
 
 

@@ -36,15 +36,24 @@ stages:
         command: |
           output_dir="{{output_dir}}"
           mkdir -p "$output_dir"
-          python3 -c "
-          import sys, json
+          python3 - <<'PYEOF'
+          import sys, json, os
           sys.path.insert(0, 'modules/tool-dot-graph')
-          from amplifier_module_tool_dot_graph import prescan
-          result = prescan.prescan_repo('{{repo_path}}')
-          with open('$output_dir/prescan-result.json', 'w') as f:
+          try:
+              from amplifier_module_tool_dot_graph import prescan
+              result = prescan.prescan_repo('{{repo_path}}')
+          except Exception as e:
+              print(f'WARNING: prescan module unavailable ({e}), falling back to basic directory listing', file=sys.stderr)
+              import pathlib
+              repo_path = pathlib.Path('{{repo_path}}')
+              files = [str(f.relative_to(repo_path)) for f in repo_path.rglob('*') if f.is_file() and '.git' not in str(f)]
+              result = {'success': True, 'repo_path': str(repo_path), 'total_files': len(files), 'modules': [], 'languages': {}, 'build_manifests': [], 'entry_points': []}
+          output_dir_path = '{{output_dir}}'
+          os.makedirs(output_dir_path, exist_ok=True)
+          with open(output_dir_path + '/prescan-result.json', 'w') as f:
               json.dump(result, f, indent=2)
           print(json.dumps({'success': result.get('success', True), 'total_files': result.get('total_files', 0), 'modules': len(result.get('modules', []))}, indent=2))
-          "
+          PYEOF
 
       # -----------------------------------------------------------------------
       # Step 2: Topic selection — choose 3-7 investigation topics

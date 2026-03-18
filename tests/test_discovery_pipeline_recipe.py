@@ -18,7 +18,7 @@ Validates:
 - All referenced sub-recipes exist on disk (3)
 - final_output declared (1)
 
-Total: ~50 tests
+Total: 42 tests
 """
 
 from pathlib import Path
@@ -367,6 +367,41 @@ def test_strategies_run_bottomup_has_when_condition_referencing_strategies():
     assert when, "run-bottomup step must have a 'when' or 'condition' field"
     assert "strategies" in when or "bottomup" in when, (
         f"run-bottomup when condition must reference 'strategies' or 'bottomup': {when!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# strategies + combine stage: step type='recipe' assertions (3 tests)
+# ---------------------------------------------------------------------------
+
+
+def test_strategies_run_topdown_step_type_is_recipe():
+    """run-topdown step must have type='recipe' to invoke the strategy-topdown sub-recipe."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "strategies", "run-topdown")
+    assert step is not None
+    assert step.get("type") == "recipe", (
+        f"run-topdown step must have type='recipe', got: {step.get('type')!r}"
+    )
+
+
+def test_strategies_run_bottomup_step_type_is_recipe():
+    """run-bottomup step must have type='recipe' to invoke the strategy-bottomup sub-recipe."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "strategies", "run-bottomup")
+    assert step is not None
+    assert step.get("type") == "recipe", (
+        f"run-bottomup step must have type='recipe', got: {step.get('type')!r}"
+    )
+
+
+def test_combine_run_combine_step_type_is_recipe():
+    """run-combine step must have type='recipe' to invoke the discovery-combine sub-recipe."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "combine", "run-combine")
+    assert step is not None
+    assert step.get("type") == "recipe", (
+        f"run-combine step must have type='recipe', got: {step.get('type')!r}"
     )
 
 

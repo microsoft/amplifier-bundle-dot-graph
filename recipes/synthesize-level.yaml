@@ -1,0 +1,150 @@
+name: "synthesize-level"
+description: >
+  Per-directory-level synthesis sub-recipe for bottom-up discovery strategy.
+  Reads directory contents one level deep, dispatches the discovery-level-synthesizer
+  agent to produce a DOT diagram and findings document, then validates the output
+  via pydot. Designed as a building block for bottom-up codebase discovery.
+version: "1.0.0"
+author: "DOT Graph Bundle"
+tags: ["discovery", "synthesis", "sub-recipe", "dot-graph", "bottom-up"]
+
+context:
+  level_path: ""          # absolute path to directory being synthesized
+  child_dot_files: "[]"   # JSON list of paths to child synthesis DOTs
+  output_dir: ""          # base output directory
+  level_slug: ""          # slug name from directory name
+  fidelity: "standard"    # fidelity tier (quick | standard | deep)
+
+steps:
+  # ---------------------------------------------------------------------------
+  # Step 1: read-level — list directory contents at level_path (one level deep)
+  # Produces a JSON inventory: {level_path, entry_count, entries[]}
+  # Each entry: {name, type (dir/file), extension, size_bytes}
+  # ---------------------------------------------------------------------------
+  - id: "read-level"
+    type: "bash"
+    output: "level_inventory"
+    parse_json: true
+    timeout: 30
+    command: |
+      python3 - <<'EOF'
+      import json
+      from pathlib import Path
+
+      level_path = "{{level_path}}"
+
+      result = {
+          "level_path": level_path,
+          "entry_count": 0,
+          "entries": [],
+          "error": None,
+      }
+
+      try:
+          entries = []
+          for entry in sorted(Path(level_path).iterdir()):
+              entries.append({
+                  "name": entry.name,
+                  "type": "dir" if entry.is_dir() else "file",
+                  "extension": entry.suffix if not entry.is_dir() else "",
+                  "size_bytes": entry.stat().st_size if not entry.is_dir() else 0,
+              })
+          result["entries"] = entries
+          result["entry_count"] = len(entries)
+      except Exception as e:
+          result["error"] = str(e)
+
+      print(json.dumps(result))
+      EOF
+
+  # ---------------------------------------------------------------------------
+  # Step 2: synthesize — dispatch discovery-level-synthesizer agent
+  # Agent reads the level inventory and child DOTs, then writes:
+  #   - {{output_dir}}/{{level_slug}}/diagram.dot
+  #   - {{output_dir}}/{{level_slug}}/findings.md
+  # ---------------------------------------------------------------------------
+  - id: "synthesize"
+    agent: "dot-graph:discovery-level-synthesizer"
+    output: "synthesis_result"
+    timeout: 1200
+    prompt: |
+      You are the discovery-level-synthesizer for bottom-up codebase synthesis.
+
+      Your task: analyze this directory level and produce a DOT diagram and findings
+      document that captures the structure, relationships, and key observations at
+      this level of the codebase.
+
+      Directory: {{level_path}}
+      Level slug: {{level_slug}}
+      Fidelity tier: {{fidelity}}
+      Output directory: {{output_dir}}
+
+      Directory inventory (one level deep):
+      {{level_inventory}}
+
+      Child synthesis DOTs (from subdirectories already synthesized):
+      {{child_dot_files}}
+
+      Output: Write the following artifacts to {{output_dir}}/{{level_slug}}/
+        - diagram.dot  — DOT graph representing this directory's structure and
+                         relationships, incorporating insights from child DOTs
+                         where relevant
+        - findings.md  — Key findings, patterns, and observations at this level
+
+      Guidelines:
+      - Focus on what is architecturally significant at this level
+      - Reference child synthesis results where they inform the parent picture
+      - Keep the diagram well-structured with a legend
+      - Fidelity {{fidelity}}: quick=broad strokes, standard=balanced, deep=comprehensive
+
+  # ---------------------------------------------------------------------------
+  # Step 3: validate — check diagram.dot via pydot
+  # Returns {valid, errors, diagram_path, node_count, edge_count}
+  # ---------------------------------------------------------------------------
+  - id: "validate"
+    type: "bash"
+    output: "validation_result"
+    parse_json: true
+    timeout: 30
+    command: |
+      python3 - <<'EOF'
+      import json
+      import sys
+      from pathlib import Path
+
+      output_dir = "{{output_dir}}"
+      level_slug = "{{level_slug}}"
+      diagram_path = Path(output_dir) / level_slug / "diagram.dot"
+
+      result = {
+          "valid": False,
+          "errors": [],
+          "diagram_path": str(diagram_path),
+          "node_count": 0,
+          "edge_count": 0,
+      }
+
+      if not diagram_path.exists():
+          result["errors"].append(f"diagram.dot not found at {diagram_path}")
+          print(json.dumps(result))
+          sys.exit(0)
+
+      try:
+          import pydot
+
+          graphs = pydot.graph_from_dot_file(str(diagram_path))
+          if not graphs:
+              result["errors"].append("pydot could not parse diagram.dot — empty result")
+              print(json.dumps(result))
+              sys.exit(0)
+
+          graph = graphs[0]
+          result["valid"] = True
+          result["node_count"] = len(graph.get_nodes())
+          result["edge_count"] = len(graph.get_edges())
+
+      except Exception as e:  # Catch all pydot errors — report in result, not as step failure
+          result["errors"].append(f"pydot validation error: {e}")
+
+      print(json.dumps(result))
+      EOF

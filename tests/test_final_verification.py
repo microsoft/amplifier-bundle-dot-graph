@@ -1,7 +1,8 @@
 """Final verification of complete file tree, imports, scripts, YAML, skills, and file count.
 
-Task 18: Verifies all 35 bundle files are present and functional.
-Phase A v2: Updated to include 8 new discovery agent and context files (total 35).
+Task 18: Verifies all 38 bundle files are present and functional.
+Phase A v2: Updated to include 8 new discovery agent and context files.
+Phase B v2: Updated to include 3 new synthesizer sub-recipes (total 38).
 """
 
 import os
@@ -54,6 +55,10 @@ EXPECTED_FILES = [
     "context/discovery-subsystem-synthesizer-instructions.md",
     "context/discovery-overview-synthesizer-instructions.md",
     "context/discovery-combiner-instructions.md",
+    # Phase B v2: synthesizer sub-recipes
+    "recipes/synthesize-level.yaml",
+    "recipes/synthesize-subsystem.yaml",
+    "recipes/synthesize-overview.yaml",
 ]
 
 SKILL_FILES = [
@@ -77,10 +82,10 @@ def test_bundle_file_exists(rel_path):
 
 
 def test_total_file_count():
-    """Step 6: Total bundle file count is exactly 35 (27 prior + 8 Phase A v2)."""
+    """Step 6: Total bundle file count is exactly 38 (35 prior + 3 Phase B v2)."""
     present = [f for f in EXPECTED_FILES if (REPO_ROOT / f).exists()]
-    assert len(present) == 35, (
-        f"Expected 35 bundle files, found {len(present)}. "
+    assert len(present) == 38, (
+        f"Expected 38 bundle files, found {len(present)}. "
         f"Missing: {[f for f in EXPECTED_FILES if f not in present]}"
     )
 

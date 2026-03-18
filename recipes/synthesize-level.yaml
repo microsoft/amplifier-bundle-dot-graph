@@ -122,6 +122,7 @@ steps:
           "diagram_path": str(diagram_path),
           "node_count": 0,
           "edge_count": 0,
+          "error": None,
       }
 
       if not diagram_path.exists():

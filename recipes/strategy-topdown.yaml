@@ -134,44 +134,58 @@ stages:
           ]
 
       # -----------------------------------------------------------------------
-      # Step 3: Save topics — write topics.json to output directory
-      # When topics_file is provided (sub-recipe mode), copies pre-selected
-      # topics instead of relying on topic-select output.
-      # Always outputs the topics array to set {{topics}} for downstream stages.
+      # Step 3a: Save topics from scan — STANDALONE mode only
+      # Runs when topics_file is empty (topic-select ran and set {{topics}}).
+      # Writes topics.json and outputs the array for downstream stages.
+      # Split from 3b to avoid eager {{topics}} substitution when topics_file
+      # is set and topic-select was skipped.
       # -----------------------------------------------------------------------
-      - id: "save-topics"
+      - id: "save-topics-from-scan"
+        condition: "{{topics_file}} == ''"
         type: "bash"
         output: "topics"
         parse_json: true
         command: |
           python3 - <<'EOF'
-          import json, sys, shutil
+          import json
           from pathlib import Path
 
           output_dir = "{{output_dir}}"
+          topics_json = r"""{{topics}}"""
+          try:
+              topics = json.loads(topics_json)
+          except Exception:
+              import ast
+              topics = ast.literal_eval(topics_json)
+          topics_path = Path(output_dir) / "topics.json"
+          topics_path.parent.mkdir(parents=True, exist_ok=True)
+          topics_path.write_text(json.dumps(topics, indent=2))
+          print(json.dumps(topics))
+          EOF
+
+      # -----------------------------------------------------------------------
+      # Step 3b: Save topics from file — SUB-RECIPE mode only
+      # Runs when topics_file is provided by parent pipeline.
+      # Copies the pre-selected topics file and outputs the array.
+      # Does NOT reference {{topics}} — avoids Undefined variable error when
+      # topic-select was skipped.
+      # -----------------------------------------------------------------------
+      - id: "save-topics-from-file"
+        condition: "{{topics_file}} != ''"
+        type: "bash"
+        output: "topics"
+        parse_json: true
+        command: |
+          python3 - <<'EOF'
+          import json, shutil
+          from pathlib import Path
+
           topics_file = "{{topics_file}}"
-
-          Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-          if topics_file and Path(topics_file).exists():
-              # Pre-selected topics from parent pipeline — copy to our output dir
-              dest = Path(output_dir) / "topics.json"
-              shutil.copy2(topics_file, dest)
-              topics = json.loads(Path(topics_file).read_text())
-              print(f"Using {len(topics)} pre-selected topics from {topics_file}", file=sys.stderr)
-          else:
-              # Topics from our own scan — save them
-              topics_json = r"""{{topics}}"""
-              try:
-                  topics = json.loads(topics_json)
-              except Exception:
-                  import ast
-                  topics = ast.literal_eval(topics_json)
-              topics_path = Path(output_dir) / "topics.json"
-              topics_path.write_text(json.dumps(topics, indent=2))
-              print(f"Saved {len(topics)} topics to {topics_path}", file=sys.stderr)
-
-          # Output topics JSON for downstream stages (sets {{topics}} context)
+          output_dir = "{{output_dir}}"
+          dest = Path(output_dir) / "topics.json"
+          dest.parent.mkdir(parents=True, exist_ok=True)
+          shutil.copy2(topics_file, dest)
+          topics = json.loads(Path(topics_file).read_text())
           print(json.dumps(topics))
           EOF
 

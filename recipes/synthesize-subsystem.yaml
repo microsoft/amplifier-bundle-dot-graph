@@ -1,0 +1,114 @@
+name: "synthesize-subsystem"
+description: >
+  Subsystem-level synthesis sub-recipe for the discovery pipeline.
+  Reads per-module consensus DOT files and source directories within a subsystem,
+  dispatches the discovery-subsystem-synthesizer agent to investigate cross-module
+  boundaries and produce a subsystem-level DOT diagram, then validates the output
+  via pydot. Designed as a building block for the discovery pipeline's multi-level
+  synthesis strategy. Focus is on seams between modules, not module internals.
+version: "1.0.0"
+author: "DOT Graph Bundle"
+tags: ["discovery", "synthesis", "sub-recipe", "dot-graph"]
+
+context:
+  subsystem_name: ""      # name of the subsystem
+  module_dot_files: "[]"  # JSON list of paths to per-module consensus DOT files
+  source_dirs: "[]"       # JSON list of source directories in this subsystem
+  output_dir: ""          # where to write (.discovery/output/subsystems/)
+
+steps:
+  # ---------------------------------------------------------------------------
+  # Step 1: synthesize — dispatch discovery-subsystem-synthesizer agent
+  # Agent reads per-module consensus DOTs and source directories, investigates
+  # boundaries between modules: cross-module data flows, shared interfaces,
+  # emergent patterns. Writes {subsystem_name}.dot to output_dir/.
+  # Focus: seams between modules, not module internals.
+  # ---------------------------------------------------------------------------
+  - id: "synthesize"
+    agent: "dot-graph:discovery-subsystem-synthesizer"
+    output: "synthesis_result"
+    timeout: 1200
+    prompt: |
+      You are the discovery-subsystem-synthesizer for subsystem: {{subsystem_name}}.
+
+      Your task: analyze the per-module consensus DOT files and source directories
+      within this subsystem to produce a subsystem-level DOT diagram that captures
+      the cross-module boundaries, data flows, shared interfaces, and emergent
+      architectural patterns within this subsystem.
+
+      Subsystem name: {{subsystem_name}}
+      Output directory: {{output_dir}}
+
+      Per-module consensus DOT files (read these for module-level context):
+      {{module_dot_files}}
+
+      Source directories in this subsystem (for boundary investigation):
+      {{source_dirs}}
+
+      Output: Write the following artifact to {{output_dir}}/:
+        - {{subsystem_name}}.dot  — DOT graph representing the subsystem's
+                                    cross-module structure, boundaries, and
+                                    integration patterns
+
+      Guidelines:
+      - FOCUS ON SEAMS between modules, not module internals
+      - Investigate cross-module data flows: what data passes between modules?
+      - Map shared interfaces: what contracts exist at module boundaries?
+      - Identify emergent patterns that only appear when viewing multiple modules together
+      - Read the per-module DOTs for module-level context but synthesize UP to
+        the subsystem level — don't just duplicate module internals
+      - The diagram should reveal architectural insights about the subsystem as a whole
+      - Include a legend and use well-structured clusters where appropriate
+
+  # ---------------------------------------------------------------------------
+  # Step 2: validate — check {subsystem_name}.dot via pydot
+  # Returns {valid, errors, diagram_path, node_count, edge_count}
+  # ---------------------------------------------------------------------------
+  - id: "validate"
+    type: "bash"
+    output: "validation_result"
+    parse_json: true
+    timeout: 30
+    command: |
+      python3 - <<'EOF'
+      import json
+      import sys
+      from pathlib import Path
+
+      subsystem_name = "{{subsystem_name}}"
+      output_dir = "{{output_dir}}"
+      diagram_path = Path(output_dir) / f"{subsystem_name}.dot"
+
+      result = {
+          "valid": False,
+          "errors": [],
+          "diagram_path": str(diagram_path),
+          "node_count": 0,
+          "edge_count": 0,
+          "error": None,
+      }
+
+      if not diagram_path.exists():
+          result["errors"].append(f"{subsystem_name}.dot not found at {diagram_path}")
+          print(json.dumps(result))
+          sys.exit(0)
+
+      try:
+          import pydot
+
+          graphs = pydot.graph_from_dot_file(str(diagram_path))
+          if not graphs:
+              result["errors"].append(f"pydot could not parse {subsystem_name}.dot — empty result")
+              print(json.dumps(result))
+              sys.exit(0)
+
+          graph = graphs[0]
+          result["valid"] = True
+          result["node_count"] = len(graph.get_nodes())
+          result["edge_count"] = len(graph.get_edges())
+
+      except Exception as e:  # Catch all pydot errors — report in result, not as step failure
+          result["errors"].append(f"pydot validation error: {e}")
+
+      print(json.dumps(result))
+      EOF

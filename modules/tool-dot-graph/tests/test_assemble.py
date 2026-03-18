@@ -1,19 +1,20 @@
-"""Tests for assemble.py — Hierarchical DOT Assembly.
+"""Tests for assemble.py — Filesystem plumbing (copy DOTs, write manifest).
 
-~16 tests covering:
-- Error handling: empty/missing manifest, missing 'modules' key, missing DOT files (warn and skip)
-- Subsystem assembly: module clusters present, valid DOT output, nodes preserved
-- Overview assembly: overview.dot produced, contains subsystem clusters, valid DOT
-- Result structure: success, outputs, stats fields present
-- Stats accuracy: correct total_nodes, total_edges, subsystems, modules counts
-- Ancestor invalidation: only affected subsystems regenerated, unaffected skipped
-- Full regeneration: without invalidation, all subsystems generated, nothing skipped
+16 tests covering:
+- Error handling: empty/missing manifest, missing 'modules'/'subsystems' key, missing DOT (warn and skip)
+- Directory creation: subsystems/ subdir, nested output_dir
+- File copying: module DOT files copied to subsystems/
+- Manifest I/O: manifest.json written with correct structure
+- Result structure: success, outputs, stats, warnings; outputs has overview, subsystems
+- Stats: module and subsystem counts (no pydot-era total_nodes/total_edges)
+- Agent-produced DOT discovery: overview.dot discovered / None when absent
+- render_png parameter: no PNG files when render_png=False
 """
 
+import json
 import tempfile
 from pathlib import Path
 
-import pydot
 import pytest
 
 from amplifier_module_tool_dot_graph.assemble import assemble_hierarchy
@@ -77,7 +78,7 @@ def _build_minimal_manifest(dot_dir: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Error handling tests
+# Error handling tests (5)
 # ---------------------------------------------------------------------------
 
 
@@ -151,308 +152,8 @@ def test_assemble_missing_dot_file_warns_and_skips():
 
 
 # ---------------------------------------------------------------------------
-# Subsystem assembly tests
+# Directory creation tests (2)
 # ---------------------------------------------------------------------------
-
-
-def test_subsystem_dot_contains_module_clusters(dot_dir: str):
-    """Subsystem DOT file must contain subgraph cluster_<module> for each module."""
-    manifest = _build_minimal_manifest(dot_dir)
-
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-        assert result["success"] is True, (
-            f"assemble_hierarchy must succeed, got: {result}"
-        )
-        ss1_path = result["outputs"]["subsystems"]["ss1"]
-        content = Path(ss1_path).read_text()
-
-    assert "cluster_alpha" in content, (
-        f"Subsystem ss1 DOT must contain 'cluster_alpha', got:\n{content}"
-    )
-
-
-def test_subsystem_dot_is_valid(dot_dir: str):
-    """Subsystem DOT file is parseable by pydot."""
-    manifest = _build_minimal_manifest(dot_dir)
-
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-        assert result["success"] is True, (
-            f"assemble_hierarchy must succeed, got: {result}"
-        )
-        ss1_path = result["outputs"]["subsystems"]["ss1"]
-        content = Path(ss1_path).read_text()
-
-    graphs = pydot.graph_from_dot_data(content)
-    assert graphs is not None and len(graphs) > 0, (
-        f"Subsystem ss1 DOT must be parseable, got:\n{content}"
-    )
-
-
-def test_subsystem_dot_preserves_nodes(dot_dir: str):
-    """Subsystem DOT contains the nodes from its modules."""
-    manifest = _build_minimal_manifest(dot_dir)
-
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-        assert result["success"] is True, (
-            f"assemble_hierarchy must succeed, got: {result}"
-        )
-        ss1_path = result["outputs"]["subsystems"]["ss1"]
-        content = Path(ss1_path).read_text()
-
-    # alpha module has nodes a, b, c
-    assert "a" in content, f"ss1 DOT must contain node 'a' from alpha, got:\n{content}"
-    assert "b" in content, f"ss1 DOT must contain node 'b' from alpha, got:\n{content}"
-
-
-# ---------------------------------------------------------------------------
-# Overview assembly tests
-# ---------------------------------------------------------------------------
-
-
-def test_overview_dot_is_produced(dot_dir: str):
-    """overview.dot is produced in the output directory."""
-    manifest = _build_minimal_manifest(dot_dir)
-
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-        assert result["success"] is True, (
-            f"assemble_hierarchy must succeed, got: {result}"
-        )
-        assert "overview" in result["outputs"], (
-            "Result must contain outputs['overview']"
-        )
-        overview_path = result["outputs"]["overview"]
-        exists = Path(overview_path).exists()
-
-    assert exists, f"overview.dot must exist at {overview_path}"
-
-
-def test_overview_dot_contains_subsystem_clusters(dot_dir: str):
-    """overview.dot contains subgraph cluster_<subsystem> for each subsystem."""
-    manifest = _build_minimal_manifest(dot_dir)
-
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-        assert result["success"] is True, (
-            f"assemble_hierarchy must succeed, got: {result}"
-        )
-        overview_path = result["outputs"]["overview"]
-        content = Path(overview_path).read_text()
-
-    assert "cluster_ss1" in content, (
-        f"overview.dot must contain 'cluster_ss1', got:\n{content}"
-    )
-    assert "cluster_ss2" in content, (
-        f"overview.dot must contain 'cluster_ss2', got:\n{content}"
-    )
-
-
-def test_overview_dot_is_valid(dot_dir: str):
-    """overview.dot is parseable by pydot."""
-    manifest = _build_minimal_manifest(dot_dir)
-
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-        assert result["success"] is True, (
-            f"assemble_hierarchy must succeed, got: {result}"
-        )
-        overview_path = result["outputs"]["overview"]
-        content = Path(overview_path).read_text()
-
-    graphs = pydot.graph_from_dot_data(content)
-    assert graphs is not None and len(graphs) > 0, (
-        f"overview.dot must be parseable, got:\n{content}"
-    )
-
-
-# ---------------------------------------------------------------------------
-# Result structure tests
-# ---------------------------------------------------------------------------
-
-
-def test_result_structure_has_required_fields(dot_dir: str):
-    """Success result has all required top-level fields."""
-    manifest = _build_minimal_manifest(dot_dir)
-
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-
-    assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
-
-    required_fields = [
-        "success",
-        "outputs",
-        "stats",
-        "warnings",
-        "regenerated",
-        "skipped",
-    ]
-    for field in required_fields:
-        assert field in result, (
-            f"Result must include '{field}', got keys: {list(result.keys())}"
-        )
-
-    assert "overview" in result["outputs"], "outputs must contain 'overview' key"
-    assert "subsystems" in result["outputs"], "outputs must contain 'subsystems' key"
-    assert isinstance(result["outputs"]["subsystems"], dict), (
-        "'subsystems' must be a dict"
-    )
-
-
-def test_stats_accuracy(dot_dir: str):
-    """Stats report accurate total_nodes, total_edges, subsystems, modules counts."""
-    manifest = {
-        "modules": {
-            "alpha": {
-                "dot_path": str(Path(dot_dir) / "alpha.dot"),
-                "subsystem": "ss1",
-            },  # 3 nodes, 2 edges
-            "beta": {
-                "dot_path": str(Path(dot_dir) / "beta.dot"),
-                "subsystem": "ss1",
-            },  # 2 nodes, 1 edge
-            "gamma": {
-                "dot_path": str(Path(dot_dir) / "gamma.dot"),
-                "subsystem": "ss2",
-            },  # 3 nodes, 2 edges
-        },
-        "subsystems": {
-            "ss1": {"modules": ["alpha", "beta"]},
-            "ss2": {"modules": ["gamma"]},
-        },
-    }
-
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-
-    assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
-    stats = result["stats"]
-
-    assert stats["total_nodes"] == 8, (
-        f"total_nodes must be 8 (3+2+3), got: {stats['total_nodes']}"
-    )
-    assert stats["total_edges"] == 5, (
-        f"total_edges must be 5 (2+1+2), got: {stats['total_edges']}"
-    )
-    assert stats["subsystems"] == 2, (
-        f"subsystems count must be 2, got: {stats['subsystems']}"
-    )
-    assert stats["modules"] == 3, f"modules count must be 3, got: {stats['modules']}"
-
-
-# ---------------------------------------------------------------------------
-# Invalidation / incremental regeneration tests
-# ---------------------------------------------------------------------------
-
-
-def test_full_regeneration_without_invalidation(dot_dir: str):
-    """Without invalidated_modules, all subsystems are regenerated, nothing skipped."""
-    manifest = _build_minimal_manifest(dot_dir)
-
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-
-    assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
-    assert "ss1" in result["regenerated"], (
-        f"ss1 must be in regenerated, got: {result['regenerated']}"
-    )
-    assert "ss2" in result["regenerated"], (
-        f"ss2 must be in regenerated, got: {result['regenerated']}"
-    )
-    assert result["skipped"] == [], (
-        f"Without invalidation, skipped must be [], got: {result['skipped']}"
-    )
-
-
-def test_incremental_regeneration_with_invalidated_modules(dot_dir: str):
-    """With invalidated_modules=[alpha], only ss1 is regenerated; ss2 is skipped."""
-    manifest = {
-        "modules": {
-            "alpha": {"dot_path": str(Path(dot_dir) / "alpha.dot"), "subsystem": "ss1"},
-            "beta": {"dot_path": str(Path(dot_dir) / "beta.dot"), "subsystem": "ss2"},
-        },
-        "subsystems": {
-            "ss1": {"modules": ["alpha"]},
-            "ss2": {"modules": ["beta"]},
-        },
-        "invalidated_modules": ["alpha"],
-    }
-
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-
-    assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
-    assert "ss1" in result["regenerated"], (
-        f"ss1 must be regenerated (alpha is invalidated), got: {result['regenerated']}"
-    )
-    assert "ss2" in result["skipped"], (
-        f"ss2 must be skipped (beta not invalidated), got: {result['skipped']}"
-    )
-
-
-# ---------------------------------------------------------------------------
-# Legend tests
-# ---------------------------------------------------------------------------
-
-
-def test_legend_present_in_subsystem_output(dot_dir: str):
-    """Every subsystem DOT output must contain a cluster_legend subgraph."""
-    manifest = _build_minimal_manifest(dot_dir)
-
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-        assert result["success"] is True, (
-            f"assemble_hierarchy must succeed, got: {result}"
-        )
-        ss1_path = result["outputs"]["subsystems"]["ss1"]
-        content = Path(ss1_path).read_text()
-
-    assert "cluster_legend" in content, (
-        f"Subsystem ss1 DOT must contain 'cluster_legend', got:\n{content}"
-    )
-
-
-def test_legend_present_in_overview_output(dot_dir: str):
-    """overview.dot must contain a cluster_legend subgraph."""
-    manifest = _build_minimal_manifest(dot_dir)
-
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-        assert result["success"] is True, (
-            f"assemble_hierarchy must succeed, got: {result}"
-        )
-        overview_path = result["outputs"]["overview"]
-        content = Path(overview_path).read_text()
-
-    assert "cluster_legend" in content, (
-        f"overview.dot must contain 'cluster_legend', got:\n{content}"
-    )
-
-
-# ---------------------------------------------------------------------------
-# Subsystems subdir layout tests (Improvement 1)
-# ---------------------------------------------------------------------------
-
-
-def test_subsystem_dot_written_in_subsystems_subdir(dot_dir: str):
-    """Subsystem DOT files must be written to output_dir/subsystems/ not output_dir/."""
-    manifest = _build_minimal_manifest(dot_dir)
-
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-        assert result["success"] is True, (
-            f"assemble_hierarchy must succeed, got: {result}"
-        )
-        ss1_path = result["outputs"]["subsystems"]["ss1"]
-        # Path must be inside subsystems/ subdirectory
-        assert "subsystems" in ss1_path, (
-            f"Subsystem path must be inside 'subsystems/' subdir, got: {ss1_path}"
-        )
-        # File must exist at the declared path
-        assert Path(ss1_path).exists(), f"Subsystem ss1.dot must exist at {ss1_path}"
 
 
 def test_subsystems_subdir_created(dot_dir: str):
@@ -465,13 +166,193 @@ def test_subsystems_subdir_created(dot_dir: str):
             f"assemble_hierarchy must succeed, got: {result}"
         )
         subsystems_dir = Path(out) / "subsystems"
-        assert subsystems_dir.exists(), (
-            f"subsystems/ subdir must be created at {subsystems_dir}"
-        )
+        exists = subsystems_dir.exists()
+
+    assert exists, "subsystems/ subdir must be created"
+
+
+def test_output_dir_created_when_missing(dot_dir: str):
+    """output_dir is created automatically when it doesn't exist (nested path OK)."""
+    manifest = _build_minimal_manifest(dot_dir)
+
+    with tempfile.TemporaryDirectory() as base:
+        nested_out = str(Path(base) / "deep" / "nested" / "output")
+        result = assemble_hierarchy(manifest, nested_out)
+
+    assert result["success"] is True, (
+        f"assemble_hierarchy must succeed with missing nested output_dir, got: {result}"
+    )
+    assert result["outputs"]["subsystems"], "subsystems must not be empty"
 
 
 # ---------------------------------------------------------------------------
-# render_png parameter tests (Improvement 3)
+# File copying tests (2)
+# ---------------------------------------------------------------------------
+
+
+def test_module_dot_copied_to_output(dot_dir: str):
+    """alpha.dot and beta.dot are copied to subsystems/ directory."""
+    manifest = _build_minimal_manifest(dot_dir)
+
+    with tempfile.TemporaryDirectory() as out:
+        result = assemble_hierarchy(manifest, out)
+        assert result["success"] is True, (
+            f"assemble_hierarchy must succeed, got: {result}"
+        )
+        alpha_exists = (Path(out) / "subsystems" / "alpha.dot").exists()
+        beta_exists = (Path(out) / "subsystems" / "beta.dot").exists()
+
+    assert alpha_exists, "alpha.dot must be copied to subsystems/"
+    assert beta_exists, "beta.dot must be copied to subsystems/"
+
+
+def test_copied_dot_has_correct_content(dot_dir: str):
+    """Copied DOT file content matches the source module DOT."""
+    manifest = _build_minimal_manifest(dot_dir)
+
+    with tempfile.TemporaryDirectory() as out:
+        result = assemble_hierarchy(manifest, out)
+        assert result["success"] is True, (
+            f"assemble_hierarchy must succeed, got: {result}"
+        )
+        alpha_content = (Path(out) / "subsystems" / "alpha.dot").read_text()
+
+    assert alpha_content == MOD_ALPHA_DOT, (
+        f"Copied alpha.dot must have original content.\n"
+        f"Expected: {MOD_ALPHA_DOT!r}\nGot: {alpha_content!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Manifest I/O tests (2)
+# ---------------------------------------------------------------------------
+
+
+def test_manifest_json_written(dot_dir: str):
+    """manifest.json is written to the output directory."""
+    manifest = _build_minimal_manifest(dot_dir)
+
+    with tempfile.TemporaryDirectory() as out:
+        result = assemble_hierarchy(manifest, out)
+        assert result["success"] is True, (
+            f"assemble_hierarchy must succeed, got: {result}"
+        )
+        manifest_exists = (Path(out) / "manifest.json").exists()
+
+    assert manifest_exists, "manifest.json must exist in output_dir"
+
+
+def test_manifest_json_has_modules_and_subsystems(dot_dir: str):
+    """manifest.json contains 'modules' and 'subsystems' top-level keys."""
+    manifest = _build_minimal_manifest(dot_dir)
+
+    with tempfile.TemporaryDirectory() as out:
+        result = assemble_hierarchy(manifest, out)
+        assert result["success"] is True, (
+            f"assemble_hierarchy must succeed, got: {result}"
+        )
+        data = json.loads((Path(out) / "manifest.json").read_text())
+
+    assert "modules" in data, (
+        f"manifest.json must have 'modules' key, got: {list(data)}"
+    )
+    assert "subsystems" in data, (
+        f"manifest.json must have 'subsystems' key, got: {list(data)}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Result structure tests (2)
+# ---------------------------------------------------------------------------
+
+
+def test_result_structure_has_required_fields(dot_dir: str):
+    """Success result has success, outputs, stats, warnings; outputs has overview, subsystems."""
+    manifest = _build_minimal_manifest(dot_dir)
+
+    with tempfile.TemporaryDirectory() as out:
+        result = assemble_hierarchy(manifest, out)
+
+    assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
+
+    required_fields = ["success", "outputs", "stats", "warnings"]
+    for field in required_fields:
+        assert field in result, (
+            f"Result must include '{field}', got keys: {list(result.keys())}"
+        )
+
+    assert "overview" in result["outputs"], "outputs must contain 'overview' key"
+    assert "subsystems" in result["outputs"], "outputs must contain 'subsystems' key"
+    assert isinstance(result["outputs"]["subsystems"], dict), (
+        "'subsystems' must be a dict"
+    )
+
+
+def test_stats_has_module_and_subsystem_counts(dot_dir: str):
+    """Stats reports 'modules' and 'subsystems' counts (no pydot-era total_nodes/total_edges)."""
+    manifest = _build_minimal_manifest(dot_dir)
+
+    with tempfile.TemporaryDirectory() as out:
+        result = assemble_hierarchy(manifest, out)
+
+    assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
+
+    stats = result["stats"]
+    assert stats["modules"] == 2, f"modules count must be 2, got: {stats['modules']}"
+    assert stats["subsystems"] == 2, (
+        f"subsystems count must be 2, got: {stats['subsystems']}"
+    )
+    assert "total_nodes" not in stats, (
+        "stats must NOT have 'total_nodes' (pydot era removed)"
+    )
+    assert "total_edges" not in stats, (
+        "stats must NOT have 'total_edges' (pydot era removed)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Agent-produced DOT discovery tests (2)
+# ---------------------------------------------------------------------------
+
+
+def test_discovers_existing_overview_dot(dot_dir: str):
+    """Pre-created overview.dot in output_dir is reported in outputs['overview']."""
+    manifest = _build_minimal_manifest(dot_dir)
+
+    with tempfile.TemporaryDirectory() as out:
+        overview_path = Path(out) / "overview.dot"
+        overview_path.write_text("digraph overview { ss1 -> ss2; }")
+
+        result = assemble_hierarchy(manifest, out)
+        assert result["success"] is True, (
+            f"assemble_hierarchy must succeed, got: {result}"
+        )
+        overview_out = result["outputs"]["overview"]
+
+    assert overview_out is not None, (
+        "outputs['overview'] must not be None when overview.dot exists"
+    )
+    assert "overview.dot" in overview_out, (
+        f"outputs['overview'] must point to overview.dot, got: {overview_out}"
+    )
+
+
+def test_overview_is_none_when_absent(dot_dir: str):
+    """outputs['overview'] is None when no overview.dot is present."""
+    manifest = _build_minimal_manifest(dot_dir)
+
+    with tempfile.TemporaryDirectory() as out:
+        result = assemble_hierarchy(manifest, out)
+
+    assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
+    assert result["outputs"]["overview"] is None, (
+        f"outputs['overview'] must be None when no overview.dot, "
+        f"got: {result['outputs']['overview']}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# render_png parameter tests (2)
 # ---------------------------------------------------------------------------
 
 

@@ -1,8 +1,9 @@
 """Final verification of complete file tree, imports, scripts, YAML, skills, and file count.
 
-Task 18: Verifies all 38 bundle files are present and functional.
+Task 18: Verifies all 40 bundle files are present and functional.
 Phase A v2: Updated to include 8 new discovery agent and context files.
 Phase B v2: Updated to include 3 new synthesizer sub-recipes (total 38).
+Phase C v2: Updated to include 2 new strategy recipes (total 40).
 """
 
 import os
@@ -15,7 +16,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).parent.parent
 
-# The 38 expected bundle files (21 original + 3 Phase A + 3 Phase D recipes + 8 Phase A v2 + 3 Phase B v2)
+# The 40 expected bundle files (21 original + 3 Phase A + 3 Phase D recipes + 8 Phase A v2 + 3 Phase B v2 + 2 Phase C v2)
 EXPECTED_FILES = [
     ".gitignore",
     "bundle.md",
@@ -59,6 +60,9 @@ EXPECTED_FILES = [
     "recipes/synthesize-level.yaml",
     "recipes/synthesize-subsystem.yaml",
     "recipes/synthesize-overview.yaml",
+    # Phase C v2: strategy recipes
+    "recipes/strategy-topdown.yaml",
+    "recipes/strategy-bottomup.yaml",
 ]
 
 SKILL_FILES = [
@@ -82,10 +86,10 @@ def test_bundle_file_exists(rel_path):
 
 
 def test_total_file_count():
-    """Step 6: Total bundle file count is exactly 38 (35 prior + 3 Phase B v2)."""
+    """Step 6: Total bundle file count is exactly 40 (38 prior + 2 Phase C v2)."""
     present = [f for f in EXPECTED_FILES if (REPO_ROOT / f).exists()]
-    assert len(present) == 38, (
-        f"Expected 38 bundle files, found {len(present)}. "
+    assert len(present) == 40, (
+        f"Expected 40 bundle files, found {len(present)}. "
         f"Missing: {[f for f in EXPECTED_FILES if f not in present]}"
     )
 

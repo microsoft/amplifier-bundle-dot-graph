@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import shutil
 from pathlib import Path
 
@@ -67,9 +66,10 @@ def assemble_hierarchy(
     warnings: list[str] = []
 
     # --- Create output directories ---
-    os.makedirs(output_dir, exist_ok=True)
-    subsystems_dir = str(Path(output_dir) / "subsystems")
-    os.makedirs(subsystems_dir, exist_ok=True)
+    out_path = Path(output_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+    subsystems_dir = out_path / "subsystems"
+    subsystems_dir.mkdir(exist_ok=True)
 
     # --- Copy per-module DOT files to subsystems/ ---
     for mod_name, mod_info in modules_def.items():
@@ -79,7 +79,7 @@ def assemble_hierarchy(
                 f"Module '{mod_name}': DOT file '{dot_path}' not found — skipped"
             )
             continue
-        dest = str(Path(subsystems_dir) / f"{mod_name}.dot")
+        dest = subsystems_dir / f"{mod_name}.dot"
         try:
             shutil.copy2(dot_path, dest)
         except OSError as exc:
@@ -90,14 +90,14 @@ def assemble_hierarchy(
     # --- Discover agent-produced DOTs ---
     # Subsystem DOTs: any .dot files present in subsystems/ directory
     subsystem_paths: dict[str, str] = {}
-    for dot_file in sorted(Path(subsystems_dir).glob("*.dot")):
+    for dot_file in sorted(subsystems_dir.glob("*.dot")):
         name = dot_file.stem
         subsystem_paths[name] = str(dot_file)
 
     # Overview DOT: look for overview.dot in output root
-    overview_path_candidate = str(Path(output_dir) / "overview.dot")
+    overview_candidate = out_path / "overview.dot"
     overview_path: str | None = (
-        overview_path_candidate if Path(overview_path_candidate).exists() else None
+        str(overview_candidate) if overview_candidate.exists() else None
     )
 
     # --- Write manifest.json ---
@@ -106,8 +106,7 @@ def assemble_hierarchy(
         "subsystems": subsystems_def,
         "overview_path": overview_path,
     }
-    manifest_json_path = str(Path(output_dir) / "manifest.json")
-    Path(manifest_json_path).write_text(json.dumps(manifest_data, indent=2))
+    (out_path / "manifest.json").write_text(json.dumps(manifest_data, indent=2))
 
     # --- Optionally render discovered DOT files to PNG ---
     if render_png:

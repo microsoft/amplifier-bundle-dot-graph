@@ -12,7 +12,6 @@
 """
 
 import json
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -82,10 +81,9 @@ def _build_minimal_manifest(dot_dir: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def test_assemble_empty_manifest_returns_error():
+def test_assemble_empty_manifest_returns_error(tmp_path: Path):
     """Empty dict manifest returns success=False with descriptive error."""
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy({}, out)
+    result = assemble_hierarchy({}, str(tmp_path))
 
     assert result["success"] is False, "Empty manifest must return success=False"
     assert "error" in result, "Error result must have 'error' key"
@@ -93,20 +91,18 @@ def test_assemble_empty_manifest_returns_error():
     assert len(result["error"]) > 0, "'error' must be non-empty"
 
 
-def test_assemble_none_manifest_returns_error():
+def test_assemble_none_manifest_returns_error(tmp_path: Path):
     """None manifest returns success=False with descriptive error."""
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(None, out)  # type: ignore[arg-type]
+    result = assemble_hierarchy(None, str(tmp_path))  # type: ignore[arg-type]
 
     assert result["success"] is False, "None manifest must return success=False"
     assert "error" in result, "Error result must have 'error' key"
 
 
-def test_assemble_missing_modules_key_returns_error():
+def test_assemble_missing_modules_key_returns_error(tmp_path: Path):
     """Manifest without 'modules' key returns success=False."""
     manifest = {"subsystems": {"ss1": {"modules": ["alpha"]}}}
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
+    result = assemble_hierarchy(manifest, str(tmp_path))
 
     assert result["success"] is False, "Missing 'modules' key must return success=False"
     assert "error" in result, "Error result must have 'error' key"
@@ -115,11 +111,12 @@ def test_assemble_missing_modules_key_returns_error():
     )
 
 
-def test_assemble_missing_subsystems_key_returns_error():
+def test_assemble_missing_subsystems_key_returns_error(tmp_path: Path):
     """Manifest without 'subsystems' key returns success=False."""
-    manifest = {"modules": {"alpha": {"dot_path": "/tmp/a.dot", "subsystem": "ss1"}}}
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
+    manifest = {
+        "modules": {"alpha": {"dot_path": str(tmp_path / "a.dot"), "subsystem": "ss1"}}
+    }
+    result = assemble_hierarchy(manifest, str(tmp_path))
 
     assert result["success"] is False, (
         "Missing 'subsystems' key must return success=False"
@@ -130,7 +127,7 @@ def test_assemble_missing_subsystems_key_returns_error():
     )
 
 
-def test_assemble_missing_dot_file_warns_and_skips():
+def test_assemble_missing_dot_file_warns_and_skips(tmp_path: Path):
     """Missing DOT file emits a warning (not failure); module is skipped."""
     manifest = {
         "modules": {
@@ -140,8 +137,7 @@ def test_assemble_missing_dot_file_warns_and_skips():
             "ss1": {"modules": ["alpha"]},
         },
     }
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
+    result = assemble_hierarchy(manifest, str(tmp_path))
 
     assert result["success"] is True, "Missing DOT file must not cause failure"
     assert "warnings" in result, "Result must have 'warnings' key"
@@ -156,28 +152,22 @@ def test_assemble_missing_dot_file_warns_and_skips():
 # ---------------------------------------------------------------------------
 
 
-def test_subsystems_subdir_created(dot_dir: str):
+def test_subsystems_subdir_created(dot_dir: str, tmp_path: Path):
     """assemble_hierarchy must create the subsystems/ subdirectory."""
     manifest = _build_minimal_manifest(dot_dir)
+    out = tmp_path / "output"
 
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-        assert result["success"] is True, (
-            f"assemble_hierarchy must succeed, got: {result}"
-        )
-        subsystems_dir = Path(out) / "subsystems"
-        exists = subsystems_dir.exists()
-
-    assert exists, "subsystems/ subdir must be created"
+    result = assemble_hierarchy(manifest, str(out))
+    assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
+    assert (out / "subsystems").exists(), "subsystems/ subdir must be created"
 
 
-def test_output_dir_created_when_missing(dot_dir: str):
+def test_output_dir_created_when_missing(dot_dir: str, tmp_path: Path):
     """output_dir is created automatically when it doesn't exist (nested path OK)."""
     manifest = _build_minimal_manifest(dot_dir)
+    nested_out = tmp_path / "deep" / "nested" / "output"
 
-    with tempfile.TemporaryDirectory() as base:
-        nested_out = str(Path(base) / "deep" / "nested" / "output")
-        result = assemble_hierarchy(manifest, nested_out)
+    result = assemble_hierarchy(manifest, str(nested_out))
 
     assert result["success"] is True, (
         f"assemble_hierarchy must succeed with missing nested output_dir, got: {result}"
@@ -190,32 +180,29 @@ def test_output_dir_created_when_missing(dot_dir: str):
 # ---------------------------------------------------------------------------
 
 
-def test_module_dot_copied_to_output(dot_dir: str):
+def test_module_dot_copied_to_output(dot_dir: str, tmp_path: Path):
     """alpha.dot and beta.dot are copied to subsystems/ directory."""
     manifest = _build_minimal_manifest(dot_dir)
+    out = tmp_path / "output"
 
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-        assert result["success"] is True, (
-            f"assemble_hierarchy must succeed, got: {result}"
-        )
-        alpha_exists = (Path(out) / "subsystems" / "alpha.dot").exists()
-        beta_exists = (Path(out) / "subsystems" / "beta.dot").exists()
-
-    assert alpha_exists, "alpha.dot must be copied to subsystems/"
-    assert beta_exists, "beta.dot must be copied to subsystems/"
+    result = assemble_hierarchy(manifest, str(out))
+    assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
+    assert (out / "subsystems" / "alpha.dot").exists(), (
+        "alpha.dot must be copied to subsystems/"
+    )
+    assert (out / "subsystems" / "beta.dot").exists(), (
+        "beta.dot must be copied to subsystems/"
+    )
 
 
-def test_copied_dot_has_correct_content(dot_dir: str):
+def test_copied_dot_has_correct_content(dot_dir: str, tmp_path: Path):
     """Copied DOT file content matches the source module DOT."""
     manifest = _build_minimal_manifest(dot_dir)
+    out = tmp_path / "output"
 
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-        assert result["success"] is True, (
-            f"assemble_hierarchy must succeed, got: {result}"
-        )
-        alpha_content = (Path(out) / "subsystems" / "alpha.dot").read_text()
+    result = assemble_hierarchy(manifest, str(out))
+    assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
+    alpha_content = (out / "subsystems" / "alpha.dot").read_text()
 
     assert alpha_content == MOD_ALPHA_DOT, (
         f"Copied alpha.dot must have original content.\n"
@@ -228,30 +215,24 @@ def test_copied_dot_has_correct_content(dot_dir: str):
 # ---------------------------------------------------------------------------
 
 
-def test_manifest_json_written(dot_dir: str):
+def test_manifest_json_written(dot_dir: str, tmp_path: Path):
     """manifest.json is written to the output directory."""
     manifest = _build_minimal_manifest(dot_dir)
+    out = tmp_path / "output"
 
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-        assert result["success"] is True, (
-            f"assemble_hierarchy must succeed, got: {result}"
-        )
-        manifest_exists = (Path(out) / "manifest.json").exists()
-
-    assert manifest_exists, "manifest.json must exist in output_dir"
+    result = assemble_hierarchy(manifest, str(out))
+    assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
+    assert (out / "manifest.json").exists(), "manifest.json must exist in output_dir"
 
 
-def test_manifest_json_has_modules_and_subsystems(dot_dir: str):
+def test_manifest_json_has_modules_and_subsystems(dot_dir: str, tmp_path: Path):
     """manifest.json contains 'modules' and 'subsystems' top-level keys."""
     manifest = _build_minimal_manifest(dot_dir)
+    out = tmp_path / "output"
 
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-        assert result["success"] is True, (
-            f"assemble_hierarchy must succeed, got: {result}"
-        )
-        data = json.loads((Path(out) / "manifest.json").read_text())
+    result = assemble_hierarchy(manifest, str(out))
+    assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
+    data = json.loads((out / "manifest.json").read_text())
 
     assert "modules" in data, (
         f"manifest.json must have 'modules' key, got: {list(data)}"
@@ -266,12 +247,12 @@ def test_manifest_json_has_modules_and_subsystems(dot_dir: str):
 # ---------------------------------------------------------------------------
 
 
-def test_result_structure_has_required_fields(dot_dir: str):
+def test_result_structure_has_required_fields(dot_dir: str, tmp_path: Path):
     """Success result has success, outputs, stats, warnings; outputs has overview, subsystems."""
     manifest = _build_minimal_manifest(dot_dir)
+    out = tmp_path / "output"
 
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
+    result = assemble_hierarchy(manifest, str(out))
 
     assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
 
@@ -288,12 +269,12 @@ def test_result_structure_has_required_fields(dot_dir: str):
     )
 
 
-def test_stats_has_module_and_subsystem_counts(dot_dir: str):
+def test_stats_has_module_and_subsystem_counts(dot_dir: str, tmp_path: Path):
     """Stats reports 'modules' and 'subsystems' counts (no pydot-era total_nodes/total_edges)."""
     manifest = _build_minimal_manifest(dot_dir)
+    out = tmp_path / "output"
 
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
+    result = assemble_hierarchy(manifest, str(out))
 
     assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
 
@@ -315,19 +296,16 @@ def test_stats_has_module_and_subsystem_counts(dot_dir: str):
 # ---------------------------------------------------------------------------
 
 
-def test_discovers_existing_overview_dot(dot_dir: str):
+def test_discovers_existing_overview_dot(dot_dir: str, tmp_path: Path):
     """Pre-created overview.dot in output_dir is reported in outputs['overview']."""
     manifest = _build_minimal_manifest(dot_dir)
+    out = tmp_path / "output"
+    out.mkdir()
+    (out / "overview.dot").write_text("digraph overview { ss1 -> ss2; }")
 
-    with tempfile.TemporaryDirectory() as out:
-        overview_path = Path(out) / "overview.dot"
-        overview_path.write_text("digraph overview { ss1 -> ss2; }")
-
-        result = assemble_hierarchy(manifest, out)
-        assert result["success"] is True, (
-            f"assemble_hierarchy must succeed, got: {result}"
-        )
-        overview_out = result["outputs"]["overview"]
+    result = assemble_hierarchy(manifest, str(out))
+    assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
+    overview_out = result["outputs"]["overview"]
 
     assert overview_out is not None, (
         "outputs['overview'] must not be None when overview.dot exists"
@@ -337,12 +315,12 @@ def test_discovers_existing_overview_dot(dot_dir: str):
     )
 
 
-def test_overview_is_none_when_absent(dot_dir: str):
+def test_overview_is_none_when_absent(dot_dir: str, tmp_path: Path):
     """outputs['overview'] is None when no overview.dot is present."""
     manifest = _build_minimal_manifest(dot_dir)
+    out = tmp_path / "output"
 
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
+    result = assemble_hierarchy(manifest, str(out))
 
     assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
     assert result["outputs"]["overview"] is None, (
@@ -356,33 +334,30 @@ def test_overview_is_none_when_absent(dot_dir: str):
 # ---------------------------------------------------------------------------
 
 
-def test_render_png_false_does_not_call_renderer(dot_dir: str):
+def test_render_png_false_does_not_call_renderer(dot_dir: str, tmp_path: Path):
     """render_png=False (default) completes without raising and no PNG is produced."""
     manifest = _build_minimal_manifest(dot_dir)
+    out = tmp_path / "output"
 
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out, render_png=False)
-        assert result["success"] is True, (
-            f"assemble_hierarchy with render_png=False must succeed, got: {result}"
-        )
-        # No .png files should exist in the output directory
-        png_files = list(Path(out).rglob("*.png"))
+    result = assemble_hierarchy(manifest, str(out), render_png=False)
+    assert result["success"] is True, (
+        f"assemble_hierarchy with render_png=False must succeed, got: {result}"
+    )
+    png_files = list(out.rglob("*.png"))
 
     assert png_files == [], (
         f"render_png=False must produce no PNG files, found: {png_files}"
     )
 
 
-def test_render_png_default_is_false(dot_dir: str):
+def test_render_png_default_is_false(dot_dir: str, tmp_path: Path):
     """Default render_png=False — calling without the parameter must not produce PNGs."""
     manifest = _build_minimal_manifest(dot_dir)
+    out = tmp_path / "output"
 
-    with tempfile.TemporaryDirectory() as out:
-        result = assemble_hierarchy(manifest, out)
-        assert result["success"] is True, (
-            f"assemble_hierarchy must succeed, got: {result}"
-        )
-        png_files = list(Path(out).rglob("*.png"))
+    result = assemble_hierarchy(manifest, str(out))
+    assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
+    png_files = list(out.rglob("*.png"))
 
     assert png_files == [], (
         f"Default render_png=False must produce no PNG files, found: {png_files}"

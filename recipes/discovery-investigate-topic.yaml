@@ -41,7 +41,7 @@ steps:
       Repository path: {{repo_path}}
 
       Write your findings to:
-        {{output_dir}}/investigation/modules/{{topic_slug}}/agents/code-tracer/
+        {{output_dir}}/modules/{{topic_slug}}/agents/code-tracer/
 
       Required artifacts:
         - findings.md   — key findings with file:line citations
@@ -72,7 +72,7 @@ steps:
       Repository path: {{repo_path}}
 
       Write your findings to:
-        {{output_dir}}/investigation/modules/{{topic_slug}}/agents/behavior-observer/
+        {{output_dir}}/modules/{{topic_slug}}/agents/behavior-observer/
 
       Required artifacts:
         - findings.md   — behavioral patterns observed across instances
@@ -107,7 +107,7 @@ steps:
       Repository path: {{repo_path}}
 
       Write your findings to:
-        {{output_dir}}/investigation/modules/{{topic_slug}}/agents/integration-mapper/
+        {{output_dir}}/modules/{{topic_slug}}/agents/integration-mapper/
 
       Required artifacts:
         - integration-map.md — cross-boundary integration points and data flows

@@ -307,9 +307,9 @@ stages:
         recipe: "@dot-graph:recipes/synthesize-subsystem.yaml"
         context:
           subsystem_name: "bottomup-discovery"
-          subsystems: "{{subsystems_result.subsystems}}"
+          module_dot_files: "[]"   # agents search output_dir for per-level diagram.dot files
+          source_dirs: '["{{repo_path}}"]'   # repo root for boundary investigation
           output_dir: "{{subsystems_result.output_dir}}"
-          fidelity: "{{fidelity}}"
         output: "subsystem_result"
         timeout: 3600
 
@@ -322,8 +322,9 @@ stages:
         type: "recipe"
         recipe: "@dot-graph:recipes/synthesize-overview.yaml"
         context:
+          repo_root: "{{repo_path}}"   # needed so agent can examine top-level files
+          subsystem_dot_files: '["{{subsystems_result.output_dir}}/bottomup-discovery.dot"]'
           output_dir: "{{subsystems_result.output_dir}}"
-          fidelity: "{{fidelity}}"
         output: "overview_result"
         timeout: 3600
 

@@ -1,183 +1,71 @@
 name: "discovery-pipeline"
 description: >
-  Outer orchestrator recipe for Parallax Discovery codebase analysis.
-  Runs a 3-stage pipeline (scan, investigate, synthesize) to produce DOT graph
-  diagrams and structured findings for a target repository. Stage 1 scans the
-  codebase and selects investigation topics; an approval gate lets the user
-  review and confirm before agent dispatch. Stage 2 investigates each topic
-  using parallel agent teams (code-tracer, behavior-observer, integration-mapper).
-  Stage 3 synthesizes per-topic findings into consensus diagrams, assembles the
-  final discovery manifest, and validates all produced DOT files.
+  Thin orchestrator for Parallax Discovery codebase analysis.
+  Runs a 3-stage pipeline: scan (prescan + topic selection with approval gate),
+  strategies (delegates to strategy-topdown and/or strategy-bottomup sub-recipes
+  based on the 'strategies' context variable), and combine (merges top-down and
+  bottom-up results when both strategies were run). Backward-compatible context
+  variables; adds 'strategies' to select which investigation strategy to run.
 version: "1.0.0"
 author: "DOT Graph Bundle"
 tags: ["discovery", "pipeline", "architecture", "dot-graph", "multi-agent"]
 
-recursion:
-  max_depth: 3
-  max_total_steps: 100
-
 context:
-  repo_path: ""             # Required: path to target repository
-  fidelity: "standard"      # Optional: quick | standard | deep (default: standard)
-  output_dir: ""            # Optional: defaults to {{repo_path}}/.discovery
-  render_png: "true"        # Optional: render assembled DOTs to PNG (default: true)
-  _approval_message: ""     # Populated by engine on approval
+  repo_path: ""                         # Required: path to target repository
+  fidelity: "standard"                  # Optional: quick | standard | deep (default: standard)
+  output_dir: "{{repo_path}}/.discovery" # Optional: defaults to {{repo_path}}/.discovery
+  render_png: "true"                    # Optional: render assembled DOTs to PNG (default: true)
+  strategies: "both"                    # Optional: topdown | bottomup | both (default: both)
 
 stages:
   # ---------------------------------------------------------------------------
-  # Stage 1: Scan — discover codebase structure and select investigation topics
+  # Stage 1: Scan — prescan repo structure and select investigation topics
   # ---------------------------------------------------------------------------
   - name: "scan"
     steps:
       # -----------------------------------------------------------------------
-      # Step 1: Change detection — check if a full scan is needed
-      # Resolves default output_dir, checks last-run.json, computes git diff
-      # to determine the tier: 'skip', 'incremental', or 'full'.
-      # -----------------------------------------------------------------------
-      - id: "change-detect"
-        type: "bash"
-        output: "change_result"
-        parse_json: true
-        timeout: 30
-        command: |
-          python3 - <<'EOF'
-          import json
-          import os
-          import subprocess
-          from pathlib import Path
-
-          repo_path = "{{repo_path}}"
-          output_dir = "{{output_dir}}"
-
-          # Resolve default output_dir
-          if not output_dir:
-              output_dir = str(Path(repo_path) / ".discovery")
-
-          result = {
-              "repo_path": repo_path,
-              "output_dir": output_dir,
-              "tier": "full",
-              "current_commit": "",
-              "last_commit": "",
-              "changed_files": [],
-          }
-
-          # Get current git commit
-          try:
-              current_commit = subprocess.check_output(
-                  ["git", "-C", repo_path, "rev-parse", "HEAD"],
-                  text=True,
-                  stderr=subprocess.DEVNULL,
-              ).strip()
-              result["current_commit"] = current_commit
-          except Exception:
-              current_commit = ""
-
-          # Check last-run.json for previous commit
-          last_run_path = Path(output_dir) / "last-run.json"
-          if last_run_path.exists():
-              try:
-                  last_run = json.loads(last_run_path.read_text())
-                  last_commit = last_run.get("commit_hash", "")
-                  result["last_commit"] = last_commit
-                  if last_commit and last_commit == current_commit:
-                      result["tier"] = "skip"
-                  elif last_commit and current_commit:
-                      try:
-                          changed = subprocess.check_output(
-                              ["git", "-C", repo_path, "diff", "--name-only", last_commit, current_commit],
-                              text=True,
-                              stderr=subprocess.DEVNULL,
-                          ).strip().splitlines()
-                          result["changed_files"] = changed
-                          result["tier"] = "incremental" if changed else "skip"
-                      except Exception:
-                          result["tier"] = "full"
-              except Exception:
-                  pass
-
-          # Create output directory
-          Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-          print(json.dumps(result))
-          EOF
-
-      # -----------------------------------------------------------------------
-      # Step 2: Structural scan — map the repository layout
-      # Invokes prescan via amplifier_module_tool_dot_graph.prescan with
-      # fallback to basic directory listing.
-      # Skipped if change-detect determined no changes.
+      # Step 1: Structural scan — run prescan to map repository layout
+      # Invokes prescan via amplifier_module_tool_dot_graph.prescan and writes
+      # the result to {{output_dir}}/prescan-result.json.
       # -----------------------------------------------------------------------
       - id: "structural-scan"
         type: "bash"
-        condition: "{{change_result.tier}} != 'skip'"
         output: "scan_result"
         parse_json: true
         timeout: 60
         command: |
-          python3 - <<'EOF'
-          import json
-          import os
-          from pathlib import Path
-
-          repo_path = "{{change_result.repo_path}}"
-          output_dir = "{{change_result.output_dir}}"
-
-          result = {
-              "repo_path": repo_path,
-              "output_dir": output_dir,
-              "structure": {},
-              "error": None,
-          }
-
-          # Try amplifier_module_tool_dot_graph.prescan
-          try:
-              from amplifier_module_tool_dot_graph import prescan
-              structure = prescan.prescan_repo(repo_path)
-              result["structure"] = structure
-          except Exception as e:
-              # Fallback: basic directory listing
-              try:
-                  top_level = []
-                  for entry in sorted(Path(repo_path).iterdir()):
-                      if entry.name.startswith("."):
-                          continue
-                      top_level.append({
-                          "name": entry.name,
-                          "type": "dir" if entry.is_dir() else "file",
-                      })
-                  result["structure"] = {"top_level": top_level, "source": "fallback"}
-                  result["error"] = f"prescan unavailable ({e}), used fallback listing"
-              except Exception as e2:
-                  result["error"] = f"structural scan failed: {e2}"
-
-          print(json.dumps(result))
-          EOF
+          output_dir="{{output_dir}}"
+          mkdir -p "$output_dir"
+          python3 -c "
+          import sys, json
+          sys.path.insert(0, 'modules/tool-dot-graph')
+          from amplifier_module_tool_dot_graph import prescan
+          result = prescan.prescan_repo('{{repo_path}}')
+          with open('$output_dir/prescan-result.json', 'w') as f:
+              json.dump(result, f, indent=2)
+          print(json.dumps({'success': result.get('success', True), 'total_files': result.get('total_files', 0), 'modules': len(result.get('modules', []))}, indent=2))
+          "
 
       # -----------------------------------------------------------------------
-      # Step 3: Topic selection — choose 3–7 investigation topics
+      # Step 2: Topic selection — choose 3-7 investigation topics
       # Dispatches the discovery-prescan agent to select topics based on the
-      # structural scan. Standard: 3-5 topics; deep: 5-7 topics.
-      # Skipped if change-detect determined no changes.
+      # structural scan result. Writes topics.json to the output directory.
       # -----------------------------------------------------------------------
       - id: "topic-select"
         agent: "dot-graph:discovery-prescan"
-        condition: "{{change_result.tier}} != 'skip'"
         output: "topics"
         parse_json: true
         timeout: 600
         prompt: |
           You are the discovery-prescan agent for a Parallax Discovery pipeline run.
 
-          Your task: analyze the structural scan results and select 3-7 investigation
+          Your task: analyze the prescan results and select 3-7 investigation
           topics that would best illuminate the architecture of this repository.
 
-          Repository: {{change_result.repo_path}}
+          Repository: {{repo_path}}
           Fidelity tier: {{fidelity}}
-          Output directory: {{change_result.output_dir}}
-
-          Structural scan results:
-          {{scan_result}}
+          Output directory: {{output_dir}}
+          Prescan result file: {{output_dir}}/prescan-result.json
 
           Topic count guidelines:
           - standard fidelity: select 3-5 topics
@@ -187,6 +75,7 @@ stages:
           subsystem — something that, if well-understood, would clarify how the
           repository works as a whole.
 
+          Write the topics to {{output_dir}}/topics.json as a JSON array.
           Return your response as a JSON array only (no markdown, no explanation):
           [
             {
@@ -200,322 +89,78 @@ stages:
     approval_gate:
       required: true
       prompt: |
-        Discovery Pipeline — Scan Complete
+        Prescan complete. Review investigation topics before strategies begin.
 
-        Repository:  {{change_result.repo_path}}
+        Repository:  {{repo_path}}
         Fidelity:    {{fidelity}}
-        Output dir:  {{change_result.output_dir}}
+        Output dir:  {{output_dir}}
+        Strategies:  {{strategies}}
 
-        Selected investigation topics ({{topics | length}} topics):
-        {% for topic in topics %}
-          • {{topic.name}} ({{topic.slug}})
-            {{topic.description}}
-        {% endfor %}
+        Scan result summary:
+        {{scan_result}}
 
-        Estimated agent dispatches:
-        - standard fidelity: 2 agents × {{topics | length}} topics = {{topics | length * 2}} agent calls
-        - deep fidelity: 3 agents × {{topics | length}} topics = {{topics | length * 3}} agent calls
+        Selected investigation topics:
+        {{topics}}
 
-        Type APPROVE to proceed with investigation, or DENY to cancel.
+        Type APPROVE to proceed with strategy investigation, or DENY to cancel.
 
   # ---------------------------------------------------------------------------
-  # Stage 2: Investigate — dispatch agent teams per topic
+  # Stage 2: Strategies — run top-down and/or bottom-up strategy sub-recipes
   # ---------------------------------------------------------------------------
-  - name: "investigate"
+  - name: "strategies"
     steps:
       # -----------------------------------------------------------------------
-      # Step 1: Prepare topic directories
-      # Creates the per-topic directory structure under output_dir/modules/{slug}/
-      # including subdirectories for each agent output.
+      # Step 1: Top-down investigation strategy
+      # Runs when strategies is 'topdown' or 'both'.
+      # Writes results to {{output_dir}}/investigation/topdown/.
       # -----------------------------------------------------------------------
-      - id: "prepare-topics"
-        type: "bash"
-        output: "prep_result"
-        parse_json: true
-        timeout: 15
-        command: |
-          python3 - <<'EOF'
-          import json
-          from pathlib import Path
-
-          output_dir = "{{change_result.output_dir}}"
-          topics = {{topics}}
-
-          agent_names = ["code-tracer", "behavior-observer", "integration-mapper"]
-          created = []
-
-          for topic in topics:
-              slug = topic.get("slug", "")
-              if not slug:
-                  continue
-              # Investigation artifacts: raw per-agent outputs
-              investigation_dir = Path(output_dir) / "investigation" / "modules" / slug
-              for agent_name in agent_names:
-                  agent_dir = investigation_dir / "agents" / agent_name
-                  agent_dir.mkdir(parents=True, exist_ok=True)
-              # Output artifacts: consensus DOT + findings (written by synthesizer)
-              output_module_dir = Path(output_dir) / "output" / "modules" / slug
-              output_module_dir.mkdir(parents=True, exist_ok=True)
-              created.append(str(investigation_dir))
-
-          print(json.dumps({"created_dirs": created, "topic_count": len(created)}))
-          EOF
-
-      # -----------------------------------------------------------------------
-      # Step 2: Investigate topics — dispatch sub-recipe per topic
-      # Runs discovery-investigate-topic.yaml for each selected topic.
-      # Each invocation dispatches 2 agents (standard) or 3 agents (deep).
-      # -----------------------------------------------------------------------
-      - id: "investigate-topics"
+      - id: "run-topdown"
         type: "recipe"
-        foreach: "{{topics}}"
-        as: "topic"
-        recipe: "@dot-graph:recipes/discovery-investigate-topic.yaml"
+        recipe: "@dot-graph:recipes/strategy-topdown.yaml"
+        when: "{{strategies}} == 'topdown' or {{strategies}} == 'both'"
         context:
-          topic: "{{topic}}"
+          repo_path: "{{repo_path}}"
+          output_dir: "{{output_dir}}/investigation/topdown"
           fidelity: "{{fidelity}}"
-          repo_path: "{{change_result.repo_path}}"
-          output_dir: "{{change_result.output_dir}}"
-        output: "investigation_results"
-        timeout: 7200
+          render_png: "{{render_png}}"
+        output: "topdown_result"
+
+      # -----------------------------------------------------------------------
+      # Step 2: Bottom-up investigation strategy
+      # Runs when strategies is 'bottomup' or 'both'.
+      # Writes results to {{output_dir}}/investigation/bottomup/.
+      # -----------------------------------------------------------------------
+      - id: "run-bottomup"
+        type: "recipe"
+        recipe: "@dot-graph:recipes/strategy-bottomup.yaml"
+        when: "{{strategies}} == 'bottomup' or {{strategies}} == 'both'"
+        context:
+          repo_path: "{{repo_path}}"
+          output_dir: "{{output_dir}}/investigation/bottomup"
+          fidelity: "{{fidelity}}"
+          render_png: "{{render_png}}"
+        output: "bottomup_result"
 
   # ---------------------------------------------------------------------------
-  # Stage 3: Synthesize — produce consensus diagrams and final manifest
+  # Stage 3: Combine — merge top-down and bottom-up results (when both ran)
   # ---------------------------------------------------------------------------
-  - name: "synthesize"
+  - name: "combine"
     steps:
       # -----------------------------------------------------------------------
-      # Step 1: Reconcile modules — synthesize per-topic agent findings
-      # Runs discovery-synthesize-module.yaml for each topic to produce a
-      # consensus diagram.dot and findings.md in each module directory.
+      # Step 1: Combine strategy results
+      # Runs only when strategies is 'both'. Merges top-down and bottom-up
+      # investigation outputs into a unified discovery output.
       # -----------------------------------------------------------------------
-      - id: "reconcile-modules"
+      - id: "run-combine"
         type: "recipe"
-        foreach: "{{topics}}"
-        as: "topic"
-        recipe: "@dot-graph:recipes/discovery-synthesize-module.yaml"
+        recipe: "@dot-graph:recipes/discovery-combine.yaml"
+        when: "{{strategies}} == 'both'"
         context:
-          module_name: "{{topic.name}}"
-          module_dir: "{{change_result.output_dir}}/output/modules/{{topic.slug}}"
-          investigation_dir: "{{change_result.output_dir}}/investigation/modules/{{topic.slug}}"
-          fidelity: "{{fidelity}}"
-          output_dir: "{{change_result.output_dir}}"
-        output: "reconciliation_results"
-        timeout: 7200
+          repo_path: "{{repo_path}}"
+          topdown_dir: "{{output_dir}}/investigation/topdown"
+          bottomup_dir: "{{output_dir}}/investigation/bottomup"
+          output_dir: "{{output_dir}}/output"
+          render_png: "{{render_png}}"
+        output: "combine_result"
 
-      # -----------------------------------------------------------------------
-      # Step 2: Assemble — build the discovery manifest
-      # Gathers all per-topic diagrams and findings into a unified manifest.
-      # Invokes the assemble module with fallback to manual JSON construction.
-      # -----------------------------------------------------------------------
-      - id: "assemble"
-        type: "bash"
-        output: "assemble_result"
-        parse_json: true
-        timeout: 120
-        command: |
-          python3 - <<'EOF'
-          import json
-          from pathlib import Path
-
-          output_dir = "{{change_result.output_dir}}"
-          topics = {{topics}}
-
-          manifest = {
-              "output_dir": output_dir,
-              "topics": [],
-              "error": None,
-          }
-
-          # Try amplifier_module_tool_dot_graph.assemble
-          try:
-              from amplifier_module_tool_dot_graph import assemble
-              # Consensus DOTs are written to output/modules/{slug}/ by the synthesizer
-              modules_dir = Path(output_dir) / "output" / "modules"
-              # Build assemble_hierarchy manifest: topics → modules in "discovery" subsystem
-              modules_def = {
-                  topic.get("slug", ""): {
-                      "dot_path": str(modules_dir / topic.get("slug", "") / "diagram.dot"),
-                      "subsystem": "discovery",
-                  }
-                  for topic in topics if topic.get("slug")
-              }
-              assemble_manifest = {
-                  "modules": modules_def,
-                  "subsystems": {"discovery": {"modules": list(modules_def.keys())}},
-              }
-              # Write assembled graphs to output/ subdirectory
-              assembly_output_dir = str(Path(output_dir) / "output")
-              hierarchy = assemble.assemble_hierarchy(assemble_manifest, assembly_output_dir)
-              manifest["assembly"] = hierarchy
-              for topic in topics:
-                  slug = topic.get("slug", "")
-                  module_dir = modules_dir / slug
-                  manifest["topics"].append({
-                      "name": topic.get("name", ""),
-                      "slug": slug,
-                      "diagram": str(module_dir / "diagram.dot") if (module_dir / "diagram.dot").exists() else None,
-                      "findings": str(module_dir / "findings.md") if (module_dir / "findings.md").exists() else None,
-                  })
-              manifest_path = Path(output_dir) / "manifest.json"
-              manifest_path.write_text(json.dumps(manifest, indent=2))
-              manifest["manifest_path"] = str(manifest_path)
-          except Exception as e:
-              # Fallback: manual manifest construction
-              try:
-                  modules_dir = Path(output_dir) / "output" / "modules"
-                  for topic in topics:
-                      slug = topic.get("slug", "")
-                      module_dir = modules_dir / slug
-                      diagram_path = module_dir / "diagram.dot"
-                      findings_path = module_dir / "findings.md"
-                      manifest["topics"].append({
-                          "name": topic.get("name", ""),
-                          "slug": slug,
-                          "diagram": str(diagram_path) if diagram_path.exists() else None,
-                          "findings": str(findings_path) if findings_path.exists() else None,
-                      })
-                  manifest["error"] = f"assemble module unavailable ({e}), used fallback"
-
-                  # Write manifest file
-                  manifest_path = Path(output_dir) / "manifest.json"
-                  manifest_path.write_text(json.dumps(manifest, indent=2))
-                  manifest["manifest_path"] = str(manifest_path)
-              except Exception as e2:
-                  manifest["error"] = f"assembly failed: {e2}"
-
-          print(json.dumps(manifest))
-          EOF
-
-      # -----------------------------------------------------------------------
-      # Step 3: Render graphs — optionally render assembled DOT files to PNG
-      # Skipped when render_png != 'true'. Renders overview.dot and all
-      # subsystem DOTs in the output/ directory to PNG via graphviz CLI.
-      # Render failures are non-fatal: they are logged but do not stop the
-      # pipeline.
-      # -----------------------------------------------------------------------
-      - id: "render-graphs"
-        type: "bash"
-        condition: "{{render_png}} == 'true'"
-        output: "render_result"
-        parse_json: true
-        timeout: 120
-        command: |
-          python3 - <<'EOF'
-          import json
-          from pathlib import Path
-
-          output_dir = "{{change_result.output_dir}}"
-          result = {"rendered": [], "errors": []}
-
-          try:
-              from amplifier_module_tool_dot_graph import render as dot_render
-              output_path = Path(output_dir) / "output"
-              dot_files = list(output_path.rglob("*.dot")) if output_path.exists() else []
-
-              for dot_file in dot_files:
-                  png_path = str(dot_file).replace(".dot", ".png")
-                  try:
-                      dot_content = dot_file.read_text()
-                      render_result = dot_render.render_dot(dot_content, "png", "dot", png_path)
-                      if render_result.get("success"):
-                          result["rendered"].append(png_path)
-                      else:
-                          result["errors"].append(
-                              f"{dot_file}: {render_result.get('error', 'unknown error')}"
-                          )
-                  except Exception as e:
-                      result["errors"].append(f"{dot_file}: {e}")
-          except ImportError as e:
-              result["errors"].append(f"render module unavailable: {e}")
-
-          print(json.dumps(result))
-          EOF
-
-      # -----------------------------------------------------------------------
-      # Step 4: Final validate — validate all produced .dot files via pydot
-      # Finds every .dot file under output_dir, validates each with pydot,
-      # and reports valid/error counts.
-      # -----------------------------------------------------------------------
-      - id: "final-validate"
-        type: "bash"
-        output: "final_validation"
-        parse_json: true
-        timeout: 60
-        command: |
-          python3 - <<'EOF'
-          import json
-          from pathlib import Path
-
-          output_dir = "{{change_result.output_dir}}"
-
-          result = {
-              "valid_count": 0,
-              "error_count": 0,
-              "errors": [],
-              "dot_files": [],
-          }
-
-          dot_files = list(Path(output_dir).rglob("*.dot"))
-          result["dot_files"] = [str(f) for f in dot_files]
-
-          try:
-              import pydot
-
-              for dot_file in dot_files:
-                  try:
-                      graphs = pydot.graph_from_dot_file(str(dot_file))
-                      if graphs:
-                          result["valid_count"] += 1
-                      else:
-                          result["error_count"] += 1
-                          result["errors"].append(f"{dot_file}: empty parse result")
-                  except Exception as e:
-                      result["error_count"] += 1
-                      result["errors"].append(f"{dot_file}: {e}")
-          except ImportError:
-              result["errors"].append("pydot not available — validation skipped")
-
-          print(json.dumps(result))
-          EOF
-
-      # -----------------------------------------------------------------------
-      # Step 4: Update metadata — write last-run.json
-      # Records the commit hash, timestamp, fidelity, repo_path, and
-      # validation counts so future runs can use change detection.
-      # -----------------------------------------------------------------------
-      - id: "update-metadata"
-        type: "bash"
-        output: "metadata_result"
-        parse_json: true
-        timeout: 10
-        command: |
-          python3 - <<'EOF'
-          import json
-          from datetime import datetime, timezone
-          from pathlib import Path
-
-          output_dir = "{{change_result.output_dir}}"
-          repo_path = "{{change_result.repo_path}}"
-          commit_hash = "{{change_result.current_commit}}"
-          fidelity = "{{fidelity}}"
-
-          valid_count = {{final_validation.valid_count}}
-          error_count = {{final_validation.error_count}}
-
-          metadata = {
-              "commit_hash": commit_hash,
-              "timestamp": datetime.now(timezone.utc).isoformat(),
-              "fidelity": fidelity,
-              "repo_path": repo_path,
-              "valid_count": valid_count,
-              "error_count": error_count,
-          }
-
-          last_run_path = Path(output_dir) / "last-run.json"
-          last_run_path.write_text(json.dumps(metadata, indent=2))
-
-          print(json.dumps({"written": str(last_run_path), **metadata}))
-          EOF
-
-final_output: "metadata_result"
+final_output: "combine_result"

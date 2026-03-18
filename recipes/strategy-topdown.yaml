@@ -19,7 +19,7 @@ context:
   repo_path: ""             # Required: path to target repository
   output_dir: "{{repo_path}}/.discovery/investigation/topdown"  # Optional: defaults to {{repo_path}}/.discovery/investigation/topdown
   fidelity: "standard"      # Optional: quick | standard | deep (default: standard)
-  topics_file: ""            # Optional: path to pre-selected topics.json from parent pipeline (skip scan if set)
+  parent_topics_available: ""  # Set to "true" by parent pipeline when topics already selected
 
 stages:
   # ---------------------------------------------------------------------------
@@ -35,7 +35,7 @@ stages:
       # Resolves default output_dir and writes prescan-result.json.
       # -----------------------------------------------------------------------
       - id: "structural-scan"
-        condition: "{{topics_file}} == ''"
+        condition: "{{parent_topics_available}} != 'true'"
         type: "bash"
         output: "scan_result"
         parse_json: true
@@ -97,7 +97,7 @@ stages:
       # structural scan. Standard: 3-5 topics; deep: 5-7 topics.
       # -----------------------------------------------------------------------
       - id: "topic-select"
-        condition: "{{topics_file}} == ''"
+        condition: "{{parent_topics_available}} != 'true'"
         agent: "dot-graph:discovery-prescan"
         output: "topics"
         parse_json: true
@@ -135,13 +135,14 @@ stages:
 
       # -----------------------------------------------------------------------
       # Step 3a: Save topics from scan — STANDALONE mode only
-      # Runs when topics_file is empty (topic-select ran and set {{topics}}).
-      # Writes topics.json and outputs the array for downstream stages.
-      # Split from 3b to avoid eager {{topics}} substitution when topics_file
-      # is set and topic-select was skipped.
+      # Runs when parent_topics_available is not "true" (topic-select ran
+      # and set {{topics}}). Writes topics.json and outputs the array for
+      # downstream stages. Split from 3b to avoid eager {{topics}}
+      # substitution when parent topics are available and topic-select was
+      # skipped.
       # -----------------------------------------------------------------------
       - id: "save-topics-from-scan"
-        condition: "{{topics_file}} == ''"
+        condition: "{{parent_topics_available}} != 'true'"
         type: "bash"
         output: "topics"
         parse_json: true
@@ -165,27 +166,45 @@ stages:
 
       # -----------------------------------------------------------------------
       # Step 3b: Save topics from file — SUB-RECIPE mode only
-      # Runs when topics_file is provided by parent pipeline.
-      # Copies the pre-selected topics file and outputs the array.
+      # Runs when parent_topics_available is "true" (parent pipeline already
+      # wrote topics.json during its scan stage).
+      # Constructs the path from {{repo_path}} directly — avoids nested
+      # template resolution issues ({{output_dir}} contains {{repo_path}}).
       # Does NOT reference {{topics}} — avoids Undefined variable error when
       # topic-select was skipped.
       # -----------------------------------------------------------------------
       - id: "save-topics-from-file"
-        condition: "{{topics_file}} != ''"
+        condition: "{{parent_topics_available}} == 'true'"
         type: "bash"
         output: "topics"
         parse_json: true
         command: |
           python3 - <<'EOF'
-          import json, shutil
+          import json, os
           from pathlib import Path
 
-          topics_file = "{{topics_file}}"
+          # Construct path from repo_path directly — avoids nested template issues
+          repo_path = "{{repo_path}}"
+
+          # Topics written by parent pipeline to the standard location
+          topics_file = os.path.join(repo_path, '.discovery', 'topics.json')
+
+          if not Path(topics_file).exists():
+              print(f"WARNING: Expected topics at {topics_file} but not found", file=__import__('sys').stderr)
+              # Try alternate location
+              alt = os.path.join(repo_path, '.discovery', 'investigation', 'topics.json')
+              if Path(alt).exists():
+                  topics_file = alt
+              else:
+                  print("[]")  # Empty list fallback
+                  raise SystemExit(0)
+
           output_dir = "{{output_dir}}"
+          Path(output_dir).mkdir(parents=True, exist_ok=True)
           dest = Path(output_dir) / "topics.json"
-          dest.parent.mkdir(parents=True, exist_ok=True)
-          shutil.copy2(topics_file, dest)
+
           topics = json.loads(Path(topics_file).read_text())
+          dest.write_text(json.dumps(topics, indent=2))
           print(json.dumps(topics))
           EOF
 

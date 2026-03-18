@@ -132,7 +132,7 @@ stages:
           output_dir: "{{output_dir}}/investigation/topdown"
           fidelity: "{{fidelity}}"
           render_png: "{{render_png}}"
-          topics_file: "{{output_dir}}/topics.json"
+          parent_topics_available: "true"
         output: "topdown_result"
 
       # -----------------------------------------------------------------------

@@ -1,0 +1,126 @@
+name: "synthesize-overview"
+description: >
+  Overview-level synthesis sub-recipe for the discovery pipeline.
+  Reads all subsystem-level DOT files and the repository root structure,
+  dispatches the discovery-overview-synthesizer agent to produce a
+  cross-subsystem overview DOT diagram, then validates the output via
+  pydot. Designed as a building block for the discovery pipeline's
+  multi-level synthesis strategy. Focus is on how subsystems depend on
+  and communicate with each other, and cross-subsystem data flows and
+  shared interfaces. Aims for fewer than 80 nodes.
+version: "1.0.0"
+author: "DOT Graph Bundle"
+tags: ["discovery", "synthesis", "sub-recipe", "dot-graph", "overview"]
+
+context:
+  subsystem_dot_files: "[]"  # JSON list of paths to subsystem DOT files
+  repo_root: ""              # root path of the repository
+  output_dir: ""             # where to write (.discovery/output/)
+
+steps:
+  # ---------------------------------------------------------------------------
+  # Step 1: synthesize — dispatch discovery-overview-synthesizer agent
+  # Agent reads all subsystem DOT files and repo root structure, examines
+  # top-level files (README, config, entry points) for architectural context.
+  # Writes overview.dot to output_dir/.
+  # Focus: how subsystems depend on and communicate with each other,
+  # cross-subsystem data flows and shared interfaces. Aim for < 80 nodes.
+  # ---------------------------------------------------------------------------
+  - id: "synthesize"
+    agent: "dot-graph:discovery-overview-synthesizer"
+    output: "synthesis_result"
+    timeout: 1200
+    prompt: |
+      You are the discovery-overview-synthesizer for the repository overview.
+
+      Your task: analyze all subsystem-level DOT files and the repository root
+      structure to produce an overview-level DOT diagram that captures the
+      cross-subsystem architecture — how subsystems depend on and communicate
+      with each other, cross-subsystem data flows, and shared interfaces.
+
+      Repository root: {{repo_root}}
+      Output directory: {{output_dir}}
+
+      Subsystem DOT files (read these for subsystem-level context):
+      {{subsystem_dot_files}}
+
+      Output: Write the following artifact to {{output_dir}}/:
+        - overview.dot  — DOT graph representing the repository's overall
+                          cross-subsystem architecture, dependencies, and
+                          communication patterns
+
+      Guidelines:
+      - FOCUS ON CROSS-SUBSYSTEM BOUNDARIES: how do subsystems interact?
+      - Examine top-level files at {{repo_root}}: README, configuration files,
+        entry points, and any architectural documentation
+      - Map cross-subsystem data flows: what data passes between subsystems?
+      - Identify shared interfaces and contracts at subsystem boundaries
+      - Show dependency direction: which subsystems depend on which?
+      - AIM FOR FEWER THAN 80 NODES — prefer clarity over completeness
+      - If the system is large, focus on the most architecturally significant
+        subsystems and their primary relationships
+      - Include a legend and use well-structured clusters where appropriate
+      - The diagram should provide a 10,000-foot view of the entire system
+
+  # ---------------------------------------------------------------------------
+  # Step 2: validate — check overview.dot via pydot
+  # Returns {valid, errors, warnings, diagram_path, node_count, edge_count}
+  # Includes warnings array (unlike level/subsystem recipes).
+  # Warns if node_count > 80 — overview should stay concise.
+  # ---------------------------------------------------------------------------
+  - id: "validate"
+    type: "bash"
+    output: "validation_result"
+    parse_json: true
+    timeout: 30
+    command: |
+      python3 - <<'EOF'
+      import json
+      import sys
+      from pathlib import Path
+
+      output_dir = "{{output_dir}}"
+      diagram_path = Path(output_dir) / "overview.dot"
+
+      result = {
+          "valid": False,
+          "errors": [],
+          "warnings": [],
+          "diagram_path": str(diagram_path),
+          "node_count": 0,
+          "edge_count": 0,
+          "error": None,
+      }
+
+      if not diagram_path.exists():
+          result["errors"].append(f"overview.dot not found at {diagram_path}")
+          print(json.dumps(result))
+          sys.exit(0)
+
+      try:
+          import pydot
+
+          graphs = pydot.graph_from_dot_file(str(diagram_path))
+          if not graphs:
+              result["errors"].append("pydot could not parse overview.dot — empty result")
+              print(json.dumps(result))
+              sys.exit(0)
+
+          graph = graphs[0]
+          result["valid"] = True
+          result["node_count"] = len(graph.get_nodes())
+          result["edge_count"] = len(graph.get_edges())
+
+          # Warn if overview exceeds 80-node threshold — overview should be concise
+          if result["node_count"] > 80:
+              result["warnings"].append(
+                  f"Overview has {result['node_count']} nodes (exceeds 80 threshold) "
+                  f"— consider simplifying"
+              )
+
+      except Exception as e:  # Catch all pydot errors — report in result, not as step failure
+          result["error"] = str(e)
+          result["errors"].append(f"pydot validation error: {e}")
+
+      print(json.dumps(result))
+      EOF

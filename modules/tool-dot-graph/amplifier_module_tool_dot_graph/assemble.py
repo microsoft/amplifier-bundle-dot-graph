@@ -88,7 +88,10 @@ def assemble_hierarchy(
             )
 
     # --- Discover agent-produced DOTs ---
-    # Subsystem DOTs: any .dot files present in subsystems/ directory
+    # Subsystem DOTs: scan ALL .dot files in subsystems/, including per-module DOTs that were
+    # just copied there and any agent-produced subsystem-named DOTs written by recipes.
+    # Callers should expect both module-level DOTs (e.g. "auth.dot") and subsystem-named DOTs
+    # (e.g. "backend.dot") to appear together under outputs["subsystems"].
     subsystem_paths: dict[str, str] = {}
     for dot_file in sorted(subsystems_dir.glob("*.dot")):
         name = dot_file.stem

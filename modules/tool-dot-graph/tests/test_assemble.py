@@ -292,8 +292,61 @@ def test_stats_has_module_and_subsystem_counts(dot_dir: str, tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
-# Agent-produced DOT discovery tests (2)
+# Agent-produced DOT discovery tests (4)
 # ---------------------------------------------------------------------------
+
+
+def test_subsystems_output_contains_module_dot_names(dot_dir: str, tmp_path: Path):
+    """outputs['subsystems'] includes module-level DOTs (keyed by module name).
+
+    The broad glob scan in subsystems/ picks up per-module DOTs that were just
+    copied there alongside any agent-produced subsystem-named DOTs.  Callers
+    should expect both kinds to appear together under outputs['subsystems'].
+    """
+    manifest = _build_minimal_manifest(dot_dir)
+    out = tmp_path / "output"
+
+    result = assemble_hierarchy(manifest, str(out))
+
+    assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
+    subsystems_out = result["outputs"]["subsystems"]
+
+    assert "alpha" in subsystems_out, (
+        f"outputs['subsystems'] must contain copied module DOT 'alpha', "
+        f"got keys: {list(subsystems_out)}"
+    )
+    assert "beta" in subsystems_out, (
+        f"outputs['subsystems'] must contain copied module DOT 'beta', "
+        f"got keys: {list(subsystems_out)}"
+    )
+
+
+def test_subsystems_output_includes_agent_produced_dot(dot_dir: str, tmp_path: Path):
+    """Agent-produced subsystem-named DOT written to subsystems/ appears in outputs['subsystems'].
+
+    When a recipe writes backend.dot to subsystems/, it is discovered alongside
+    the module-level DOTs during the broad glob scan.
+    """
+    manifest = _build_minimal_manifest(dot_dir)
+    out = tmp_path / "output"
+    out.mkdir()
+    (out / "subsystems").mkdir()
+    (out / "subsystems" / "backend.dot").write_text(
+        "digraph backend { alpha -> beta; }"
+    )
+
+    result = assemble_hierarchy(manifest, str(out))
+
+    assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
+    subsystems_out = result["outputs"]["subsystems"]
+
+    assert "backend" in subsystems_out, (
+        f"outputs['subsystems'] must contain agent-produced 'backend.dot', "
+        f"got keys: {list(subsystems_out)}"
+    )
+    assert "alpha" in subsystems_out, (
+        "Module-level DOTs must still appear alongside agent-produced subsystem DOTs"
+    )
 
 
 def test_discovers_existing_overview_dot(dot_dir: str, tmp_path: Path):

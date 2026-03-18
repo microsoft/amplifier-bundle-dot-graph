@@ -15,7 +15,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).parent.parent
 
-# The 35 expected bundle files (21 original + 3 Phase A + 3 Phase D recipes + 8 Phase A v2)
+# The 38 expected bundle files (21 original + 3 Phase A + 3 Phase D recipes + 8 Phase A v2 + 3 Phase B v2)
 EXPECTED_FILES = [
     ".gitignore",
     "bundle.md",

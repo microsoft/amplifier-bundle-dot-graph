@@ -145,6 +145,7 @@ steps:
           result["edge_count"] = len(graph.get_edges())
 
       except Exception as e:  # Catch all pydot errors — report in result, not as step failure
+          result["error"] = str(e)
           result["errors"].append(f"pydot validation error: {e}")
 
       print(json.dumps(result))

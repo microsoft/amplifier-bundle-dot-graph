@@ -214,6 +214,11 @@ stages:
           output_dir = "{{traversal_plan.output_dir}}"
           plan_path = Path(output_dir) / "traversal-plan.json"
 
+          # Guard: if the file is missing, surface a clear error rather than a traceback
+          if not plan_path.exists():
+              print(json.dumps({"error": f"traversal-plan.json not found at {plan_path}", "updated": False}))
+              raise SystemExit(1)
+
           # Read current traversal-plan.json
           plan = json.loads(plan_path.read_text())
 
@@ -231,6 +236,9 @@ stages:
               child_dots[parent_rel].append(str(dot_file))
 
           plan["child_dots"] = child_dots
+          # Note: completed stores absolute paths (f.parent) while child_dots keys use
+          # paths relative to output_dir. This is intentional: completed is for human
+          # inspection / progress tracking, while child_dots is used for recipe lookups.
           plan["completed"] = [str(f.parent) for f in dot_files]
 
           # Write back updated traversal-plan.json
@@ -263,8 +271,11 @@ stages:
 
           output_dir = "{{traversal_plan.output_dir}}"
 
-          # Read traversal-plan.json
+          # Read traversal-plan.json (guard: surface a clear error if missing)
           plan_path = Path(output_dir) / "traversal-plan.json"
+          if not plan_path.exists():
+              print(json.dumps({"error": f"traversal-plan.json not found at {plan_path}", "subsystems": [], "subsystem_count": 0}))
+              raise SystemExit(1)
           plan = json.loads(plan_path.read_text())
 
           # Identify depth-1 directories as subsystems

@@ -1,0 +1,362 @@
+name: "strategy-bottomup"
+description: >
+  Standalone bottom-up empirical discovery strategy for Parallax Discovery.
+  Uses post-order directory traversal to build understanding from the leaves up —
+  synthesizing each directory level before its parent, accumulating child DOT
+  diagrams along the way. This empirical approach discovers what actually exists
+  rather than what documentation claims, making it ideal for understanding legacy
+  codebases or systems with poor documentation. The strategy runs fully unattended
+  across 3 stages (scan-and-plan, traverse, assemble), writing traversal-plan.json
+  as a mutable state file that accumulates child DOT paths during post-order traversal.
+version: "1.0.0"
+author: "DOT Graph Bundle"
+tags: ["discovery", "strategy", "bottom-up", "dot-graph", "post-order"]
+
+recursion:
+  max_depth: 3
+  max_total_steps: 200
+
+context:
+  repo_path: ""             # Required: path to target repository
+  output_dir: "{{repo_path}}/.discovery/investigation/bottomup"  # Optional: defaults to {{repo_path}}/.discovery/investigation/bottomup
+  fidelity: "standard"      # Optional: quick | standard | deep (default: standard)
+
+stages:
+  # ---------------------------------------------------------------------------
+  # Stage 1: Scan-and-plan — scan repo structure and compute post-order traversal
+  # No approval gate — strategy-bottomup runs fully unattended
+  # Produces traversal-plan.json as mutable state for the traverse stage.
+  # ---------------------------------------------------------------------------
+  - name: "scan-and-plan"
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Prescan — map repository structure
+      # Invokes amplifier_module_tool_dot_graph.prescan with fallback to basic
+      # directory listing. Resolves default output_dir and writes
+      # prescan-result.json to the output directory.
+      # -----------------------------------------------------------------------
+      - id: "prescan"
+        type: "bash"
+        output: "prescan_result"
+        parse_json: true
+        timeout: 60
+        command: |
+          python3 - <<'EOF'
+          import json
+          import os
+          from pathlib import Path
+
+          repo_path = "{{repo_path}}"
+          output_dir = "{{output_dir}}"
+
+          # Resolve default output_dir if empty
+          if not output_dir:
+              output_dir = str(Path(repo_path) / ".discovery" / "investigation" / "bottomup")
+
+          # Create output directory
+          Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+          result = {
+              "repo_path": repo_path,
+              "output_dir": output_dir,
+              "structure": {},
+              "error": None,
+          }
+
+          # Try amplifier_module_tool_dot_graph.prescan
+          try:
+              from amplifier_module_tool_dot_graph import prescan
+              structure = prescan.prescan_repo(repo_path)
+              result["structure"] = structure
+          except Exception as e:
+              # Fallback: basic directory listing
+              try:
+                  top_level = []
+                  for entry in sorted(Path(repo_path).iterdir()):
+                      if entry.name.startswith("."):
+                          continue
+                      top_level.append({
+                          "name": entry.name,
+                          "type": "dir" if entry.is_dir() else "file",
+                      })
+                  result["structure"] = {"top_level": top_level, "source": "fallback"}
+                  result["error"] = f"prescan unavailable ({e}), used fallback listing"
+              except Exception as e2:
+                  result["error"] = f"structural scan failed: {e2}"
+
+          # Write prescan-result.json
+          prescan_path = Path(output_dir) / "prescan-result.json"
+          prescan_path.write_text(json.dumps(result, indent=2))
+
+          print(json.dumps(result))
+          EOF
+
+      # -----------------------------------------------------------------------
+      # Step 2: Compute traversal — walk directory tree and produce post-order plan
+      # Skips hidden directories and common build/dependency directories.
+      # Computes post-order sort (deepest first, then alphabetical within depth).
+      # Each entry includes slug, path, abs_path, parent, and depth.
+      # Writes traversal-plan.json — this is the mutable state file used by the
+      # traverse stage to accumulate child DOT paths during post-order traversal.
+      # -----------------------------------------------------------------------
+      - id: "compute-traversal"
+        type: "bash"
+        output: "traversal_plan"
+        parse_json: true
+        timeout: 30
+        command: |
+          python3 - <<'EOF'
+          import json
+          import os
+          from pathlib import Path
+
+          repo_path = "{{prescan_result.repo_path}}"
+          output_dir = "{{prescan_result.output_dir}}"
+
+          # Directories to skip during traversal
+          SKIP_DIRS = {
+              ".git", ".hg", ".svn",
+              "node_modules", "__pycache__", ".venv", "venv", "env",
+              "build", "dist", ".build", "target", "out",
+              ".tox", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+              ".discovery",
+          }
+
+          repo_root = Path(repo_path).resolve()
+          entries = []
+
+          def walk_tree(current_path, parent_rel, depth):
+              """Recursively walk directory tree, skipping hidden and build dirs."""
+              try:
+                  children = sorted(current_path.iterdir())
+              except PermissionError:
+                  return
+              for entry in children:
+                  if not entry.is_dir():
+                      continue
+                  if entry.name.startswith(".") or entry.name in SKIP_DIRS:
+                      continue
+                  rel_path = entry.relative_to(repo_root)
+                  slug = str(rel_path).replace("/", "-").replace("\\", "-")
+                  entries.append({
+                      "slug": slug,
+                      "path": str(rel_path),
+                      "abs_path": str(entry),
+                      "parent": parent_rel,
+                      "depth": depth,
+                  })
+                  walk_tree(entry, str(rel_path), depth + 1)
+
+          walk_tree(repo_root, "", 1)
+
+          # Post-order sort: deepest first (leaves before parents),
+          # then alphabetical within same depth
+          post_order = sorted(entries, key=lambda e: (-e["depth"], e["path"]))
+
+          traversal_plan = {
+              "repo_path": repo_path,
+              "output_dir": output_dir,
+              "post_order": post_order,
+              "child_dots": {},   # Maps dir path -> list of child diagram.dot paths
+              "completed": [],    # Tracks which levels have been synthesized
+          }
+
+          # Write traversal-plan.json — mutable state file for traverse stage
+          plan_path = Path(output_dir) / "traversal-plan.json"
+          plan_path.write_text(json.dumps(traversal_plan, indent=2))
+
+          print(json.dumps(traversal_plan))
+          EOF
+
+  # ---------------------------------------------------------------------------
+  # Stage 2: Traverse — synthesize each directory level in post-order
+  # Iterates over traversal_plan.post_order (deepest directories first).
+  # After each level is synthesized, updates traversal-plan.json with new
+  # child DOT paths so parent levels can incorporate their children's diagrams.
+  # ---------------------------------------------------------------------------
+  - name: "traverse"
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Synthesize levels — run synthesize-level sub-recipe per directory
+      # Iterates post_order (leaves first, parents last) so each directory
+      # can reference its children's already-produced diagram.dot files.
+      # -----------------------------------------------------------------------
+      - id: "synthesize-levels"
+        type: "recipe"
+        foreach: "{{traversal_plan.post_order}}"
+        as: "level"
+        recipe: "@dot-graph:recipes/synthesize-level.yaml"
+        context:
+          level_path: "{{level.abs_path}}"
+          level_slug: "{{level.slug}}"
+          child_dot_files: "{{traversal_plan.child_dots}}"
+          output_dir: "{{traversal_plan.output_dir}}"
+          fidelity: "{{fidelity}}"
+        output: "level_results"
+        timeout: 7200
+
+      # -----------------------------------------------------------------------
+      # Step 2: Update traversal plan — scan for produced diagram.dot files
+      # After all levels are synthesized, scans output directories for produced
+      # diagram.dot files and updates child_dots mapping in traversal-plan.json
+      # so the assemble stage has accurate information about what was produced.
+      # -----------------------------------------------------------------------
+      - id: "update-traversal-plan"
+        type: "bash"
+        output: "updated_plan"
+        parse_json: true
+        timeout: 30
+        command: |
+          python3 - <<'EOF'
+          import json
+          from pathlib import Path
+
+          output_dir = "{{traversal_plan.output_dir}}"
+          plan_path = Path(output_dir) / "traversal-plan.json"
+
+          # Read current traversal-plan.json
+          plan = json.loads(plan_path.read_text())
+
+          # Scan for all produced diagram.dot files
+          child_dots = {}
+          dot_files = list(Path(output_dir).rglob("diagram.dot"))
+
+          for dot_file in dot_files:
+              # Map parent directory to produced dot file
+              level_dir = dot_file.parent
+              parent_dir = level_dir.parent
+              parent_rel = str(parent_dir.relative_to(Path(output_dir))) if parent_dir != Path(output_dir) else ""
+              if parent_rel not in child_dots:
+                  child_dots[parent_rel] = []
+              child_dots[parent_rel].append(str(dot_file))
+
+          plan["child_dots"] = child_dots
+          plan["completed"] = [str(f.parent) for f in dot_files]
+
+          # Write back updated traversal-plan.json
+          plan_path.write_text(json.dumps(plan, indent=2))
+
+          print(json.dumps({"updated": True, "dot_files_found": len(dot_files), "plan_path": str(plan_path)}))
+          EOF
+
+  # ---------------------------------------------------------------------------
+  # Stage 3: Assemble — synthesize subsystem and overview diagrams
+  # Reads the completed traversal-plan.json, identifies depth-1 directories as
+  # subsystems, and synthesizes a unified view of the entire codebase.
+  # ---------------------------------------------------------------------------
+  - name: "assemble"
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Identify subsystems — determine top-level subsystems from traversal
+      # Reads traversal-plan.json and identifies all depth-1 directories as the
+      # primary subsystems for the final assembly phase.
+      # -----------------------------------------------------------------------
+      - id: "identify-subsystems"
+        type: "bash"
+        output: "subsystems_result"
+        parse_json: true
+        timeout: 15
+        command: |
+          python3 - <<'EOF'
+          import json
+          from pathlib import Path
+
+          output_dir = "{{traversal_plan.output_dir}}"
+
+          # Read traversal-plan.json
+          plan_path = Path(output_dir) / "traversal-plan.json"
+          plan = json.loads(plan_path.read_text())
+
+          # Identify depth-1 directories as subsystems
+          subsystems = [
+              entry for entry in plan.get("post_order", [])
+              if entry.get("depth") == 1
+          ]
+
+          # Create subsystems output directory
+          subsystems_dir = Path(output_dir) / "subsystems"
+          subsystems_dir.mkdir(parents=True, exist_ok=True)
+
+          result = {
+              "output_dir": output_dir,
+              "subsystems": subsystems,
+              "subsystem_count": len(subsystems),
+              "subsystems_dir": str(subsystems_dir),
+          }
+
+          print(json.dumps(result))
+          EOF
+
+      # -----------------------------------------------------------------------
+      # Step 2: Subsystem synthesis — synthesize all level findings into a unified
+      # subsystem-level DOT diagram combining all bottom-up traversal results.
+      # -----------------------------------------------------------------------
+      - id: "subsystem-synthesis"
+        type: "recipe"
+        recipe: "@dot-graph:recipes/synthesize-subsystem.yaml"
+        context:
+          subsystem_name: "bottomup-discovery"
+          subsystems: "{{subsystems_result.subsystems}}"
+          output_dir: "{{subsystems_result.output_dir}}"
+          fidelity: "{{fidelity}}"
+        output: "subsystem_result"
+        timeout: 3600
+
+      # -----------------------------------------------------------------------
+      # Step 3: Overview synthesis — produce final cross-subsystem overview
+      # Synthesizes the highest-level view of the entire codebase structure
+      # based on all bottom-up traversal and subsystem synthesis results.
+      # -----------------------------------------------------------------------
+      - id: "overview-synthesis"
+        type: "recipe"
+        recipe: "@dot-graph:recipes/synthesize-overview.yaml"
+        context:
+          output_dir: "{{subsystems_result.output_dir}}"
+          fidelity: "{{fidelity}}"
+        output: "overview_result"
+        timeout: 3600
+
+      # -----------------------------------------------------------------------
+      # Step 4: Update metadata — write last-run.json
+      # Records strategy='bottomup', commit hash, timestamp, fidelity, repo_path.
+      # -----------------------------------------------------------------------
+      - id: "update-metadata"
+        type: "bash"
+        output: "metadata_result"
+        parse_json: true
+        timeout: 10
+        command: |
+          python3 - <<'EOF'
+          import json
+          import subprocess
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          output_dir = "{{subsystems_result.output_dir}}"
+          repo_path = "{{traversal_plan.repo_path}}"
+          fidelity = "{{fidelity}}"
+
+          # Get current git commit
+          try:
+              commit_hash = subprocess.check_output(
+                  ["git", "-C", repo_path, "rev-parse", "HEAD"],
+                  text=True,
+                  stderr=subprocess.DEVNULL,
+              ).strip()
+          except Exception:
+              commit_hash = ""
+
+          metadata = {
+              "strategy": "bottomup",
+              "commit_hash": commit_hash,
+              "timestamp": datetime.now(timezone.utc).isoformat(),
+              "fidelity": fidelity,
+              "repo_path": repo_path,
+          }
+
+          last_run_path = Path(output_dir) / "last-run.json"
+          last_run_path.write_text(json.dumps(metadata, indent=2))
+          print(json.dumps({"written": str(last_run_path), **metadata}))
+          EOF
+
+final_output: "metadata_result"

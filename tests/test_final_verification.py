@@ -78,12 +78,12 @@ SKILL_FILES = [
 ]
 
 
-# --- Step 1: Complete file tree (35 files) ---
+# --- Step 1: Complete file tree (42 files) ---
 
 
 @pytest.mark.parametrize("rel_path", EXPECTED_FILES)
 def test_bundle_file_exists(rel_path):
-    """Step 1: Each of the 35 expected bundle files exists."""
+    """Step 1: Each of the 42 expected bundle files exists."""
     path = REPO_ROOT / rel_path
     assert path.exists(), f"Bundle file missing: {rel_path}"
     assert path.is_file(), f"Expected file but found directory: {rel_path}"

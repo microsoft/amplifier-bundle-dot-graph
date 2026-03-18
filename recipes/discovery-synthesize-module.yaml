@@ -148,7 +148,8 @@ steps:
           python3 - <<'EOF'
           import json
 
-          validation_result = {{validation_result}}
+          validation_result_json = r"""{{validation_result}}"""
+          validation_result = json.loads(validation_result_json)
 
           is_valid = validation_result.get("valid", False)
           errors = validation_result.get("errors", [])

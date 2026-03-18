@@ -19,6 +19,7 @@ context:
   repo_path: ""             # Required: path to target repository
   output_dir: "{{repo_path}}/.discovery/investigation/topdown"  # Optional: defaults to {{repo_path}}/.discovery/investigation/topdown
   fidelity: "standard"      # Optional: quick | standard | deep (default: standard)
+  topics_file: ""            # Optional: path to pre-selected topics.json from parent pipeline (skip scan if set)
 
 stages:
   # ---------------------------------------------------------------------------
@@ -34,6 +35,7 @@ stages:
       # Resolves default output_dir and writes prescan-result.json.
       # -----------------------------------------------------------------------
       - id: "structural-scan"
+        condition: "{{topics_file}} == ''"
         type: "bash"
         output: "scan_result"
         parse_json: true
@@ -95,6 +97,7 @@ stages:
       # structural scan. Standard: 3-5 topics; deep: 5-7 topics.
       # -----------------------------------------------------------------------
       - id: "topic-select"
+        condition: "{{topics_file}} == ''"
         agent: "dot-graph:discovery-prescan"
         output: "topics"
         parse_json: true
@@ -105,9 +108,9 @@ stages:
           Your task: analyze the structural scan results and select 3-7 investigation
           topics that would best illuminate the architecture of this repository.
 
-          Repository: {{scan_result.repo_path}}
+          Repository: {{repo_path}}
           Fidelity tier: {{fidelity}}
-          Output directory: {{scan_result.output_dir}}
+          Output directory: {{output_dir}}
 
           Structural scan results:
           {{scan_result}}
@@ -132,21 +135,44 @@ stages:
 
       # -----------------------------------------------------------------------
       # Step 3: Save topics — write topics.json to output directory
+      # When topics_file is provided (sub-recipe mode), copies pre-selected
+      # topics instead of relying on topic-select output.
+      # Always outputs the topics array to set {{topics}} for downstream stages.
       # -----------------------------------------------------------------------
       - id: "save-topics"
         type: "bash"
+        output: "topics"
+        parse_json: true
         command: |
           python3 - <<'EOF'
-          import json
+          import json, sys, shutil
           from pathlib import Path
 
-          output_dir = "{{scan_result.output_dir}}"
-          topics_json = r"""{{topics}}"""
-          topics = json.loads(topics_json)
+          output_dir = "{{output_dir}}"
+          topics_file = "{{topics_file}}"
 
-          topics_path = Path(output_dir) / "topics.json"
-          topics_path.write_text(json.dumps(topics, indent=2))
-          print(f"Written {len(topics)} topics to {topics_path}")
+          Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+          if topics_file and Path(topics_file).exists():
+              # Pre-selected topics from parent pipeline — copy to our output dir
+              dest = Path(output_dir) / "topics.json"
+              shutil.copy2(topics_file, dest)
+              topics = json.loads(Path(topics_file).read_text())
+              print(f"Using {len(topics)} pre-selected topics from {topics_file}", file=sys.stderr)
+          else:
+              # Topics from our own scan — save them
+              topics_json = r"""{{topics}}"""
+              try:
+                  topics = json.loads(topics_json)
+              except Exception:
+                  import ast
+                  topics = ast.literal_eval(topics_json)
+              topics_path = Path(output_dir) / "topics.json"
+              topics_path.write_text(json.dumps(topics, indent=2))
+              print(f"Saved {len(topics)} topics to {topics_path}", file=sys.stderr)
+
+          # Output topics JSON for downstream stages (sets {{topics}} context)
+          print(json.dumps(topics))
           EOF
 
   # ---------------------------------------------------------------------------
@@ -169,9 +195,18 @@ stages:
           import json
           from pathlib import Path
 
-          output_dir = "{{scan_result.output_dir}}"
+          output_dir = "{{output_dir}}"
+
+          # Load topics — prefer context variable, fall back to topics.json file
           topics_json = r"""{{topics}}"""
-          topics = json.loads(topics_json)
+          try:
+              topics = json.loads(topics_json)
+          except (json.JSONDecodeError, ValueError):
+              topics_path = Path(output_dir) / "topics.json"
+              if topics_path.exists():
+                  topics = json.loads(topics_path.read_text())
+              else:
+                  raise RuntimeError(f"No topics: context empty and {topics_path} not found")
 
           agent_names = ["code-tracer", "behavior-observer", "integration-mapper"]
           created = []
@@ -204,8 +239,8 @@ stages:
           topic_slug: "{{topic.slug}}"
           topic_description: "{{topic.description}}"
           fidelity: "{{fidelity}}"
-          repo_path: "{{scan_result.repo_path}}"
-          output_dir: "{{scan_result.output_dir}}"
+          repo_path: "{{repo_path}}"
+          output_dir: "{{output_dir}}"
         output: "investigation_results"
         timeout: 7200
 
@@ -226,10 +261,10 @@ stages:
         recipe: "@dot-graph:recipes/discovery-synthesize-module.yaml"
         context:
           module_name: "{{topic.name}}"
-          module_dir: "{{scan_result.output_dir}}/modules/{{topic.slug}}"
-          investigation_dir: "{{scan_result.output_dir}}/modules/{{topic.slug}}"
+          module_dir: "{{output_dir}}/modules/{{topic.slug}}"
+          investigation_dir: "{{output_dir}}/modules/{{topic.slug}}"
           fidelity: "{{fidelity}}"
-          output_dir: "{{scan_result.output_dir}}"
+          output_dir: "{{output_dir}}"
         output: "reconciliation_results"
         timeout: 7200
 
@@ -243,7 +278,7 @@ stages:
         context:
           subsystem_name: "topdown-discovery"
           topics: "{{topics}}"
-          output_dir: "{{scan_result.output_dir}}"
+          output_dir: "{{output_dir}}"
           fidelity: "{{fidelity}}"
         output: "subsystem_result"
         timeout: 3600
@@ -255,7 +290,7 @@ stages:
         type: "recipe"
         recipe: "@dot-graph:recipes/synthesize-overview.yaml"
         context:
-          output_dir: "{{scan_result.output_dir}}"
+          output_dir: "{{output_dir}}"
           fidelity: "{{fidelity}}"
         output: "overview_result"
         timeout: 3600
@@ -276,8 +311,8 @@ stages:
           from datetime import datetime, timezone
           from pathlib import Path
 
-          output_dir = "{{scan_result.output_dir}}"
-          repo_path = "{{scan_result.repo_path}}"
+          output_dir = "{{output_dir}}"
+          repo_path = "{{repo_path}}"
           fidelity = "{{fidelity}}"
 
           # Get current git commit

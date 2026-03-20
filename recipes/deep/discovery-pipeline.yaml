@@ -172,6 +172,7 @@ stages:
           bottomup_dir: "{{output_dir}}/investigation/bottomup"
           output_dir: "{{output_dir}}/output"
           render_png: "{{render_png}}"
+          node_target: "{{node_target}}"
         output: "combine_result"
 
 final_output: "combine_result"

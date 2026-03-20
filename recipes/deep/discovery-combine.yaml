@@ -18,6 +18,7 @@ context:
   bottomup_dir: "{{repo_path}}/.discovery/investigation/bottomup"  # bottom-up strategy output dir
   output_dir: "{{repo_path}}/.discovery/output"   # where to write final combined output
   render_png: "true"        # whether to render PNGs (default: true)
+  node_target: "25"         # soft target for overview DOT node count (default: 25)
 
 steps:
   # ---------------------------------------------------------------------------
@@ -154,3 +155,108 @@ steps:
       else
         echo "WARNING: combined.png not produced (dot may be unavailable or path issue)"
       fi
+
+  # ---------------------------------------------------------------------------
+  # Step 5: hoist-outputs — create flat output/ directory
+  # Copies combined.dot as overview.dot to the output root.
+  # ---------------------------------------------------------------------------
+  - id: "hoist-outputs"
+    type: "bash"
+    output: "hoist_result"
+    parse_json: true
+    timeout: 30
+    command: |
+      python3 - <<'EOF'
+      import json
+      import shutil
+      from pathlib import Path
+
+      output_dir = "{{output_dir}}"
+      output_root = Path(output_dir)
+      output_root.mkdir(parents=True, exist_ok=True)
+
+      hoisted = []
+
+      combined_dot = output_root / "combined.dot"
+      overview_dot = output_root / "overview.dot"
+      if combined_dot.exists() and not overview_dot.exists():
+          shutil.copy2(str(combined_dot), str(overview_dot))
+          hoisted.append(str(overview_dot))
+
+      print(json.dumps({"hoisted": hoisted, "count": len(hoisted)}))
+      EOF
+
+  # ---------------------------------------------------------------------------
+  # Step 6: summarize — produce overview.md using architecture-writer agent
+  # ---------------------------------------------------------------------------
+  - id: "summarize"
+    agent: "dot-graph:discovery-architecture-writer"
+    output: "summary_result"
+    timeout: 1200
+    prompt: |
+      You are the architecture writer for a deep discovery pipeline run.
+
+      Your task: read all findings and produce a polished overview.md
+      that serves as the human-readable entry point to the discovery results.
+
+      Repository: {{repo_path}}
+      Output directory: {{output_dir}}
+      Node target for overview: {{node_target}}
+
+      Read the combined output from:
+        {{output_dir}}/
+
+      Look for per-module findings, combined.dot, discrepancies.md, and any
+      per-strategy investigation artifacts.
+
+      Write overview.md to:
+        {{output_dir}}/overview.md
+
+      Structure overview.md with:
+      1. Executive summary (2-3 sentences)
+      2. Repository overview
+      3. Per-module summaries with links to detail files
+      4. Cross-cutting insights (highlight convergence/divergence from strategies)
+      5. Open questions
+
+  # ---------------------------------------------------------------------------
+  # Step 7: update-metadata — write last-run.json
+  # ---------------------------------------------------------------------------
+  - id: "update-metadata"
+    type: "bash"
+    output: "metadata_result"
+    parse_json: true
+    timeout: 10
+    command: |
+      python3 - <<'EOF'
+      import json
+      import os
+      import subprocess
+      from datetime import datetime, timezone
+      from pathlib import Path
+
+      repo_path = "{{repo_path}}"
+      output_dir = os.path.join(repo_path, ".discovery")
+
+      try:
+          commit_hash = subprocess.check_output(
+              ["git", "-C", repo_path, "rev-parse", "HEAD"],
+              text=True,
+              stderr=subprocess.DEVNULL,
+          ).strip()
+      except Exception:
+          commit_hash = ""
+
+      metadata = {
+          "pipeline": "deep",
+          "commit_hash": commit_hash,
+          "timestamp": datetime.now(timezone.utc).isoformat(),
+          "repo_path": repo_path,
+      }
+
+      last_run_path = Path(output_dir) / "last-run.json"
+      last_run_path.parent.mkdir(parents=True, exist_ok=True)
+      last_run_path.write_text(json.dumps(metadata, indent=2))
+
+      print(json.dumps({"written": str(last_run_path), **metadata}))
+      EOF

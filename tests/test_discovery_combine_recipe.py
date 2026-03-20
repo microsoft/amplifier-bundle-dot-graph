@@ -6,9 +6,10 @@ Validates:
 - File existence and valid YAML parse (2 tests)
 - Top-level metadata: name, description, version, author, tags (5 tests)
 - Context variables: repo_path, topdown_dir, bottomup_dir, output_dir,
-  render_png default 'true' (5 tests)
-- Steps structure: flat steps, 4 steps, correct order
-  [check-inputs, combine, validate, render] (3 tests)
+  render_png default 'true', node_target default '25' (6 tests)
+- Steps structure: flat steps, 7 steps, correct order
+  [check-inputs, combine, validate, render, hoist-outputs, summarize,
+  update-metadata] (3 tests)
 - check-inputs step: type=bash, references topdown_dir, references bottomup_dir,
   handles missing dirs gracefully (no hard fail) (4 tests)
 - combine step: agent='dot-graph:discovery-combiner', timeout>=600,
@@ -17,9 +18,12 @@ Validates:
   continues on warnings (3 tests)
 - render step: type=bash, has 'condition' field referencing render_png,
   command uses dot -Tpng, references combined.dot (4 tests)
+- hoist-outputs step: type=bash, exists (1 test)
+- summarize step: agent='dot-graph:discovery-architecture-writer' (1 test)
+- update-metadata step: type=bash, writes last-run.json with pipeline=deep (1 test)
 - Agent is declared in behaviors/dot-discovery.yaml (1 test)
 
-Total: 2 + 5 + 5 + 3 + 4 + 4 + 3 + 4 + 1 = 31 tests (aim: ~28)
+Total: 2 + 5 + 6 + 3 + 4 + 4 + 3 + 4 + 1 + 1 + 1 + 1 = 35 tests
 """
 
 from pathlib import Path
@@ -181,6 +185,18 @@ def test_recipe_context_render_png_default_true():
     )
 
 
+def test_recipe_context_has_node_target():
+    """Context must declare 'node_target' variable with default '25'."""
+    data = _load_recipe()
+    ctx = data.get("context", {})
+    assert "node_target" in ctx, (
+        f"Context must declare 'node_target' variable. Found keys: {list(ctx.keys())}"
+    )
+    assert str(ctx["node_target"]) == "25", (
+        f"node_target default must be '25', got: {ctx['node_target']!r}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Steps structure (3 tests)
 # ---------------------------------------------------------------------------
@@ -196,21 +212,30 @@ def test_recipe_has_flat_steps_not_staged():
     assert isinstance(data["steps"], list), "steps must be a list"
 
 
-def test_recipe_has_exactly_4_steps():
-    """Recipe must have exactly 4 flat steps."""
+def test_recipe_has_exactly_7_steps():
+    """Recipe must have exactly 7 flat steps."""
     data = _load_recipe()
     steps = _get_steps(data)
-    assert len(steps) == 4, f"Expected exactly 4 steps, got {len(steps)}"
+    assert len(steps) == 7, f"Expected exactly 7 steps, got {len(steps)}"
 
 
 def test_recipe_steps_correct_order():
-    """Steps must be in order: [check-inputs, combine, validate, render]."""
+    """Steps must be in order: [check-inputs, combine, validate, render, hoist-outputs, summarize, update-metadata]."""
     data = _load_recipe()
     steps = _get_steps(data)
-    assert len(steps) == 4, f"Expected 4 steps to check order, got {len(steps)}"
+    assert len(steps) == 7, f"Expected 7 steps to check order, got {len(steps)}"
     step_ids = [s.get("id") for s in steps]
-    assert step_ids == ["check-inputs", "combine", "validate", "render"], (
-        f"Steps must be in order [check-inputs, combine, validate, render], got: {step_ids}"
+    expected = [
+        "check-inputs",
+        "combine",
+        "validate",
+        "render",
+        "hoist-outputs",
+        "summarize",
+        "update-metadata",
+    ]
+    assert step_ids == expected, (
+        f"Steps must be in order {expected}, got: {step_ids}"
     )
 
 
@@ -422,6 +447,68 @@ def test_render_step_command_uses_dot_tpng():
     assert (
         "dot" in command_text and "Tpng" in command_text or "-Tpng" in command_text
     ), "render step command must use 'dot -Tpng' for PNG rendering"
+
+
+# ---------------------------------------------------------------------------
+# hoist-outputs step (1 test)
+# ---------------------------------------------------------------------------
+
+
+def test_hoist_outputs_step_exists():
+    """hoist-outputs step must exist with type='bash'."""
+    data = _load_recipe()
+    step = _get_step_by_id(data, "hoist-outputs")
+    assert step is not None, (
+        f"No step with id='hoist-outputs' found. "
+        f"Step IDs: {[s.get('id') for s in _get_steps(data)]}"
+    )
+    assert step.get("type") == "bash", (
+        f"hoist-outputs step must have type='bash', got: {step.get('type')!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# summarize step (1 test)
+# ---------------------------------------------------------------------------
+
+
+def test_summarize_step_uses_architecture_writer_agent():
+    """summarize step must use agent='dot-graph:discovery-architecture-writer'."""
+    data = _load_recipe()
+    step = _get_step_by_id(data, "summarize")
+    assert step is not None, (
+        f"No step with id='summarize' found. "
+        f"Step IDs: {[s.get('id') for s in _get_steps(data)]}"
+    )
+    assert step.get("agent") == "dot-graph:discovery-architecture-writer", (
+        f"summarize step must use agent='dot-graph:discovery-architecture-writer', "
+        f"got: {step.get('agent')!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# update-metadata step (1 test)
+# ---------------------------------------------------------------------------
+
+
+def test_update_metadata_step_writes_deep_pipeline_json():
+    """update-metadata step must exist, be type='bash', and write pipeline='deep' metadata."""
+    data = _load_recipe()
+    step = _get_step_by_id(data, "update-metadata")
+    assert step is not None, (
+        f"No step with id='update-metadata' found. "
+        f"Step IDs: {[s.get('id') for s in _get_steps(data)]}"
+    )
+    assert step.get("type") == "bash", (
+        f"update-metadata step must have type='bash', got: {step.get('type')!r}"
+    )
+    command_text = step.get("command", "") or step.get("script", "") or ""
+    assert "last-run.json" in command_text, (
+        "update-metadata step command must write 'last-run.json'"
+    )
+    assert '"deep"' in command_text or "'deep'" in command_text, (
+        "update-metadata step command must set pipeline='deep'"
+    )
 
 
 # ---------------------------------------------------------------------------

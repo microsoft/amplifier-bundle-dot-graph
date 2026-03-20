@@ -60,12 +60,12 @@ def test_discovery_prescan_description_has_two_examples():
     )
 
 
-def test_discovery_prescan_frontmatter_model_role_reasoning():
+def test_discovery_prescan_frontmatter_model_role_general():
     """Frontmatter must have model_role: reasoning."""
     content = PRESCAN_AGENT_PATH.read_text()
     frontmatter, _ = _parse_frontmatter(content)
     assert "model_role" in frontmatter, "Frontmatter must have 'model_role' key"
-    assert frontmatter["model_role"] == "reasoning", (
+    assert frontmatter["model_role"] == "general", (
         f"model_role must be 'reasoning', got: {frontmatter['model_role']}"
     )
 

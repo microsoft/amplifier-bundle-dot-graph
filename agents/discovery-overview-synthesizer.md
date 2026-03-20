@@ -6,7 +6,7 @@ meta:
 tools:
   - module: tool-dot-graph
 
-model_role: reasoning
+model_role: coding
 ---
 
 # Discovery Overview Synthesizer Agent — System-Level Pattern Finder

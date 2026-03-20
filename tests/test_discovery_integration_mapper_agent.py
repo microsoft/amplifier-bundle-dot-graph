@@ -60,12 +60,12 @@ def test_discovery_integration_mapper_description_has_two_examples():
     )
 
 
-def test_discovery_integration_mapper_frontmatter_model_role_reasoning():
+def test_discovery_integration_mapper_frontmatter_model_role_coding():
     """Frontmatter must have model_role: reasoning."""
     content = INTEGRATION_MAPPER_AGENT_PATH.read_text()
     frontmatter, _ = _parse_frontmatter(content)
     assert "model_role" in frontmatter, "Frontmatter must have 'model_role' key"
-    assert frontmatter["model_role"] == "reasoning", (
+    assert frontmatter["model_role"] == "coding", (
         f"model_role must be 'reasoning', got: {frontmatter['model_role']}"
     )
 

@@ -1,0 +1,174 @@
+digraph repository_governance {
+  graph [rankdir=TB, fontname="Helvetica", fontsize=14, compound=true,
+    label="Repository Governance & Awareness Hierarchy\nSynthesis from 11+ Investigation Perspectives",
+    labelloc=t, pad=0.5, nodesep=0.6, ranksep=0.8]
+  node [fontname="Helvetica", fontsize=10, style=filled]
+  edge [fontname="Helvetica", fontsize=8]
+
+  // ===================================================================
+  // CLUSTER: Awareness Hierarchy DAG (the core governance model)
+  // ===================================================================
+  subgraph cluster_awareness_dag {
+    label="Awareness Hierarchy DAG\n[C-01: Dependency-based reference permissions]\n[C-08: 6 repository types]"
+    style=filled
+    fillcolor="#E3F2FD"
+    color="#1565C0"
+
+    entry_point [label="Entry Point\n(amplifier)\nCan reference: ALL" shape=box fillcolor="#BBDEFB"]
+    kernel [label="Kernel\n(amplifier-core)\nCan reference:\nEntry only" shape=box fillcolor="#C5CAE9"]
+    libraries [label="Libraries\n(amplifier-foundation)\nCan reference:\nKernel + Entry +\ndeclared deps" shape=box fillcolor="#C8E6C9"]
+    applications [label="Applications\n(amplifier-app-cli)\nCan reference:\nAnything consumed" shape=box fillcolor="#C8E6C9"]
+    bundles [label="Bundles\n(amplifier-bundle-*)\nCan reference:\nModules + libs\n[XC-04: loosest rules]" shape=box fillcolor="#FFE0B2"]
+    modules [label="Modules\n(amplifier-module-*)\nCan reference:\nKernel only\nNEVER peers" shape=box fillcolor="#FFCDD2"]
+  }
+
+  // ===================================================================
+  // CLUSTER: Governance Source Documents
+  // ===================================================================
+  subgraph cluster_governance_docs {
+    label="Governance Source Documents\n[C-03: Peer-isolated canonical source]"
+    style=filled
+    fillcolor="#FFF3E0"
+    color="#E65100"
+
+    repo_rules [label="REPOSITORY_RULES.md\n(585 lines, 18KB)\nGolden Rule +\n4-question framework\n[C-02: Zero enforcement]" shape=note fillcolor="#FFE0B2"]
+    modules_md [label="MODULES.md\n(25KB, 322 lines)\nEcosystem Registry\n[C-06: SPOF]" shape=note fillcolor="#FFCDD2"]
+  }
+
+  // ===================================================================
+  // CLUSTER: Parallel Governance (cross-repo)
+  // ===================================================================
+  subgraph cluster_parallel_governance {
+    label="Parallel Governance Systems\n[C-05: No cross-reference]"
+    style="filled,dashed"
+    fillcolor="#EFEBE9"
+    color="#795548"
+
+    ctx_poisoning [label="CONTEXT_POISONING.md\n(foundation repo)" shape=note fillcolor="#D7CCC8"]
+    doc_linking [label="DOCUMENTATION_LINKING.md\n(core repo)" shape=note fillcolor="#D7CCC8"]
+  }
+
+  // ===================================================================
+  // CLUSTER: Governance Delivery Chain
+  // ===================================================================
+  subgraph cluster_delivery {
+    label="Governance Delivery Chain\n[C-04: Sole delivery path via @-mention]"
+    style=filled
+    fillcolor="#E8F5E9"
+    color="#2E7D32"
+
+    bundle_md [label="bundle.md\n(entry point bundle)\nincludes: foundation +\nexpert-behavior" shape=box3d fillcolor="#C8E6C9"]
+    bhv_expert [label="amplifier-expert-\nbehavior.yaml\nagents + context include" shape=box3d fillcolor="#C8E6C9"]
+    expert_agent [label="amplifier-expert.md\n(15KB, sole agent)\n5-tier @-mention hierarchy" shape=doubleoctagon fillcolor="#A5D6A7"]
+    at_mention [label="@-mention Protocol\nparse_mentions() +\nBaseMentionResolver +\nContentDeduplicator" shape=hexagon fillcolor="#CE93D8"]
+  }
+
+  // ===================================================================
+  // CLUSTER: Enforcement Mechanisms
+  // ===================================================================
+  subgraph cluster_enforcement {
+    label="Enforcement Recipes\n[C-07: Boilerplate only, not hierarchy]"
+    style=filled
+    fillcolor="#FFEBEE"
+    color="#B71C1C"
+
+    repo_audit [label="repo-audit\ncurl -sL fetch\n(boilerplate checks)" shape=box3d fillcolor="#FFCDD2"]
+    eco_audit [label="ecosystem-audit\ncurl + extract\n(MODULES.md listing)" shape=box3d fillcolor="#FFCDD2"]
+    activity_report [label="ecosystem-activity-\nreport\ngh api + base64 -d" shape=box3d fillcolor="#FFCDD2"]
+  }
+
+  // ===================================================================
+  // SILENT DEGRADATION
+  // ===================================================================
+  silent_degrade [label="Silent Degradation\n[C-10: Governance vanishes\nwith no diagnostic]" shape=octagon fillcolor="#F44336" fontcolor=white]
+
+  // ===================================================================
+  // EDGES: Awareness DAG (allowed reference directions)
+  // ===================================================================
+  entry_point -> kernel [label="can ref" color="#1565C0" style=dashed]
+  entry_point -> libraries [label="can ref" color="#1565C0" style=dashed]
+  entry_point -> applications [label="can ref" color="#1565C0" style=dashed]
+  entry_point -> bundles [label="can ref" color="#1565C0" style=dashed]
+  entry_point -> modules [label="can ref" color="#1565C0" style=dashed]
+  kernel -> entry_point [label="can ref\n(getting started only)" color="#5C6BC0"]
+  libraries -> kernel [label="can ref" color="#43A047"]
+  libraries -> entry_point [label="can ref" color="#43A047"]
+  applications -> libraries [label="can ref" color="#43A047"]
+  applications -> kernel [label="can ref" color="#43A047"]
+  bundles -> modules [label="can ref" color="#FF9800"]
+  bundles -> libraries [label="can ref\n(evolving)" color="#FF9800"]
+  modules -> kernel [label="can ref" color="#E53935"]
+
+  // ===================================================================
+  // EDGES: Governance document defines the DAG
+  // ===================================================================
+  repo_rules -> entry_point [label="defines\nhierarchy for" color="#E65100" penwidth=1.5]
+
+  // ===================================================================
+  // EDGES: Governance delivery chain
+  // ===================================================================
+  bundle_md -> bhv_expert [label="includes behavior" color="#2E7D32"]
+  bhv_expert -> expert_agent [label="agents.include" color="#2E7D32"]
+  expert_agent -> at_mention [label="5-tier @-mentions\n@amplifier:docs/" color="#9C27B0" penwidth=1.5]
+  at_mention -> repo_rules [label="resolves\nTier 1" color="#9C27B0" penwidth=1.5]
+
+  // ===================================================================
+  // EDGES: MODULES.md SPOF bypass (TIGHT coupling - RED)
+  // ===================================================================
+  repo_audit -> modules_md [label="curl -sL\n(bypasses @-mention)" style=dashed color=red penwidth=2.5]
+  eco_audit -> modules_md [label="curl + extract\n(bypasses @-mention)" style=dashed color=red penwidth=2.5]
+  activity_report -> modules_md [label="gh api + base64\n(bypasses @-mention)" style=dashed color=red penwidth=2.5]
+
+  // ===================================================================
+  // EDGES: Enforcement gap
+  // ===================================================================
+  repo_audit -> repo_rules [label="enforces boilerplate\nonly (Golden Rule\nNOT enforced)\n[C-02]" style=dashed color=red penwidth=1.5]
+
+  // ===================================================================
+  // EDGES: Parallel governance (no cross-reference)
+  // ===================================================================
+  repo_rules -> ctx_poisoning [label="no cross-ref\n[C-05]" style=dashed color="#795548"]
+  repo_rules -> doc_linking [label="no cross-ref\n[C-05]" style=dashed color="#795548"]
+
+  // ===================================================================
+  // EDGES: Silent degradation path
+  // ===================================================================
+  at_mention -> silent_degrade [label="resolver fails\n-> None returned\n-> no diagnostic" style=dotted color="#C62828" penwidth=1.5]
+
+  // ===================================================================
+  // DISCREPANCY EDGES (dashed red, labeled D-NN)
+  // ===================================================================
+  repo_rules -> repo_audit [label="D-01: deliberate\nor unsolved?" style=dashed color=red fontcolor=red constraint=false]
+  entry_point -> modules [label="D-02: DAG actually\nrespected?" style=dashed color=red fontcolor=red constraint=false]
+  expert_agent -> bundle_md [label="D-04: child sessions\ninherit governance?" style=dashed color=red fontcolor=red constraint=false]
+
+  // ===================================================================
+  // LEGEND
+  // ===================================================================
+  subgraph cluster_legend {
+    label="Legend"
+    style=filled
+    fillcolor=white
+    color=black
+
+    node [shape=plaintext fillcolor=white]
+    LEGEND [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+      <TR><TD COLSPAN="2"><B>Edge Styles (Consensus)</B></TD></TR>
+      <TR><TD>Solid blue/green</TD><TD>Allowed reference direction (DAG)</TD></TR>
+      <TR><TD>Solid purple</TD><TD>@-mention delivery chain</TD></TR>
+      <TR><TD>Solid orange</TD><TD>Governance definition</TD></TR>
+      <TR><TD BGCOLOR="#FFD0D0">Dashed red (thick)</TD><TD>TIGHT coupling / SPOF bypass</TD></TR>
+      <TR><TD>Dotted dark red</TD><TD>Silent degradation path</TD></TR>
+      <TR><TD>Dashed brown</TD><TD>No cross-reference (parallel governance)</TD></TR>
+      <TR><TD COLSPAN="2"><B>Edge Styles (Discrepancy)</B></TD></TR>
+      <TR><TD BGCOLOR="#FFD0D0">Dashed red + D-NN</TD><TD>Open discrepancy (unresolved)</TD></TR>
+      <TR><TD COLSPAN="2"><B>Node Shapes</B></TD></TR>
+      <TR><TD BGCOLOR="#BBDEFB">box</TD><TD>Repository type (DAG node)</TD></TR>
+      <TR><TD BGCOLOR="#FFE0B2">note</TD><TD>Governance document</TD></TR>
+      <TR><TD BGCOLOR="#CE93D8">hexagon</TD><TD>Shared protocol / interface</TD></TR>
+      <TR><TD BGCOLOR="#A5D6A7">doubleoctagon</TD><TD>Gateway agent</TD></TR>
+      <TR><TD BGCOLOR="#C8E6C9">box3d</TD><TD>Bundle / recipe / config</TD></TR>
+      <TR><TD BGCOLOR="#FFCDD2">red fill</TD><TD>SPOF / risk / restricted node</TD></TR>
+    </TABLE>>]
+  }
+}

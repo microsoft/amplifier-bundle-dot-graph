@@ -1,0 +1,100 @@
+digraph assets_level {
+    graph [
+        label="assets/ — Amplifier Static Asset Container"
+        labelloc=t
+        fontsize=14
+        bgcolor=white
+        rankdir=TB
+        pad=0.5
+        compound=true
+    ]
+    node [fontsize=10 margin="0.15,0.08"]
+    edge [fontsize=9]
+
+    // This-level node — assets/ itself contains no files
+    assets_root [
+        label="assets/\n(no files at this level — pure namespace container)"
+        shape=component
+        style="filled,dashed"
+        fillcolor="#ddeeff"
+    ]
+
+    // External upstream brand source
+    github_src [
+        label="GitHub Avatar\nmicrosoft-amplifier\n(upstream brand source)"
+        shape=ellipse
+        style=filled
+        fillcolor="#ffeecc"
+    ]
+
+    subgraph cluster_branding {
+        label="branding/  — Master Icon Distribution (1 README + 19 image files)"
+        style=filled
+        fillcolor="#eeeeee"
+        fontsize=11
+
+        readme_branding [
+            label="README.md\n(integration doc — covers icons/, favicons/, pwa/)"
+            shape=note
+            style=filled
+            fillcolor="#ddffdd"
+        ]
+
+        master [
+            label="icons/amplifier-icon-1024.png\n* Master Source (1024x1024)"
+            shape=box
+            style="filled,bold"
+            fillcolor="#ffdddd"
+            penwidth=2
+        ]
+
+        icons_summary [
+            label="icons/\n13 derived app icons\n(PNG 16-512px, .icns, .ico, tray templates)"
+            shape=component
+            style=filled
+            fillcolor="#eeeeee"
+        ]
+
+        favicons_summary [
+            label="favicons/\nfavicon.ico + favicon-32.png\n+ apple-touch-icon.png (180px iOS)"
+            shape=component
+            style=filled
+            fillcolor="#eeeeee"
+        ]
+
+        pwa_summary [
+            label="pwa/\npwa-192.png + pwa-512.png"
+            shape=component
+            style=filled
+            fillcolor="#eeeeee"
+        ]
+
+        // Derivation edges from master source to each deployment-target bucket
+        master -> icons_summary [style=dashed label="resize / bundle" color="#666666"]
+        master -> favicons_summary [label="IDENTICAL: icon-32=favicon-32\nderivatives: .ico, apple-touch-180px" color="#cc4400" penwidth=2]
+        master -> pwa_summary [label="IDENTICAL: icon-512=pwa-512\nresize: pwa-192px" color="#cc4400" penwidth=2]
+        readme_branding -> master [style=dotted color="#888888" label="documents"]
+    }
+
+    // assets/ owns branding/ as its sole child — no files at this level
+    assets_root -> master [label="sole child subtree" style=dashed color="#aaaaaa" lhead=cluster_branding]
+
+    // External upstream feeds master
+    github_src -> master [label="AI upscale 460→1024px" color="#888888"]
+
+    // Legend
+    subgraph cluster_legend {
+        label="Legend"
+        style=filled
+        fillcolor="#ffffff"
+        fontsize=10
+
+        leg_container [label="This-level node (blue dashed)"      shape=component style="filled,dashed" fillcolor="#ddeeff" fontsize=9]
+        leg_doc       [label="Integration doc (green)"            shape=note      style=filled          fillcolor="#ddffdd" fontsize=9]
+        leg_master    [label="Master source (pink bold)"          shape=box       style="filled,bold"   fillcolor="#ffdddd" fontsize=9 penwidth=2]
+        leg_child     [label="Child directory (gray)"             shape=component style=filled          fillcolor="#eeeeee" fontsize=9]
+        leg_extern    [label="External origin (orange)"           shape=ellipse   style=filled          fillcolor="#ffeecc" fontsize=9]
+        leg_ident     [label="IDENTICAL copy / derivation (rust)" shape=plaintext fontsize=9]
+        leg_deriv     [label="Resize/bundle (gray dashed)"        shape=plaintext fontsize=9]
+    }
+}

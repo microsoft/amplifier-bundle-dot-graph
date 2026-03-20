@@ -1,3 +1,14 @@
+[project]
+name = "amplifier-bundle-dot-graph"
+version = "0.1.0"
+description = "DOT/Graphviz infrastructure — knowledge, validation, rendering, and graph intelligence for the Amplifier ecosystem"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [
+    { name = "Microsoft", email = "amplifier@microsoft.com" }
+]
+
 [tool.setuptools]
 packages = []  # Bundle repo, not a Python library
 

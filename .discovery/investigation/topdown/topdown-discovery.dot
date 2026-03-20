@@ -1,0 +1,141 @@
+digraph topdown_discovery_subsystem {
+  graph [rankdir=TB, fontname="Helvetica", fontsize=13, compound=true,
+    label="Top-Down Discovery Subsystem — Cross-Module Seam Analysis\n6 Modules | amplifier bundle",
+    labelloc=t, pad=0.5, nodesep=0.6, ranksep=0.9]
+  node [fontname="Helvetica", fontsize=10, style=filled]
+  edge [fontname="Helvetica", fontsize=8]
+
+  // =================================================================
+  // MODULE CLUSTERS (gray fill — summarized, not re-described)
+  // =================================================================
+
+  subgraph cluster_agent_behavior {
+    label="Agent & Behavior\nArchitecture"
+    style=filled; fillcolor="#eeeeee"; color="#666666"
+    ab_behaviors [label="behaviors/\n(thin bundles:\nactive + passive)" shape=box fillcolor="#BBDEFB"]
+    ab_pipeline [label="Content Pipeline\ndocs → outlines →\ncontext (~20KB)" shape=box fillcolor="#BBDEFB"]
+  }
+
+  subgraph cluster_bundle_composition {
+    label="Bundle Composition\nPipeline"
+    style=filled; fillcolor="#eeeeee"; color="#666666"
+    bc_compose [label="Bundle.compose()\nleft-to-right merge\ncycle + diamond dedup" shape=box fillcolor="#C5CAE9"]
+    bc_prepare [label="Bundle.prepare()\nmodule activation\nBundleModuleResolver" shape=box fillcolor="#C5CAE9"]
+  }
+
+  subgraph cluster_doc_governance {
+    label="Documentation\nGovernance"
+    style=filled; fillcolor="#eeeeee"; color="#666666"
+    dg_rules [label="REPOSITORY_RULES.md\nGolden Rule\n(zero enforcement)" shape=box fillcolor="#FFCDD2"]
+    dg_docs [label="docs/ (125KB)\n10 files\nhub-and-spoke nav" shape=box fillcolor="#CFD8DC"]
+  }
+
+  subgraph cluster_expert_knowledge {
+    label="Expert Agent\nKnowledge"
+    style=filled; fillcolor="#eeeeee"; color="#666666"
+    ek_expert [label="amplifier-expert.md\n(15KB, sole agent)\n28 @-mentions\n3 modes | 5 tiers" shape=doubleoctagon fillcolor="#C8E6C9"]
+    ek_spokes [label="3 Spoke Experts\ncore / foundation\n/ recipe-author" shape=octagon fillcolor="#C8E6C9"]
+  }
+
+  subgraph cluster_recipe_orchestration {
+    label="Recipe\nOrchestration"
+    style=filled; fillcolor="#eeeeee"; color="#666666"
+    ro_engine [label="Executor Engine\n2750+ lines\n5 step types" shape=box fillcolor="#A8D8A8"]
+    ro_recipes [label="6 Recipes (386KB)\nv1.2 — v8.1\norch/worker pairs" shape=box fillcolor="#A8D8A8"]
+  }
+
+  // =================================================================
+  // SHARED INTERFACES (hexagons — cross-module protocols)
+  // =================================================================
+
+  at_mention [label="@-mention Protocol\nSole knowledge delivery\nBaseMentionResolver +\nContentDeduplicator" shape=hexagon fillcolor="#CE93D8"]
+
+  source_base_paths [label="source_base_paths\nNamespace → path map\n(first-reg wins)" shape=hexagon fillcolor="#CE93D8"]
+
+  session_spawn [label="session.spawn\nFormal kernel capability" shape=hexagon fillcolor="#CE93D8"]
+
+  prompt_factory [label="System Prompt Factory\nPer-request assembly\n(no caching)" shape=hexagon fillcolor="#CE93D8"]
+
+  // =================================================================
+  // SHARED TYPES (notes, orange — cross-module data)
+  // =================================================================
+
+  modules_md [label="MODULES.md (25KB)\nEcosystem Registry SPOF\n3 fetch bypasses" shape=note fillcolor="#ffe0b2"]
+
+  context_dict [label="Context Dict\nOverloaded: state + bus\n+ template + checkpoint" shape=note fillcolor="#ffe0b2"]
+
+  // =================================================================
+  // CROSS-MODULE EDGES (primary signal)
+  // =================================================================
+
+  // Flow 1: Content refinement pipeline (doc-gov → agent-behavior)
+  dg_docs -> ab_pipeline [label="source docs\n(125KB)" style=dashed color="#2e7d32"]
+
+  // Flow 2: Refined context enters @-mention delivery
+  ab_pipeline -> at_mention [label="refined context\n(~20KB total)" style=dashed color="#2e7d32"]
+
+  // Flow 3: Behavior composition wires agent + context
+  ab_behaviors -> ek_expert [label="agents.include +\ncontext.include\n(namespace-mediated)" style=dashed color="#2e7d32"]
+
+  // Flow 4: Bundle composition populates namespace resolution
+  bc_compose -> source_base_paths [label="populates\n(compose merge)" color="#2e7d32" penwidth=1.5]
+
+  // Flow 5: source_base_paths enables @-mention
+  source_base_paths -> at_mention [label="enables\nresolution" color="#2e7d32" penwidth=1.5]
+
+  // Flow 6: @-mention delivers to prompt factory
+  at_mention -> prompt_factory [label="resolved\ncontent" color="#7B1FA2" penwidth=1.5]
+
+  // Flow 7: Prompt factory assembles expert's system prompt
+  prompt_factory -> ek_expert [label="assembled\nprompt\n(per-request)" color="#7B1FA2" penwidth=1.5]
+
+  // Flow 8: Governance rules delivered via @-mention
+  dg_rules -> at_mention [label="@amplifier:docs/\nTier 1 ref" style=dashed color="#7B1FA2"]
+
+  // Flow 9: Expert delegates to spokes (convention-based)
+  ek_expert -> ek_spokes [label="convention\ndelegation" style=dashed color="#555555"]
+
+  // Flow 10: MODULES.md SPOF — TIGHT coupling (RED)
+  dg_docs -> modules_md [label="contains" color="#666666"]
+  modules_md -> ro_recipes [label="curl / gh api\n3 independent\nfetch bypasses" style=dashed color="red" penwidth=2.5]
+
+  // Flow 11: Recipe engine formal + informal kernel coupling
+  ro_engine -> session_spawn [label="formal:\nget_capability()" style=dashed color="#2e7d32"]
+  ro_engine -> bc_prepare [label="9+ getattr()\nduck-typed\n(invisible deps)" style=dashed color="red" penwidth=2.0]
+
+  // Flow 12: Recipe engine uses context dict
+  ro_engine -> context_dict [label="read/write\nper step" style=dashed color="#555555"]
+
+  // Flow 13: Circular lifecycle — recipes generate new docs
+  ro_recipes -> dg_docs [label="generates\nnew docs\n(CIRCULAR)" style=dashed color="#E65100" penwidth=1.5]
+
+  // Flow 14: Universal agent dependency
+  ro_recipes -> ek_spokes [label="zen-architect\n(all 6 recipes)" style=dashed color="#555555"]
+
+  // Flow 15: Silent degradation chain (dotted dark red)
+  bc_prepare -> at_mention [label="module-source-resolver\nfailure = warning only" style=dotted color="#C62828" penwidth=1.5]
+  at_mention -> ek_expert [label="missing → None\n(silent absence)" style=dotted color="#C62828" penwidth=1.5 constraint=false]
+
+  // =================================================================
+  // LEGEND
+  // =================================================================
+  subgraph cluster_legend {
+    label="Legend"
+    style=filled; fillcolor=white; color=black
+    node [shape=plaintext fillcolor=white]
+    LEGEND [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+      <TR><TD COLSPAN="2"><B>Edge Styles</B></TD></TR>
+      <TR><TD>Dashed green</TD><TD>Clean interface (namespace-mediated)</TD></TR>
+      <TR><TD>Solid/dashed purple</TD><TD>@-mention delivery chain</TD></TR>
+      <TR><TD BGCOLOR="#FFD0D0">Dashed red (thick)</TD><TD>TIGHT coupling (bypass / duck-typed)</TD></TR>
+      <TR><TD>Dashed orange</TD><TD>Circular content lifecycle</TD></TR>
+      <TR><TD>Dotted dark red</TD><TD>Silent degradation path</TD></TR>
+      <TR><TD COLSPAN="2"><B>Node Shapes</B></TD></TR>
+      <TR><TD BGCOLOR="#eeeeee">box (gray cluster)</TD><TD>Module component (summarized)</TD></TR>
+      <TR><TD BGCOLOR="#CE93D8">hexagon</TD><TD>Shared protocol / interface</TD></TR>
+      <TR><TD BGCOLOR="#ffe0b2">note (orange)</TD><TD>Shared type crossing modules</TD></TR>
+      <TR><TD BGCOLOR="#C8E6C9">doubleoctagon</TD><TD>Hub agent (sole)</TD></TR>
+      <TR><TD BGCOLOR="#FFCDD2">red fill</TD><TD>SPOF / risk node</TD></TR>
+    </TABLE>>]
+  }
+}

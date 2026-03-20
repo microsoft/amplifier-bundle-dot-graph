@@ -1,0 +1,84 @@
+digraph assets_branding_pwa {
+    graph [
+        label="assets/branding/pwa — Level Synthesis"
+        labelloc=t
+        fontname="Helvetica"
+        fontsize=14
+        bgcolor="white"
+        rankdir=TB
+        pad=0.4
+        nodesep=0.5
+        ranksep=0.6
+    ]
+    node [fontname="Helvetica" fontsize=11]
+    edge [fontname="Helvetica" fontsize=10]
+
+    // ── This-level directory node ────────────────────────────────────────
+    pwa_dir [
+        label="assets/branding/pwa/"
+        shape=folder
+        style=filled
+        fillcolor="#ddeeff"
+        fontcolor="#003366"
+        tooltip="Leaf directory — canonical PWA icon pair"
+    ]
+
+    // ── File nodes ────────────────────────────────────────────────────────
+    icon192 [
+        label="pwa-192.png\n(~42 KB)"
+        shape=note
+        style=filled
+        fillcolor="#f9f9f9"
+        tooltip="PWA icon 192×192 px — required by Web App Manifest for homescreen/launcher"
+    ]
+
+    icon512 [
+        label="pwa-512.png\n(~228 KB)"
+        shape=note
+        style=filled
+        fillcolor="#f9f9f9"
+        tooltip="PWA icon 512×512 px — required by Web App Manifest for splash screens"
+    ]
+
+    // ── Expected upstream consumers (external / inferred) ─────────────────
+    manifest [
+        label="manifest.json\n(inferred)"
+        shape=hexagon
+        style="filled,dashed"
+        fillcolor="#fff8e1"
+        fontcolor="#7a5900"
+        tooltip="Web App Manifest — expected to reference both icon paths"
+    ]
+
+    build_pipeline [
+        label="Build / Deploy\nPipeline"
+        shape=component
+        style="filled,dashed"
+        fillcolor="#fff8e1"
+        fontcolor="#7a5900"
+        tooltip="Copies / hashes icons to public/dist output"
+    ]
+
+    // ── Edges ─────────────────────────────────────────────────────────────
+    pwa_dir -> icon192 [label="contains"]
+    pwa_dir -> icon512 [label="contains"]
+    manifest -> icon192 [label="references\n(192px icon)" style=dashed color="#999999"]
+    manifest -> icon512 [label="references\n(512px icon)" style=dashed color="#999999"]
+    build_pipeline -> pwa_dir [label="copies to dist" style=dashed color="#999999"]
+
+    // ── Legend ────────────────────────────────────────────────────────────
+    subgraph cluster_legend {
+        label="Legend"
+        style=filled
+        fillcolor="#f5f5f5"
+        fontsize=11
+        rank=sink
+
+        leg_dir [label="Directory" shape=folder style=filled fillcolor="#ddeeff"]
+        leg_file [label="Static File" shape=note style=filled fillcolor="#f9f9f9"]
+        leg_ext [label="Inferred Consumer\n(dashed = external / not yet seen)" shape=hexagon style="filled,dashed" fillcolor="#fff8e1" fontcolor="#7a5900"]
+
+        leg_dir -> leg_file [style=invis]
+        leg_file -> leg_ext [style=invis]
+    }
+}

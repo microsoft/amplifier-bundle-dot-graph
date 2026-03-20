@@ -1,0 +1,65 @@
+digraph behaviors_level {
+    rankdir=LR;
+    compound=true;
+    node [fontname="Helvetica", fontsize=10];
+    edge [fontname="Helvetica", fontsize=9];
+
+    // ── This-level nodes: behavior bundle definitions ──
+    amplifier_dev [
+        label="amplifier-dev.yaml\n«amplifier-dev-behavior»\nv1.0.0",
+        shape=note,
+        style=filled,
+        fillcolor="#ddeeff"
+    ];
+
+    amplifier_expert [
+        label="amplifier-expert.yaml\n«amplifier-expert-behavior»\nv1.0.0",
+        shape=note,
+        style=filled,
+        fillcolor="#ddeeff"
+    ];
+
+    // ── External context references (amplifier: namespace) ──
+    dev_hygiene_ctx [
+        label="amplifier:context/\ndevelopment-hygiene.md",
+        shape=note,
+        style=filled,
+        fillcolor="#eeeeee"
+    ];
+
+    ecosystem_overview_ctx [
+        label="amplifier:context/\necosystem-overview.md",
+        shape=note,
+        style=filled,
+        fillcolor="#eeeeee"
+    ];
+
+    // ── External agent reference ──
+    amplifier_expert_agent [
+        label="amplifier:amplifier-expert\n(agent bundle)",
+        shape=component,
+        style=filled,
+        fillcolor="#eeeeee"
+    ];
+
+    // ── Edges ──
+    amplifier_dev    -> dev_hygiene_ctx       [label="context.include"];
+    amplifier_expert -> ecosystem_overview_ctx [label="context.include"];
+    amplifier_expert -> amplifier_expert_agent [label="agents.include"];
+
+    // ── Legend ──
+    subgraph cluster_legend {
+        label="Legend";
+        style=filled;
+        fillcolor="#ffffff";
+        fontsize=9;
+        node [style=filled, fontsize=9];
+
+        leg_this_level [label="Behavior Bundle\n(this level)", shape=note,      fillcolor="#ddeeff"];
+        leg_ext_ctx    [label="External Context\n(amplifier: ns)", shape=note,  fillcolor="#eeeeee"];
+        leg_ext_agent  [label="External Agent\n(amplifier: ns)", shape=component, fillcolor="#eeeeee"];
+
+        leg_this_level -> leg_ext_ctx   [label="context.include", style=dashed];
+        leg_this_level -> leg_ext_agent [label="agents.include",  style=dashed];
+    }
+}

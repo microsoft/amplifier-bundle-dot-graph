@@ -1,0 +1,139 @@
+digraph bundle_composition_synthesis {
+    graph [rankdir=TB, fontname="Helvetica", fontsize=13, compound=true,
+           label="Entry Point Bundle Composition\n[Synthesis — single-source: code-tracer | MEDIUM confidence]", labelloc=t]
+    node [fontname="Helvetica", fontsize=10, shape=box, style="rounded,filled", fillcolor="#f0f4f8"]
+    edge [fontname="Helvetica", fontsize=9]
+
+    // === Entry Points ===
+    subgraph cluster_entry {
+        label="Entry Points"; style=filled; fillcolor="#dbeafe"; color="#3b82f6"
+        load_bundle [label="load_bundle(source)\nregistry.py:1267", fillcolor="#bfdbfe"]
+        load_single [label="_load_single(uri)\nregistry.py:348\n[cache + cycle guard + diamond dedup]", fillcolor="#93c5fd"]
+    }
+
+    // === Source Resolution ===
+    subgraph cluster_source {
+        label="URI Resolution (sources/)"; style=filled; fillcolor="#fef3c7"; color="#f59e0b"
+        resolver [label="SimpleSourceResolver\nresolver.py:63\n[first-match dispatch]", fillcolor="#fff59d"]
+        handlers [label="Handlers: Git | File | Http | Zip\n(#subdirectory= for nested access)", fillcolor="#fff59d", shape=component]
+    }
+
+    // === Parsing ===
+    subgraph cluster_parse {
+        label="Bundle Parsing"; style=filled; fillcolor="#d1fae5"; color="#10b981"
+        load_from_path [label="_load_from_path()\nregistry.py:574\n[.md or .yaml dispatch]", fillcolor="#a7f3d0"]
+        from_dict [label="Bundle.from_dict()\nbundle.py:531\n[parse + validate all sections]", fillcolor="#a7f3d0"]
+        parse_context [label="_parse_context()\nbundle.py:667\n[resolved + _pending_context]", fillcolor="#a7f3d0"]
+    }
+
+    // === Include Composition ===
+    subgraph cluster_includes {
+        label="Include Composition (registry.py)"; style=filled; fillcolor="#fce7f3"; color="#ec4899"
+        compose_includes [label="_compose_includes()\nregistry.py:622", fillcolor="#fbcfe8"]
+        preload_ns [label="Phase 0: preload namespaces\n[SEQUENTIAL]", fillcolor="#fecdd3"]
+        parallel_load [label="Phase 2: asyncio.gather()\n[PARALLEL + RECURSIVE]", fillcolor="#fecdd3"]
+        nest_detect [label="Root bundle detection\n[walk up dir tree]", fillcolor="#fbcfe8"]
+    }
+
+    // === Merge ===
+    subgraph cluster_merge {
+        label="Composition Merge (bundle.py)"; style=filled; fillcolor="#ede9fe"; color="#8b5cf6"
+        compose [label="Bundle.compose()\nbundle.py:98\n[left-to-right, self wins last]", fillcolor="#ddd6fe"]
+        merge_detail [label="deep_merge: session, spawn\nmerge_module_lists: providers, tools, hooks\ndict.update: agents | accumulate: context", fillcolor="#ddd6fe", shape=note]
+        source_base_paths [label="source_base_paths\n[namespace \u2192 path, first-reg wins]", fillcolor="#c4b5fd", shape=note]
+    }
+
+    // === Activation ===
+    subgraph cluster_activate {
+        label="Module Activation"; style=filled; fillcolor="#fff7ed"; color="#f97316"
+        prepare [label="Bundle.prepare()\nbundle.py:245", fillcolor="#fed7aa"]
+        activate_steps [label="1. install bundle packages [SEQ]\n2. activate_all modules [PARALLEL]\n3. build BundleModuleResolver", fillcolor="#fed7aa", shape=note]
+        prepared_bundle [label="PreparedBundle\n(mount_plan + resolver)", fillcolor="#fdba74"]
+    }
+
+    // === Session ===
+    subgraph cluster_session {
+        label="Session Lifecycle"; style=filled; fillcolor="#ecfdf5"; color="#059669"
+        create_session [label="create_session()\nbundle.py:1043", fillcolor="#a7f3d0"]
+        spawn [label="spawn()\nbundle.py:1173\n[compose parent+child]", fillcolor="#a7f3d0"]
+        init_session [label="initialize_session()\n_session_init.py:22\n[orch > ctx > prov > tools > hooks]", fillcolor="#6ee7b7"]
+        post_init [label="resolve_pending_context()\nset_system_prompt_factory()\n[re-reads files every call]", fillcolor="#a7f3d0"]
+    }
+
+    // === Module Loading (amplifier-core) ===
+    subgraph cluster_modload {
+        label="Module Loading (amplifier-core)"; style=filled; fillcolor="#fff1f2"; color="#e11d48"
+        loader_load [label="ModuleLoader.load()\nloader.py:176", fillcolor="#fecdd3"]
+        async_resolve [label="async_resolve()\n[fast-path or lazy activation]", fillcolor="#fecdd3"]
+        transport [label="Transport: Python | WASM | gRPC\nmount_fn(coordinator) \u2192 mounted", fillcolor="#fecdd3"]
+    }
+
+    // === Cache ===
+    subgraph cluster_cache {
+        label="Cache Layers"; style=filled; fillcolor="#f1f5f9"; color="#94a3b8"
+        caches [label="_loaded_bundles [URI \u2192 Bundle]\n_pending_loads [URI \u2192 Future]\nGit clone cache [sha256 on disk]", shape=cylinder, fillcolor="#e2e8f0"]
+    }
+
+    // === Legend ===
+    subgraph cluster_legend {
+        label="Legend"; style=filled; fillcolor="#f8fafc"; color="#94a3b8"; fontsize=9
+        node [fontsize=8, width=2.2]
+        leg_solid [label="Solid edge = call / data flow", fillcolor="#f0f4f8"]
+        leg_bold [label="Bold colored = recursive (cycle-guarded)", fillcolor="#f0f4f8"]
+        leg_dotted [label="Dotted = cache / state read", fillcolor="#f0f4f8"]
+        leg_dashed [label="Dashed red = open question (see findings.md)", fillcolor="#f0f4f8"]
+        leg_conf [label="All nodes MEDIUM confidence\n(single-source: code-tracer)", fillcolor="#f0f4f8"]
+        leg_solid -> leg_bold [style=invis]
+        leg_bold -> leg_dotted [style=invis]
+        leg_dotted -> leg_dashed [style=invis]
+        leg_dashed -> leg_conf [style=invis]
+    }
+
+    // === Edges: Main Pipeline ===
+    load_bundle -> load_single [label="delegates"]
+    load_single -> resolver [label="resolve URI"]
+    resolver -> handlers
+    handlers -> caches [label="cache check", style=dotted]
+    load_single -> load_from_path [label="parse file"]
+    load_from_path -> from_dict
+    from_dict -> parse_context
+    load_single -> nest_detect [label="detect root"]
+    nest_detect -> source_base_paths [label="registers ns", style=dotted]
+    load_single -> compose_includes [label="if includes:"]
+
+    // === Edges: Include Composition ===
+    compose_includes -> preload_ns [label="Phase 0"]
+    preload_ns -> load_single [label="sequential\n(ns bundles)", color="#ec4899", penwidth=2]
+    compose_includes -> parallel_load [label="Phase 2"]
+    parallel_load -> load_single [label="parallel recursive\n(cycle-guarded)", color="#ec4899", penwidth=2]
+    compose_includes -> compose [label="Phase 3: merge"]
+
+    // === Edges: Merge ===
+    compose -> merge_detail
+    compose -> source_base_paths [label="accumulate"]
+    load_single -> caches [label="check / store", style=dotted]
+
+    // === Edges: Activation ===
+    compose -> prepare [label="composed bundle"]
+    prepare -> activate_steps
+    prepare -> prepared_bundle [label="returns"]
+
+    // === Edges: Session ===
+    prepared_bundle -> create_session
+    prepared_bundle -> spawn
+    create_session -> init_session [label="initialize"]
+    create_session -> post_init
+    post_init -> source_base_paths [label="reads ns paths", style=dotted]
+    spawn -> compose [label="parent+child", color="#8b5cf6", penwidth=2]
+    spawn -> create_session [label="child session"]
+
+    // === Edges: Module Loading ===
+    init_session -> loader_load [label="load modules\n(strict order)"]
+    loader_load -> async_resolve [label="resolve path"]
+    async_resolve -> activate_steps [label="lazy activate", style=dotted]
+    loader_load -> transport [label="dispatch + mount"]
+
+    // === Edges: Open Questions (dashed red) ===
+    transport -> caches [label="OQ-01: Rust engine\navailability?", style=dashed, color="#dc2626"]
+    handlers -> caches [label="OQ-02: git cache\ninvalidation?", style=dashed, color="#dc2626"]
+}

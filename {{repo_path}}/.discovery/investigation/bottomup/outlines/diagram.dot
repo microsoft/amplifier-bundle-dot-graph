@@ -1,0 +1,121 @@
+digraph outlines_level {
+    graph [
+        label="outlines/ — Level Synthesis\n/home/bkrabach/dev/dot-graph-bundle/amplifier/outlines"
+        labelloc=t
+        fontsize=14
+        fontname="Helvetica"
+        bgcolor="white"
+        rankdir=LR
+        nodesep=0.6
+        ranksep=1.0
+    ]
+    node [fontname="Helvetica" fontsize=11 style=filled]
+    edge [fontname="Helvetica" fontsize=10]
+
+    // ── This-level file ──────────────────────────────────────────
+    outline_file [
+        label="development-hygiene_outline.json"
+        shape=note
+        fillcolor="#ddeeff"
+    ]
+
+    // ── _meta block ──────────────────────────────────────────────
+    subgraph cluster_meta {
+        label="_meta (generation config)"
+        style=filled
+        fillcolor="#eeeeee"
+        fontsize=11
+
+        meta_type   [label="document_type:\nsynthesized"              shape=box fillcolor="#eeeeee"]
+        meta_model  [label="model:\nclaude-sonnet-4-20250514"         shape=box fillcolor="#eeeeee"]
+        meta_target [label="target_path:\ncontext/development-hygiene.md" shape=box fillcolor="#eeeeee"]
+        meta_repos  [label="allowed_source_repos\n(50+ repos)"        shape=cylinder fillcolor="#eeeeee"]
+    }
+
+    // ── document section tree ────────────────────────────────────
+    subgraph cluster_document {
+        label="document (section tree)"
+        style=filled
+        fillcolor="#eeeeee"
+        fontsize=11
+
+        sec_install  [label="## How Amplifier\nis Installed (+3 subsections)"  shape=box fillcolor="#eeeeee"]
+        sec_cache    [label="## CRITICAL:\nNever Delete Cache (+1 subsection)" shape=box fillcolor="#eeeeee"]
+        sec_patterns [label="## Development\nPatterns (+5 subsections)"        shape=box fillcolor="#eeeeee"]
+        sec_summary  [label="## Summary:\nWhere Things Belong"                 shape=box fillcolor="#eeeeee"]
+    }
+
+    // ── External source files ────────────────────────────────────
+    src_local [
+        label="docs/LOCAL_DEVELOPMENT.md\n(primary source — high)"
+        shape=note
+        fillcolor="#fff8dd"
+    ]
+    src_onboard [
+        label="docs/USER_ONBOARDING.md\n(settings scope — medium)"
+        shape=note
+        fillcolor="#fff8dd"
+    ]
+    src_readme [
+        label="README.md\n(install command — high)"
+        shape=note
+        fillcolor="#fff8dd"
+    ]
+
+    // ── Generated output ─────────────────────────────────────────
+    target_doc [
+        label="context/development-hygiene.md\n(generated output)"
+        shape=note
+        fillcolor="#ddffdd"
+    ]
+
+    // ── Implied generation pipeline ──────────────────────────────
+    gen_pipeline [
+        label="Document Generation\nPipeline (implied)"
+        shape=hexagon
+        fillcolor="#ddeeff"
+    ]
+
+    // ── Edges: outline → internal structure ──────────────────────
+    outline_file -> meta_type    [style=dashed]
+    outline_file -> meta_model   [style=dashed]
+    outline_file -> meta_target  [style=dashed]
+    outline_file -> meta_repos   [style=dashed]
+    outline_file -> sec_install  [style=dashed]
+    outline_file -> sec_cache    [style=dashed]
+    outline_file -> sec_patterns [style=dashed]
+    outline_file -> sec_summary  [style=dashed]
+
+    // ── Edges: sources → sections ────────────────────────────────
+    src_local   -> sec_install  [label="grounds"]
+    src_local   -> sec_cache    [label="grounds"]
+    src_local   -> sec_patterns [label="grounds"]
+    src_local   -> sec_summary  [label="grounds"]
+    src_onboard -> sec_patterns [label="grounds"]
+    src_onboard -> sec_summary  [label="grounds"]
+    src_readme  -> sec_install  [label="grounds"]
+
+    // ── Edges: pipeline flow ──────────────────────────────────────
+    outline_file -> gen_pipeline [label="consumed by" penwidth=2]
+    gen_pipeline -> target_doc   [label="produces"    penwidth=2]
+
+    // ── Legend ───────────────────────────────────────────────────
+    subgraph cluster_legend {
+        label="Legend"
+        style=filled
+        fillcolor="#f9f9f9"
+        fontsize=10
+        rank=sink
+
+        leg_file   [label="This-level file"              shape=note     fillcolor="#ddeeff"]
+        leg_iface  [label="Implied pipeline / protocol"  shape=hexagon  fillcolor="#ddeeff"]
+        leg_inner  [label="Internal structure (summary)" shape=box      fillcolor="#eeeeee"]
+        leg_src    [label="External source document"     shape=note     fillcolor="#fff8dd"]
+        leg_out    [label="Generated output"             shape=note     fillcolor="#ddffdd"]
+
+        leg_file  -> leg_iface [style=invis]
+        leg_iface -> leg_inner [style=invis]
+        leg_inner -> leg_src   [style=invis]
+        leg_src   -> leg_out   [style=invis]
+    }
+}

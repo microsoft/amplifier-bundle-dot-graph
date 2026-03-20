@@ -344,8 +344,14 @@ stages:
           from datetime import datetime, timezone
           from pathlib import Path
 
-          output_dir = "{{subsystems_result.output_dir}}"
-          repo_path = "{{traversal_plan.repo_path}}"
+          # Resolve output_dir from repo_path in Python at runtime.
+          # Cannot use the raw output_dir context var — its default contains {{repo_path}} which
+          # the template engine does not recursively resolve (Known Gotcha #5).
+          # Cannot use prescan_result.* — may not exist if recipe is called
+          # as a sub-recipe where prescan was handled externally.
+          import os
+          repo_path = "{{repo_path}}"
+          output_dir = os.path.join(repo_path, ".discovery", "investigation", "bottomup")
           fidelity = "{{fidelity}}"
 
           # Get current git commit

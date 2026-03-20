@@ -1,0 +1,59 @@
+{
+  "repo_path": "/home/bkrabach/dev/dot-graph-bundle/amplifier",
+  "output_dir": "{{repo_path}}/.discovery/investigation/bottomup",
+  "structure": {
+    "success": true,
+    "repo_path": "/home/bkrabach/dev/dot-graph-bundle/amplifier",
+    "languages": {
+      "md": 72,
+      "lock": 1,
+      "toml": 1,
+      "png": 24,
+      "ico": 2,
+      "icns": 1,
+      "json": 3,
+      "dot": 33,
+      "svg": 7,
+      "yaml": 8,
+      "sh": 1
+    },
+    "total_files": 156,
+    "modules": [],
+    "build_manifests": [
+      "pyproject.toml"
+    ],
+    "entry_points": [],
+    "directory_tree": {
+      ".discovery": {
+        "investigation": {
+          "bottomup": {},
+          "topdown": {
+            "modules": {}
+          }
+        },
+        "output": {}
+      },
+      ".discovery-prior": {
+        "investigation": {},
+        "output": {
+          "subsystems": {}
+        }
+      },
+      "agents": {},
+      "assets": {
+        "branding": {
+          "favicons": {},
+          "icons": {},
+          "pwa": {}
+        }
+      },
+      "behaviors": {},
+      "context": {},
+      "docs": {},
+      "outlines": {},
+      "recipes": {},
+      "tests": {}
+    }
+  },
+  "error": null
+}

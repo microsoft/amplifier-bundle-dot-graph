@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Entry Point Bundle Composition",
+    "slug": "bundle-composition",
+    "description": "How bundle.md composes amplifier-foundation and amplifier-expert behavior into the ecosystem's front door, and how the @-mention resolution chain assembles capabilities from distributed repositories into a unified entry point"
+  },
+  {
+    "name": "Expert Agent Knowledge Architecture",
+    "slug": "expert-agent-knowledge",
+    "description": "How the amplifier-expert agent organizes ecosystem knowledge across a 4-tier @-mention hierarchy spanning multiple repositories, implements three operating modes (RESEARCH/GUIDE/VALIDATE), and routes to specialist agents \u2014 this is the ecosystem's primary knowledge distribution mechanism"
+  },
+  {
+    "name": "Recipe Orchestration Patterns",
+    "slug": "recipe-orchestration",
+    "description": "What patterns emerge across the 6 recipes (590-3021 lines each, 9467 total) including multi-stage workflows, approval gates, sub-recipe composition, context variable passing, and the relationship between generic recipes and ecosystem-specific ones"
+  },
+  {
+    "name": "Ecosystem Governance Model",
+    "slug": "ecosystem-governance",
+    "description": "How REPOSITORY_RULES.md defines dependency-based awareness rules, MODULES.md catalogs the full component ecosystem, and development-hygiene.md governs installation architecture \u2014 together these form the architectural contract binding 40+ repositories into a coherent system"
+  }
+]

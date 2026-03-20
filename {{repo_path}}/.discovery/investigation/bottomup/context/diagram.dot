@@ -1,0 +1,60 @@
+digraph context_level {
+  rankdir=TB;
+  compound=true;
+  label="amplifier/context — Documentation Layer";
+  labelloc=t;
+  fontsize=14;
+
+  // --- Files at this level (note = source/doc files) ---
+  node [shape=note, style=filled, fillcolor="#ddeeff"];
+  dev_hygiene [label="development-hygiene.md\n(Installation & Dev Patterns)"];
+  ecosystem_ov [label="ecosystem-overview.md\n(Architecture & Philosophy)"];
+  recipes_use  [label="recipes-usage.md\n(Recipe How-To Guide)"];
+
+  // --- Shared conceptual topics referenced across files ---
+  node [shape=box, style=filled, fillcolor="#ffffcc"];
+  modules  [label="Module System\n(5 Types: Provider/Tool/\nOrchestrator/Context/Hook)"];
+  bundles  [label="Bundles & Agents\n(Agents ARE Bundles)"];
+  recipes  [label="Recipes\n(Multi-step Workflows)"];
+  settings [label="Settings Scope\n(local > project > global)"];
+
+  // --- Data stores / registries ---
+  node [shape=cylinder, style=filled, fillcolor="#ffe0cc"];
+  cache         [label="~/.amplifier/cache/\n(Running Code — Never rm -rf)"];
+  modules_md    [label="MODULES.md\n(Ecosystem Registry)"];
+  settings_yaml [label=".amplifier/settings.yaml\n(Source Overrides)"];
+
+  // --- Cross-file connections (primary signal at this level) ---
+  dev_hygiene  -> modules       [label="install / override\n(module resolution order)"];
+  ecosystem_ov -> modules       [label="defines 5 types\n+ contracts"];
+  recipes_use  -> modules       [label="requires tool-recipes\nmodule via recipes bundle"];
+
+  dev_hygiene  -> settings      [label="scope hierarchy\n+ resolution order"];
+  ecosystem_ov -> settings      [label="local source\noverrides concept"];
+
+  ecosystem_ov -> bundles       [label="defines concept\n(agents ARE bundles)"];
+  recipes_use  -> bundles       [label="depends on\nrecipes bundle"];
+
+  ecosystem_ov -> recipes       [label="introduces concept\n+ declarative YAML"];
+  recipes_use  -> recipes       [label="detailed usage\n+ context variables"];
+
+  dev_hygiene  -> cache         [label="NEVER rm -rf\nuse amplifier reset"];
+  dev_hygiene  -> settings_yaml [label="project-local\nsource overrides"];
+
+  ecosystem_ov -> modules_md    [label="ecosystem discovery\nvia amplifier-expert"];
+  recipes_use  -> modules_md    [label="extract repo list for\nmulti-repo analysis"];
+
+  // --- Legend ---
+  subgraph cluster_legend {
+    label="Legend";
+    style=filled;
+    fillcolor="#f9f9f9";
+    fontsize=11;
+    node [width=2.2];
+    l_doc     [label="Markdown Document",   shape=note,     style=filled, fillcolor="#ddeeff"];
+    l_concept [label="Shared Concept",      shape=box,      style=filled, fillcolor="#ffffcc"];
+    l_store   [label="Data Store/Registry", shape=cylinder, style=filled, fillcolor="#ffe0cc"];
+    l_doc     -> l_concept [style=invis];
+    l_concept -> l_store   [style=invis];
+  }
+}

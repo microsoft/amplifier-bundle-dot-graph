@@ -1,0 +1,202 @@
+digraph documentation_governance {
+  graph [rankdir=TB, fontname="Helvetica", fontsize=14, compound=true,
+    label="Documentation Governance & Information Architecture\nModule Synthesis — Consensus from 7 Investigation Sources",
+    labelloc=t, pad=0.5, nodesep=0.6, ranksep=0.8]
+  node [fontname="Helvetica", fontsize=10, style=filled]
+  edge [fontname="Helvetica", fontsize=8]
+
+  // ===================================================================
+  // CLUSTER: Governance Artifacts (docs/)
+  // ===================================================================
+  subgraph cluster_governance_docs {
+    label="Governance Artifacts (docs/)"
+    style=filled
+    fillcolor="#E3F2FD"
+    color="#1565C0"
+
+    repo_rules [label="REPOSITORY_RULES.md\n(585 lines, 18KB)\nGolden Rule +\nAwareness Hierarchy" shape=note fillcolor="#BBDEFB"]
+    modules_md [label="MODULES.md\n(25KB)\nEcosystem Registry\n[C-02: SPOF]" shape=note fillcolor="#FFCDD2"]
+    adr_template [label="ADR_TEMPLATE.md\n(process template)" shape=note fillcolor="#BBDEFB"]
+  }
+
+  // ===================================================================
+  // CLUSTER: Documentation Hub (docs/ — navigation)
+  // ===================================================================
+  subgraph cluster_doc_navigation {
+    label="Documentation Navigation (docs/)\n[C-06: Hub-and-Spoke]"
+    style=filled
+    fillcolor="#E8F5E9"
+    color="#2E7D32"
+
+    readme_hub [label="README.md\n(navigation hub)\n3 audience tiers" shape=box fillcolor="#C8E6C9"]
+    user_tier [label="User Tier\nUSER_ONBOARDING.md\nUSER_GUIDE.md" shape=box fillcolor="#C8E6C9"]
+    dev_trilogy [label="Developer Trilogy\nLOCAL_DEV / MODULE_DEV\nTESTING_GUIDE" shape=box fillcolor="#C8E6C9"]
+    ecosystem_docs [label="Ecosystem Layer\nDEVELOPER.md\nMODULES.md" shape=box fillcolor="#C8E6C9"]
+  }
+
+  // ===================================================================
+  // CLUSTER: Context Injection Triad (context/)
+  // ===================================================================
+  subgraph cluster_context_triad {
+    label="Context Injection Triad (context/)\n[C-03: ~6.5KB balanced files]"
+    style=filled
+    fillcolor="#FFF3E0"
+    color="#E65100"
+
+    ctx_overview [label="ecosystem-overview.md\n(6652 bytes)\nArchitectural orientation" shape=note fillcolor="#FFE0B2"]
+    ctx_hygiene [label="development-hygiene.md\n(6293 bytes)\nOperational safety" shape=note fillcolor="#FFE0B2"]
+    ctx_recipes [label="recipes-usage.md\n(6703 bytes)\nWorkflow execution" shape=note fillcolor="#FFE0B2"]
+  }
+
+  // ===================================================================
+  // CLUSTER: Document Generation Pipeline (outlines/ + recipes/)
+  // ===================================================================
+  subgraph cluster_doc_pipeline {
+    label="Document Generation Pipeline\n[C-04: Two-Stage Manual Handoff]"
+    style=filled
+    fillcolor="#F3E5F5"
+    color="#6A1B9A"
+
+    outline_spec [label="outlines/\ndevelopment-hygiene_outline.json\n(37 allowed repos)\n[C-11: scope gate]" shape=box3d fillcolor="#E1BEE7"]
+    outline_recipe [label="outline-generation-\nfrom-doc.yaml\n(v1.6.1)" shape=box3d fillcolor="#E1BEE7"]
+    docgen_recipe [label="document-generation.yaml\n(v8.1.0, 126KB)\n[XC-04: 8 major versions]" shape=box3d fillcolor="#E1BEE7"]
+  }
+
+  // ===================================================================
+  // CLUSTER: Enforcement Mechanisms (recipes/)
+  // ===================================================================
+  subgraph cluster_enforcement {
+    label="Enforcement Recipes\n[C-07: Advisory/Periodic Only]"
+    style=filled
+    fillcolor="#FFEBEE"
+    color="#B71C1C"
+
+    repo_audit [label="repo-audit.yaml\n(v1.2.0)\ncurl -sL fetch" shape=box3d fillcolor="#FFCDD2"]
+    eco_audit [label="ecosystem-audit.yaml\n(v1.2.0, staged)\ncurl + extract" shape=box3d fillcolor="#FFCDD2"]
+    activity_report [label="ecosystem-activity-\nreport.yaml (v1.15.2)\ngh api + base64 -d" shape=box3d fillcolor="#FFCDD2"]
+    approval_gate [label="Approval Gate\n(sole human\ncheckpoint)" shape=diamond fillcolor="#FFCC80"]
+  }
+
+  // ===================================================================
+  // SHARED INTERFACES (boundary nodes)
+  // ===================================================================
+  at_mention [label="@-mention Protocol\n[C-05: Sole delivery\nmechanism for governance]" shape=hexagon fillcolor="#CE93D8"]
+
+  behavior_layer [label="Behavior Bundles\namplifier-dev-behavior\namplifier-expert-behavior" shape=box fillcolor="#D1C4E9"]
+
+  expert_agent [label="amplifier-expert\n(Gateway Agent)\n[C-06: Hub-and-Spoke]" shape=doubleoctagon fillcolor="#A5D6A7"]
+
+  spoke_agents [label="Spoke Experts\ncore-expert\nfoundation-expert\nrecipe-author" shape=octagon fillcolor="#C8E6C9"]
+
+  // ===================================================================
+  // CROSS-REPO GOVERNANCE [XC-03]
+  // ===================================================================
+  subgraph cluster_crossrepo {
+    label="Cross-Repo Governance\n[XC-03: No Cross-Reference]"
+    style="filled,dashed"
+    fillcolor="#EFEBE9"
+    color="#795548"
+
+    ctx_poisoning [label="CONTEXT_POISONING.md\n(foundation repo)" shape=note fillcolor="#D7CCC8"]
+    doc_linking [label="DOCUMENTATION_LINKING.md\n(core repo)" shape=note fillcolor="#D7CCC8"]
+  }
+
+  // ===================================================================
+  // EDGES: Navigation hub structure
+  // ===================================================================
+  readme_hub -> user_tier [label="new users" color="#2E7D32"]
+  readme_hub -> dev_trilogy [label="module devs" color="#2E7D32"]
+  readme_hub -> ecosystem_docs [label="contributors" color="#2E7D32"]
+
+  // ===================================================================
+  // EDGES: Governance -> @-mention delivery [C-05]
+  // ===================================================================
+  repo_rules -> at_mention [label="@amplifier:docs/\nTier 1 reference" color="#9C27B0" penwidth=1.5]
+  ctx_overview -> at_mention [label="context.include\nvia behavior" color="#9C27B0"]
+  ctx_hygiene -> at_mention [label="context.include\nvia behavior" color="#9C27B0"]
+
+  // ===================================================================
+  // EDGES: Behavior composition
+  // ===================================================================
+  behavior_layer -> ctx_overview [label="amplifier-expert\ncontext.include" style=dashed color="#555555"]
+  behavior_layer -> ctx_hygiene [label="amplifier-dev\ncontext.include" style=dashed color="#555555"]
+  behavior_layer -> expert_agent [label="agents.include" style=dashed color="#555555"]
+
+  // ===================================================================
+  // EDGES: @-mention -> agent delivery
+  // ===================================================================
+  at_mention -> expert_agent [label="resolved content\n-> system prompt" color="#9C27B0" penwidth=1.5]
+
+  // ===================================================================
+  // EDGES: Hub-and-spoke delegation [XC-05]
+  // ===================================================================
+  expert_agent -> spoke_agents [label="specialist\ndelegation\n[XC-05]" color="#2E7D32" style=dashed]
+
+  // ===================================================================
+  // EDGES: MODULES.md -> 3 fetch mechanisms [C-02: SPOF, tight coupling]
+  // ===================================================================
+  modules_md -> repo_audit [label="curl -sL\n(raw URL)" style=dashed color="red" penwidth=2]
+  modules_md -> eco_audit [label="curl +\nextract" style=dashed color="red" penwidth=2]
+  modules_md -> activity_report [label="gh api +\nbase64 -d" style=dashed color="red" penwidth=2]
+
+  // ===================================================================
+  // EDGES: Enforcement -> governance [C-07]
+  // ===================================================================
+  repo_audit -> repo_rules [label="enforces boilerplate\nonly (Golden Rule\nNOT enforced)" style=dashed color="red" penwidth=1.5]
+  eco_audit -> approval_gate [label="gates on\nrepo list" color="#FF9800"]
+  approval_gate -> modules_md [label="reviews\nfrom MODULES.md" color="#FF9800"]
+
+  // ===================================================================
+  // EDGES: Document generation pipeline [C-04]
+  // ===================================================================
+  outline_spec -> outline_recipe [label="spec input" color="#6A1B9A"]
+  outline_recipe -> docgen_recipe [label="manual handoff\n(filesystem artifact)" style=dashed color="#6A1B9A"]
+  docgen_recipe -> ctx_hygiene [label="generates\ntarget output" color="#6A1B9A"]
+
+  // ===================================================================
+  // EDGES: Cross-repo governance [XC-03]
+  // ===================================================================
+  repo_rules -> ctx_poisoning [label="no cross-ref\n[D-01]" style=dashed color="#795548"]
+  repo_rules -> doc_linking [label="no cross-ref\n[D-01]" style=dashed color="#795548"]
+
+  // ===================================================================
+  // EDGES: Silent degradation [XC-02]
+  // ===================================================================
+  at_mention -> ctx_recipes [label="[D-02] demoted\nto on-demand\n[D-03] eager/lazy?" style=dotted color="#C62828" penwidth=1.5]
+
+  // ===================================================================
+  // EDGES: Broken references [C-09]
+  // ===================================================================
+  readme_hub -> broken_refs [style=dashed color="#999999"]
+  broken_refs [label="13+ Missing References\nSCENARIO_TOOLS_GUIDE.md\nTROUBLESHOOTING.md\ncontext/ philosophy docs\n[C-09]" shape=box style="filled,dashed" fillcolor="#F5F5F5"]
+
+  // ===================================================================
+  // LEGEND
+  // ===================================================================
+  subgraph cluster_legend {
+    label="Legend"
+    style=filled
+    fillcolor=white
+    color=black
+
+    node [shape=plaintext fillcolor=white]
+    LEGEND [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+      <TR><TD COLSPAN="2"><B>Confidence Levels</B></TD></TR>
+      <TR><TD>Solid fill</TD><TD>HIGH (2+ sources confirm)</TD></TR>
+      <TR><TD>Dashed border</TD><TD>MEDIUM (single source)</TD></TR>
+      <TR><TD>[D-NN] label</TD><TD>Open discrepancy</TD></TR>
+      <TR><TD COLSPAN="2"><B>Edge Styles</B></TD></TR>
+      <TR><TD>Solid colored</TD><TD>Confirmed data flow</TD></TR>
+      <TR><TD BGCOLOR="#FFD0D0">Dashed red (thick)</TD><TD>Tight coupling / SPOF</TD></TR>
+      <TR><TD>Dashed gray</TD><TD>Standard composition</TD></TR>
+      <TR><TD>Dotted red</TD><TD>Discrepancy / open question</TD></TR>
+      <TR><TD COLSPAN="2"><B>Node Shapes</B></TD></TR>
+      <TR><TD BGCOLOR="#BBDEFB">note</TD><TD>Documentation artifact</TD></TR>
+      <TR><TD BGCOLOR="#CE93D8">hexagon</TD><TD>Shared protocol</TD></TR>
+      <TR><TD BGCOLOR="#E1BEE7">box3d</TD><TD>Recipe / pipeline</TD></TR>
+      <TR><TD BGCOLOR="#FFCC80">diamond</TD><TD>Approval gate</TD></TR>
+      <TR><TD BGCOLOR="#A5D6A7">doubleoctagon</TD><TD>Gateway agent</TD></TR>
+      <TR><TD BGCOLOR="#C8E6C9">octagon</TD><TD>Spoke agent</TD></TR>
+    </TABLE>>]
+  }
+}

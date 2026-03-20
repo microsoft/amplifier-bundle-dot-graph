@@ -1,0 +1,190 @@
+digraph recipe_orchestration_synthesis {
+    graph [label="Recipe Orchestration Engine — Synthesis\nConsensus from code-tracer + integration-mapper + bottom-up analysis", fontsize=14, rankdir=TB, compound=true, nodesep=0.5, ranksep=0.8]
+    node [fontname="Helvetica", fontsize=10, style=filled]
+    edge [fontname="Helvetica", fontsize=8]
+
+    // === ENTRY LAYER (HIGH confidence) ===
+    subgraph cluster_entry {
+        label="Entry Layer (__init__.py)"
+        style=filled
+        fillcolor="#E8F4FD"
+        node [shape=box, fillcolor="#B8D8F8"]
+
+        mount [label="mount()"]
+        tool [label="RecipesTool\n.execute()"]
+        op_execute [label="execute"]
+        op_resume [label="resume"]
+        op_approve [label="approve/deny"]
+        op_cancel [label="cancel"]
+    }
+
+    // === EXECUTOR CORE (HIGH confidence) ===
+    subgraph cluster_executor {
+        label="Executor Core (executor.py — 2752 lines)"
+        style=filled
+        fillcolor="#EDF7ED"
+        node [shape=box, fillcolor="#A8D8A8"]
+
+        execute_recipe [label="execute_recipe()\nflat loop"]
+        exec_staged [label="_execute_staged\n_recipe()"]
+        exec_step_retry [label="execute_step\n_with_retry()"]
+        execute_step [label="execute_step()\nspawn agent"]
+        exec_bash [label="_execute_bash\n_step()"]
+        exec_recipe_step [label="_execute_recipe\n_step() — recurse"]
+        exec_loop [label="_execute_loop()\nforeach/while"]
+        substitute_vars [label="substitute\n_variables()"]
+        process_result [label="_process_step\n_result()"]
+    }
+
+    // === MODELS & VALIDATION (HIGH confidence) ===
+    subgraph cluster_models {
+        label="Models & Validation"
+        style=filled
+        fillcolor="#FFF9E6"
+        node [shape=box, fillcolor="#FFE88A"]
+
+        yaml_model [label="Recipe.from_yaml()\nmodels.py"]
+        validate [label="validate_recipe()\nvalidator.py"]
+    }
+
+    // === SESSION PERSISTENCE (HIGH confidence) ===
+    subgraph cluster_session {
+        label="Session Persistence (session.py)"
+        style=filled
+        fillcolor="#F3ECFA"
+        node [shape=cylinder, fillcolor="#D4AAEE"]
+
+        session_mgr [label="SessionManager"]
+        state_json [label="state.json\ncheckpoint\n[100KB trim]"]
+        approval_state [label="Approval\nState"]
+    }
+
+    // === EXPRESSION EVALUATOR (HIGH confidence) ===
+    subgraph cluster_expr {
+        label="Expression Evaluator"
+        style=filled
+        fillcolor="#FFF5E6"
+        node [shape=box, fillcolor="#FFD0A0"]
+
+        expr_eval [label="evaluate_condition()\nrecursive descent\n(no eval)"]
+    }
+
+    // === RATE LIMITING (HIGH confidence) ===
+    subgraph cluster_rate {
+        label="Rate Limiting (3 tiers)"
+        style=filled
+        fillcolor="#F0F0FF"
+        node [shape=box, fillcolor="#BBBBEE"]
+
+        rate_limiter [label="RateLimiter\nsemaphore+backoff"]
+    }
+
+    // === KERNEL / COORDINATOR (HIGH confidence) ===
+    subgraph cluster_kernel {
+        label="Kernel / Coordinator\n(amplifier-core)"
+        style=filled
+        fillcolor="#FFF3E0"
+        node [shape=diamond, fillcolor="#FFE0B2"]
+
+        session_spawn [label="session.spawn\ncapability"]
+        mention_resolver [label="mention_resolver\ncapability"]
+        cancellation [label="coordinator\n.cancellation"]
+        hooks [label="Hook Events\n(6 types)"]
+        coord_config [label="coordinator\n.config[agents]"]
+    }
+
+    // === EXTERNAL BOUNDARIES ===
+    subgraph cluster_external {
+        label="External Boundaries"
+        style=filled
+        fillcolor="#F5F5F5"
+        node [shape=box3d, fillcolor="#CCCCCC"]
+
+        bash_proc [label="/bin/bash\nsubprocess"]
+        sub_recipe [label="Child Recipe\n(recursive)"]
+        agents [label="Foundation Agents\n(via spawn)"]
+        modules_md [label="MODULES.md\n3 fetch bypasses\n[F-07 TIGHT]", fillcolor="#FFCDD2"]
+    }
+
+    // === LEGEND ===
+    subgraph cluster_legend {
+        label="Legend"
+        style=filled
+        fillcolor="#FAFAFA"
+        fontsize=9
+        node [shape=box, fontsize=8]
+
+        l_high [label="Solid = HIGH confidence\n(2+ perspectives agree)", fillcolor="#A8D8A8"]
+        l_med [label="Dashed = MEDIUM confidence\n(single-source)", fillcolor="#FFFFFF", style="filled,dashed"]
+        l_disc [label="Red dashed = Boundary tension\nor open question", fillcolor="#FFCDD2"]
+        l_high -> l_med -> l_disc [style=invis]
+    }
+
+    // ===== EDGES: Entry Layer =====
+    mount -> session_mgr [label="creates"]
+    mount -> execute_recipe [label="creates executor"]
+    mount -> tool [label="creates tool"]
+    tool -> op_execute
+    tool -> op_resume
+    tool -> op_approve
+    tool -> op_cancel
+
+    // ===== EDGES: Execute Flow (HIGH) =====
+    op_execute -> yaml_model [label="load YAML"]
+    op_execute -> validate [label="validate"]
+    op_execute -> execute_recipe [label="await"]
+    op_resume -> session_mgr [label="load state"]
+    op_resume -> execute_recipe [label="resume"]
+    op_approve -> approval_state [label="set status"]
+    op_cancel -> session_mgr [label="request cancel"]
+
+    // ===== EDGES: Executor dispatch (HIGH) =====
+    execute_recipe -> exec_staged [label="staged=true"]
+    execute_recipe -> exec_step_retry [label="agent step"]
+    execute_recipe -> exec_bash [label="type=bash"]
+    execute_recipe -> exec_recipe_step [label="type=recipe"]
+    execute_recipe -> exec_loop [label="foreach/while"]
+    execute_recipe -> expr_eval [label="condition"]
+    execute_recipe -> state_json [label="checkpoint\nafter each step"]
+
+    exec_staged -> exec_step_retry [label="agent step"]
+    exec_staged -> approval_state [label="gate pause\n[C-03]"]
+
+    // ===== EDGES: Agent step chain (HIGH) =====
+    exec_step_retry -> rate_limiter [label="acquire/release"]
+    exec_step_retry -> execute_step [label="await"]
+    execute_step -> session_spawn [label="get_capability()\n[C-01]", color="#FF9800", penwidth=2]
+    execute_step -> substitute_vars [label="prompt template"]
+    execute_step -> process_result [label="unwrap output"]
+    execute_step -> agents [label="spawn session", color="#4CAF50"]
+
+    // ===== EDGES: Loop paths (HIGH) =====
+    exec_loop -> exec_step_retry [label="body"]
+    exec_loop -> expr_eval [label="while/break"]
+
+    // ===== EDGES: Sub-recipe (HIGH) =====
+    exec_recipe_step -> yaml_model [label="load sub-recipe"]
+    exec_recipe_step -> execute_recipe [label="recurse\n[C-02 output delta]"]
+    exec_recipe_step -> sub_recipe [label="child execution"]
+    exec_recipe_step -> mention_resolver [label="@bundle:path", color="#9C27B0"]
+
+    // ===== EDGES: Bash (HIGH) =====
+    exec_bash -> bash_proc [label="asyncio subprocess"]
+    exec_bash -> substitute_vars [label="command template"]
+
+    // ===== EDGES: Session persistence (HIGH) =====
+    session_mgr -> state_json [dir=both, label="save/load"]
+
+    // ===== EDGES: Kernel surfaces (duck-typed via getattr) =====
+    execute_recipe -> cancellation [label="poll\nis_cancelled", style=dashed, color="#FF9800"]
+    execute_recipe -> hooks [label="emit events", style=dashed, color="#FF9800"]
+    execute_step -> coord_config [label="read agent\nconfig", style=dashed, color="#FF9800"]
+
+    // ===== EDGES: MODULES.md bypass (RED — tight coupling) =====
+    exec_bash -> modules_md [label="curl/gh api\nbypass @-mention", color="#F44336", style=dashed, penwidth=1.5]
+
+    // ===== EDGES: Boundary tensions (RED — open questions) =====
+    substitute_vars -> exec_bash [label="TENSION [F-10]:\nlarge JSON breaks bash", color="#F44336", style=dashed, penwidth=1.5]
+    state_json -> execute_recipe [label="TENSION [OQ-02]:\ntrimmed values\ncorrupt on resume", color="#F44336", style=dashed, penwidth=1.5]
+    exec_loop -> approval_state [label="TENSION [OQ-03]:\nparallel+approval\nundefined", color="#F44336", style=dashed, penwidth=1.5]
+}

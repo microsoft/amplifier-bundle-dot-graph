@@ -167,9 +167,17 @@ def test_behavior_agents_includes_combiner(data):
     )
 
 
-def test_behavior_agents_total_count(data):
-    """agents.include must contain exactly 9 agent references."""
+def test_behavior_agents_includes_architecture_writer(data):
+    """agents.include must contain 'dot-graph:discovery-architecture-writer'."""
     actual = data["agents"]["include"]
-    assert len(actual) == 9, (
-        f"agents.include must have exactly 9 agents, got {len(actual)}: {actual}"
+    assert "dot-graph:discovery-architecture-writer" in actual, (
+        f"agents.include must contain 'dot-graph:discovery-architecture-writer', got: {actual}"
+    )
+
+
+def test_behavior_agents_total_count(data):
+    """agents.include must contain exactly 10 agent references."""
+    actual = data["agents"]["include"]
+    assert len(actual) == 10, (
+        f"agents.include must have exactly 10 agents, got {len(actual)}: {actual}"
     )

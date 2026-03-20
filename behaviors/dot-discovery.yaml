@@ -17,6 +17,7 @@ agents:
     - dot-graph:discovery-subsystem-synthesizer
     - dot-graph:discovery-overview-synthesizer
     - dot-graph:discovery-combiner
+    - dot-graph:discovery-architecture-writer
 
 context:
   include:

@@ -1,10 +1,11 @@
 """Final verification of complete file tree, imports, scripts, YAML, skills, and file count.
 
-Task 18: Verifies all 42 bundle files are present and functional.
+Task 18: Verifies all 43 bundle files are present and functional.
 Phase A v2: Updated to include 8 new discovery agent and context files.
 Phase B v2: Updated to include 3 new synthesizer sub-recipes (total 38).
 Phase C v2: Updated to include 2 new strategy recipes (total 40).
 Phase D v2: Updated to include 2 new composition recipes (total 42).
+Task 5: Updated to include discovery-architecture-writer agent (total 43).
 """
 
 import os
@@ -17,7 +18,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).parent.parent
 
-# The 42 expected bundle files (21 original + 3 Phase A + 3 Phase D recipes + 8 Phase A v2 + 3 Phase B v2 + 2 Phase C v2 + 2 Phase D v2)
+# The 43 expected bundle files (21 original + 3 Phase A + 3 Phase D recipes + 8 Phase A v2 + 3 Phase B v2 + 2 Phase C v2 + 2 Phase D v2 + 1 Task 5)
 EXPECTED_FILES = [
     ".gitignore",
     "bundle.md",
@@ -67,6 +68,8 @@ EXPECTED_FILES = [
     # Phase D v2: composition recipes
     "recipes/deep/discovery-combine.yaml",
     "recipes/deep/strategy-sequential.yaml",
+    # Task 5: architecture writer agent
+    "agents/discovery-architecture-writer.md",
 ]
 
 SKILL_FILES = [
@@ -83,17 +86,17 @@ SKILL_FILES = [
 
 @pytest.mark.parametrize("rel_path", EXPECTED_FILES)
 def test_bundle_file_exists(rel_path):
-    """Step 1: Each of the 42 expected bundle files exists."""
+    """Step 1: Each of the 43 expected bundle files exists."""
     path = REPO_ROOT / rel_path
     assert path.exists(), f"Bundle file missing: {rel_path}"
     assert path.is_file(), f"Expected file but found directory: {rel_path}"
 
 
 def test_total_file_count():
-    """Step 6: Total bundle file count is exactly 42 (40 prior + 2 Phase D v2)."""
+    """Step 6: Total bundle file count is exactly 43 (42 prior + 1 Task 5)."""
     present = [f for f in EXPECTED_FILES if (REPO_ROOT / f).exists()]
-    assert len(present) == 42, (
-        f"Expected 42 bundle files, found {len(present)}. "
+    assert len(present) == 43, (
+        f"Expected 43 bundle files, found {len(present)}. "
         f"Missing: {[f for f in EXPECTED_FILES if f not in present]}"
     )
 

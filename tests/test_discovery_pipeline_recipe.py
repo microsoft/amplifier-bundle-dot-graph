@@ -545,3 +545,46 @@ def test_recipe_has_final_output():
     assert final_output == "combine_result", (
         f"final_output must be 'combine_result', got: {final_output!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# node_target context variable (3 tests)
+# ---------------------------------------------------------------------------
+
+
+def test_recipe_context_has_node_target():
+    """Context must declare 'node_target' variable (new in v2)."""
+    data = _load_recipe()
+    ctx = data.get("context", {})
+    assert "node_target" in ctx, (
+        f"Context must declare 'node_target' variable. "
+        f"Found keys: {list(ctx.keys())}"
+    )
+
+
+def test_recipe_context_node_target_default_25():
+    """Context 'node_target' variable must default to '25'."""
+    data = _load_recipe()
+    ctx = data.get("context", {})
+    assert ctx.get("node_target") == "25", (
+        f"node_target default must be '25', got: {ctx.get('node_target')!r}"
+    )
+
+
+def test_recipe_context_has_6_variables():
+    """Context must declare exactly 6 variables after adding node_target."""
+    data = _load_recipe()
+    ctx = data.get("context", {})
+    expected_keys = {
+        "repo_path",
+        "fidelity",
+        "output_dir",
+        "render_png",
+        "strategies",
+        "node_target",
+    }
+    actual_keys = set(ctx.keys())
+    assert actual_keys == expected_keys, (
+        f"Context must have exactly these keys: {sorted(expected_keys)}, "
+        f"got: {sorted(actual_keys)}"
+    )

@@ -16,6 +16,7 @@ context:
   output_dir: "{{repo_path}}/.discovery" # Optional: defaults to {{repo_path}}/.discovery
   render_png: "true"                    # Optional: render assembled DOTs to PNG (default: true)
   strategies: "both"                    # Optional: topdown | bottomup | both (default: both)
+  node_target: "25"                     # Optional: soft target for overview DOT node count (default: 25)
 
 stages:
   # ---------------------------------------------------------------------------

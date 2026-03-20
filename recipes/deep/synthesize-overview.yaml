@@ -16,6 +16,7 @@ context:
   subsystem_dot_files: "[]"  # JSON list of paths to subsystem DOT files
   repo_root: ""              # root path of the repository
   output_dir: ""             # where to write (.discovery/output/)
+  node_target: "25"            # soft target for overview DOT node count (default: 25)
 
 steps:
   # ---------------------------------------------------------------------------
@@ -40,6 +41,7 @@ steps:
 
       Repository root: {{repo_root}}
       Output directory: {{output_dir}}
+      Node target: {{node_target}} (soft goal for node count — see agent instructions)
 
       Subsystem DOT files (read these for subsystem-level context):
       {{subsystem_dot_files}}

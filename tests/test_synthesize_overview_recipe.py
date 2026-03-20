@@ -299,13 +299,36 @@ def test_validate_step_includes_warnings_array():
     )
 
 
-def test_recipe_context_has_exactly_3_variables():
-    """Context must declare exactly 3 variables: subsystem_dot_files, repo_root, output_dir."""
+def test_recipe_context_has_exactly_4_variables():
+    """Context must declare exactly 4 variables: subsystem_dot_files, repo_root, output_dir, node_target."""
     data = _load_recipe()
     ctx = data.get("context", {})
-    expected_keys = {"subsystem_dot_files", "repo_root", "output_dir"}
+    expected_keys = {"subsystem_dot_files", "repo_root", "output_dir", "node_target"}
     actual_keys = set(ctx.keys())
     assert actual_keys == expected_keys, (
         f"Context must have exactly these keys: {sorted(expected_keys)}, "
         f"got: {sorted(actual_keys)}"
+    )
+
+
+def test_recipe_context_has_node_target():
+    """Context must declare 'node_target' variable."""
+    data = _load_recipe()
+    ctx = data.get("context", {})
+    assert "node_target" in ctx, (
+        f"Context must declare 'node_target' variable. Found keys: {list(ctx.keys())}"
+    )
+
+
+def test_synthesize_step_prompt_references_node_target():
+    """synthesize step prompt must reference node_target context variable."""
+    data = _load_recipe()
+    step = _get_step_by_id(data, "synthesize")
+    assert step is not None
+    prompt = step.get("prompt", "")
+    assert isinstance(prompt, str) and prompt.strip(), (
+        "synthesize step must have a non-empty prompt"
+    )
+    assert "node_target" in prompt, (
+        "synthesize step prompt must reference 'node_target' context variable"
     )

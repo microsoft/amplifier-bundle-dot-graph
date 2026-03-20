@@ -185,7 +185,7 @@ stages:
         type: "recipe"
         foreach: "{{traversal_plan.post_order}}"
         as: "level"
-        recipe: "@dot-graph:recipes/synthesize-level.yaml"
+        recipe: "@dot-graph:recipes/deep/synthesize-level.yaml"
         context:
           level_path: "{{level.abs_path}}"
           level_slug: "{{level.slug}}"
@@ -304,7 +304,7 @@ stages:
       # -----------------------------------------------------------------------
       - id: "subsystem-synthesis"
         type: "recipe"
-        recipe: "@dot-graph:recipes/synthesize-subsystem.yaml"
+        recipe: "@dot-graph:recipes/deep/synthesize-subsystem.yaml"
         context:
           subsystem_name: "bottomup-discovery"
           module_dot_files: "[]"   # agents search output_dir for per-level diagram.dot files
@@ -320,7 +320,7 @@ stages:
       # -----------------------------------------------------------------------
       - id: "overview-synthesis"
         type: "recipe"
-        recipe: "@dot-graph:recipes/synthesize-overview.yaml"
+        recipe: "@dot-graph:recipes/deep/synthesize-overview.yaml"
         context:
           repo_root: "{{repo_path}}"   # needed so agent can examine top-level files
           subsystem_dot_files: '["{{subsystems_result.output_dir}}/bottomup-discovery.dot"]'

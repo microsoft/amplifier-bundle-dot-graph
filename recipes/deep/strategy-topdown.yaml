@@ -303,7 +303,7 @@ stages:
       # -----------------------------------------------------------------------
       - id: "subsystem-synthesis"
         type: "recipe"
-        recipe: "@dot-graph:recipes/synthesize-subsystem.yaml"
+        recipe: "@dot-graph:recipes/deep/synthesize-subsystem.yaml"
         context:
           subsystem_name: "topdown-discovery"
           module_dot_files: "[]"   # agents search output_dir for per-module diagram.dot files
@@ -317,7 +317,7 @@ stages:
       # -----------------------------------------------------------------------
       - id: "overview-synthesis"
         type: "recipe"
-        recipe: "@dot-graph:recipes/synthesize-overview.yaml"
+        recipe: "@dot-graph:recipes/deep/synthesize-overview.yaml"
         context:
           repo_root: "{{repo_path}}"   # needed so agent can examine top-level files
           subsystem_dot_files: '["{{output_dir}}/topdown-discovery.dot"]'

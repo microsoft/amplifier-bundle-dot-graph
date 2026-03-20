@@ -125,7 +125,7 @@ stages:
       # -----------------------------------------------------------------------
       - id: "run-topdown"
         type: "recipe"
-        recipe: "@dot-graph:recipes/strategy-topdown.yaml"
+        recipe: "@dot-graph:recipes/deep/strategy-topdown.yaml"
         condition: "{{strategies}} == 'topdown' or {{strategies}} == 'both'"
         context:
           repo_path: "{{repo_path}}"
@@ -142,7 +142,7 @@ stages:
       # -----------------------------------------------------------------------
       - id: "run-bottomup"
         type: "recipe"
-        recipe: "@dot-graph:recipes/strategy-bottomup.yaml"
+        recipe: "@dot-graph:recipes/deep/strategy-bottomup.yaml"
         condition: "{{strategies}} == 'bottomup' or {{strategies}} == 'both'"
         context:
           repo_path: "{{repo_path}}"
@@ -163,7 +163,7 @@ stages:
       # -----------------------------------------------------------------------
       - id: "run-combine"
         type: "recipe"
-        recipe: "@dot-graph:recipes/discovery-combine.yaml"
+        recipe: "@dot-graph:recipes/deep/discovery-combine.yaml"
         condition: "{{strategies}} == 'both'"
         context:
           repo_path: "{{repo_path}}"

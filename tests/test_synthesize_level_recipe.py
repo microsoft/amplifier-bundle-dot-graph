@@ -21,7 +21,7 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).parent.parent
-RECIPE_PATH = REPO_ROOT / "recipes" / "synthesize-level.yaml"
+RECIPE_PATH = REPO_ROOT / "recipes" / "deep" / "synthesize-level.yaml"
 
 
 # ---------------------------------------------------------------------------

@@ -26,7 +26,7 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).parent.parent
-RECIPE_PATH = REPO_ROOT / "recipes" / "discovery-pipeline.yaml"
+RECIPE_PATH = REPO_ROOT / "recipes" / "deep" / "discovery-pipeline.yaml"
 
 
 # ---------------------------------------------------------------------------
@@ -511,7 +511,7 @@ def test_combine_step_wires_bottomup_dir():
 
 def test_strategy_topdown_sub_recipe_exists():
     """Sub-recipe file strategy-topdown.yaml must exist."""
-    sub_recipe = REPO_ROOT / "recipes" / "strategy-topdown.yaml"
+    sub_recipe = REPO_ROOT / "recipes" / "deep" / "strategy-topdown.yaml"
     assert sub_recipe.exists(), (
         f"Sub-recipe strategy-topdown.yaml not found at {sub_recipe}"
     )
@@ -519,7 +519,7 @@ def test_strategy_topdown_sub_recipe_exists():
 
 def test_strategy_bottomup_sub_recipe_exists():
     """Sub-recipe file strategy-bottomup.yaml must exist."""
-    sub_recipe = REPO_ROOT / "recipes" / "strategy-bottomup.yaml"
+    sub_recipe = REPO_ROOT / "recipes" / "deep" / "strategy-bottomup.yaml"
     assert sub_recipe.exists(), (
         f"Sub-recipe strategy-bottomup.yaml not found at {sub_recipe}"
     )
@@ -527,7 +527,7 @@ def test_strategy_bottomup_sub_recipe_exists():
 
 def test_discovery_combine_sub_recipe_exists():
     """Sub-recipe file discovery-combine.yaml must exist."""
-    sub_recipe = REPO_ROOT / "recipes" / "discovery-combine.yaml"
+    sub_recipe = REPO_ROOT / "recipes" / "deep" / "discovery-combine.yaml"
     assert sub_recipe.exists(), (
         f"Sub-recipe discovery-combine.yaml not found at {sub_recipe}"
     )

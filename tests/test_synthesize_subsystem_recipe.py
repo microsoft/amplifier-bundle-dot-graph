@@ -19,7 +19,7 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).parent.parent
-RECIPE_PATH = REPO_ROOT / "recipes" / "synthesize-subsystem.yaml"
+RECIPE_PATH = REPO_ROOT / "recipes" / "deep" / "synthesize-subsystem.yaml"
 
 
 # ---------------------------------------------------------------------------

@@ -45,7 +45,7 @@ EXPECTED_FILES = [
     "behaviors/dot-discovery.yaml",
     "context/discovery-awareness.md",
     # Phase D: discovery pipeline recipes
-    "recipes/discovery-pipeline.yaml",
+    "recipes/deep/discovery-pipeline.yaml",
     "recipes/discovery-investigate-topic.yaml",
     "recipes/discovery-synthesize-module.yaml",
     # Phase A v2: new discovery agent and context files
@@ -58,15 +58,15 @@ EXPECTED_FILES = [
     "context/discovery-overview-synthesizer-instructions.md",
     "context/discovery-combiner-instructions.md",
     # Phase B v2: synthesizer sub-recipes
-    "recipes/synthesize-level.yaml",
-    "recipes/synthesize-subsystem.yaml",
-    "recipes/synthesize-overview.yaml",
+    "recipes/deep/synthesize-level.yaml",
+    "recipes/deep/synthesize-subsystem.yaml",
+    "recipes/deep/synthesize-overview.yaml",
     # Phase C v2: strategy recipes
-    "recipes/strategy-topdown.yaml",
-    "recipes/strategy-bottomup.yaml",
+    "recipes/deep/strategy-topdown.yaml",
+    "recipes/deep/strategy-bottomup.yaml",
     # Phase D v2: composition recipes
-    "recipes/discovery-combine.yaml",
-    "recipes/strategy-sequential.yaml",
+    "recipes/deep/discovery-combine.yaml",
+    "recipes/deep/strategy-sequential.yaml",
 ]
 
 SKILL_FILES = [

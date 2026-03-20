@@ -23,7 +23,7 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).parent.parent
-RECIPE_PATH = REPO_ROOT / "recipes" / "strategy-bottomup.yaml"
+RECIPE_PATH = REPO_ROOT / "recipes" / "deep" / "strategy-bottomup.yaml"
 
 
 # ---------------------------------------------------------------------------
@@ -397,7 +397,7 @@ def test_assemble_has_update_metadata_step(recipe_data):
 
 def test_synthesize_level_sub_recipe_exists():
     """Sub-recipe file synthesize-level.yaml must exist."""
-    sub_recipe = REPO_ROOT / "recipes" / "synthesize-level.yaml"
+    sub_recipe = REPO_ROOT / "recipes" / "deep" / "synthesize-level.yaml"
     assert sub_recipe.exists(), (
         f"Sub-recipe synthesize-level.yaml not found at {sub_recipe}"
     )
@@ -405,7 +405,7 @@ def test_synthesize_level_sub_recipe_exists():
 
 def test_synthesize_subsystem_sub_recipe_exists():
     """Sub-recipe file synthesize-subsystem.yaml must exist."""
-    sub_recipe = REPO_ROOT / "recipes" / "synthesize-subsystem.yaml"
+    sub_recipe = REPO_ROOT / "recipes" / "deep" / "synthesize-subsystem.yaml"
     assert sub_recipe.exists(), (
         f"Sub-recipe synthesize-subsystem.yaml not found at {sub_recipe}"
     )
@@ -413,7 +413,7 @@ def test_synthesize_subsystem_sub_recipe_exists():
 
 def test_synthesize_overview_sub_recipe_exists():
     """Sub-recipe file synthesize-overview.yaml must exist."""
-    sub_recipe = REPO_ROOT / "recipes" / "synthesize-overview.yaml"
+    sub_recipe = REPO_ROOT / "recipes" / "deep" / "synthesize-overview.yaml"
     assert sub_recipe.exists(), (
         f"Sub-recipe synthesize-overview.yaml not found at {sub_recipe}"
     )

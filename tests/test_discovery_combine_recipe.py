@@ -27,7 +27,7 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).parent.parent
-RECIPE_PATH = REPO_ROOT / "recipes" / "discovery-combine.yaml"
+RECIPE_PATH = REPO_ROOT / "recipes" / "deep" / "discovery-combine.yaml"
 BEHAVIOR_PATH = REPO_ROOT / "behaviors" / "dot-discovery.yaml"
 
 

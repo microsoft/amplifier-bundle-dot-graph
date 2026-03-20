@@ -1,0 +1,573 @@
+name: "quick-discovery-pipeline"
+description: >
+  Quick-mode outer orchestrator recipe for Parallax Discovery codebase analysis.
+  Runs a 3-stage pipeline (scan, investigate, synthesize) to produce DOT graph
+  diagrams and structured findings for a target repository. Stage 1 scans the
+  codebase and selects investigation topics; an approval gate lets the user
+  review and confirm before agent dispatch. Stage 2 investigates each topic
+  using the shared discovery-investigate-topic sub-recipe. Stage 3 synthesizes
+  per-topic findings into consensus diagrams, assembles the final discovery
+  manifest, hoists outputs, and produces a summary via the architecture-writer
+  agent. Uses os.path.join() to resolve output_dir to avoid nested template
+  expansion issues.
+version: "1.0.0"
+author: "DOT Graph Bundle"
+tags: ["discovery", "pipeline", "quick", "architecture", "dot-graph", "multi-agent"]
+
+recursion:
+  max_depth: 3
+  max_total_steps: 100
+
+context:
+  repo_path: ""                          # Required: path to target repository
+  fidelity: "standard"                   # Optional: quick | standard | deep (default: standard)
+  output_dir: "{{repo_path}}/.discovery" # Optional: resolved in change-detect to avoid nested template gotcha
+  render_png: "true"                     # Optional: render assembled DOTs to PNG (default: true)
+  node_target: "25"                      # Optional: target node count per diagram (default: 25)
+
+stages:
+  # ---------------------------------------------------------------------------
+  # Stage 1: Scan — discover codebase structure and select investigation topics
+  # ---------------------------------------------------------------------------
+  - name: "scan"
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Change detection — resolve output_dir, check last-run.json
+      # Resolves default output_dir (using os.path.join to avoid nested
+      # template expansion), checks last-run.json, computes git diff to
+      # determine the tier: 'skip', 'incremental', or 'full'.
+      # -----------------------------------------------------------------------
+      - id: "change-detect"
+        type: "bash"
+        output: "change_result"
+        parse_json: true
+        timeout: 30
+        command: |
+          python3 - <<'EOF'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          repo_path = "{{repo_path}}"
+          output_dir = "{{output_dir}}"
+
+          # Resolve default output_dir — avoids nested template expansion issues
+          if not output_dir or "{{" in output_dir:
+              output_dir = os.path.join(repo_path, ".discovery")
+
+          result = {
+              "repo_path": repo_path,
+              "output_dir": output_dir,
+              "tier": "full",
+              "current_commit": "",
+              "last_commit": "",
+              "changed_files": [],
+          }
+
+          # Get current git commit
+          try:
+              current_commit = subprocess.check_output(
+                  ["git", "-C", repo_path, "rev-parse", "HEAD"],
+                  text=True,
+                  stderr=subprocess.DEVNULL,
+              ).strip()
+              result["current_commit"] = current_commit
+          except Exception:
+              current_commit = ""
+
+          # Check last-run.json for previous commit
+          last_run_path = Path(output_dir) / "last-run.json"
+          if last_run_path.exists():
+              try:
+                  last_run = json.loads(last_run_path.read_text())
+                  last_commit = last_run.get("commit_hash", "")
+                  result["last_commit"] = last_commit
+                  if last_commit and last_commit == current_commit:
+                      result["tier"] = "skip"
+                  elif last_commit and current_commit:
+                      try:
+                          changed = subprocess.check_output(
+                              ["git", "-C", repo_path, "diff", "--name-only", last_commit, current_commit],
+                              text=True,
+                              stderr=subprocess.DEVNULL,
+                          ).strip().splitlines()
+                          result["changed_files"] = changed
+                          result["tier"] = "incremental" if changed else "skip"
+                      except Exception:
+                          result["tier"] = "full"
+              except Exception:
+                  pass
+
+          # Create output directory
+          Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+          print(json.dumps(result))
+          EOF
+
+      # -----------------------------------------------------------------------
+      # Step 2: Structural scan — map the repository layout
+      # Invokes prescan via amplifier_module_tool_dot_graph.prescan with
+      # fallback to basic directory listing.
+      # Skipped if change-detect determined no changes.
+      # -----------------------------------------------------------------------
+      - id: "structural-scan"
+        type: "bash"
+        condition: "{{change_result.tier}} != 'skip'"
+        output: "scan_result"
+        parse_json: true
+        timeout: 60
+        command: |
+          python3 - <<'EOF'
+          import json
+          import os
+          from pathlib import Path
+
+          repo_path = "{{change_result.repo_path}}"
+          output_dir = "{{change_result.output_dir}}"
+
+          result = {
+              "repo_path": repo_path,
+              "output_dir": output_dir,
+              "structure": {},
+              "error": None,
+          }
+
+          try:
+              from amplifier_module_tool_dot_graph import prescan
+              structure = prescan.prescan_repo(repo_path)
+              result["structure"] = structure
+          except Exception as e:
+              try:
+                  top_level = []
+                  for entry in sorted(Path(repo_path).iterdir()):
+                      if entry.name.startswith("."):
+                          continue
+                      top_level.append({
+                          "name": entry.name,
+                          "type": "dir" if entry.is_dir() else "file",
+                      })
+                  result["structure"] = {"top_level": top_level, "source": "fallback"}
+                  result["error"] = str(e)
+              except Exception as e2:
+                  result["error"] = str(e2)
+
+          print(json.dumps(result))
+          EOF
+
+      # -----------------------------------------------------------------------
+      # Step 3: Topic selection — choose investigation topics
+      # Dispatches the discovery-prescan agent to select topics based on the
+      # structural scan. node_target guides the scope per diagram.
+      # Skipped if change-detect determined no changes.
+      # -----------------------------------------------------------------------
+      - id: "topic-select"
+        agent: "dot-graph:discovery-prescan"
+        condition: "{{change_result.tier}} != 'skip'"
+        output: "topics"
+        parse_json: true
+        timeout: 600
+        prompt: |
+          You are the discovery-prescan agent for a Parallax Discovery pipeline run.
+
+          Your task: analyze the structural scan results and select investigation
+          topics that would best illuminate the architecture of this repository.
+
+          Repository: {{change_result.repo_path}}
+          Fidelity tier: {{fidelity}}
+          Output directory: {{change_result.output_dir}}
+          Target node count per diagram: {{node_target}}
+
+          Structural scan results:
+          {{scan_result}}
+
+          Topic count guidelines:
+          - standard fidelity: select 3-5 topics
+          - deep fidelity: select 5-7 topics
+
+          For each topic, identify a meaningful architectural concern, mechanism, or
+          subsystem — something that, if well-understood, would clarify how the
+          repository works as a whole.
+
+          Return your response as a JSON array only (no markdown, no explanation):
+          [
+            {
+              "name": "Human-readable topic name",
+              "slug": "kebab-case-slug",
+              "description": "One sentence describing what this topic covers and why it matters"
+            },
+            ...
+          ]
+
+    approval_gate:
+      required: true
+      prompt: |
+        Quick Discovery Pipeline — Scan Complete
+
+        Repository:  {{change_result.repo_path}}
+        Fidelity:    {{fidelity}}
+        Output dir:  {{change_result.output_dir}}
+
+        Selected investigation topics ({{topics | length}} topics):
+        {% for topic in topics %}
+          • {{topic.name}} ({{topic.slug}})
+            {{topic.description}}
+        {% endfor %}
+
+        Type APPROVE to proceed with investigation, or DENY to cancel.
+
+  # ---------------------------------------------------------------------------
+  # Stage 2: Investigate — dispatch agent teams per topic
+  # ---------------------------------------------------------------------------
+  - name: "investigate"
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Prepare topic directories
+      # Creates the per-topic directory structure under output_dir/modules/{slug}/
+      # including subdirectories for each agent output. Also writes topics.json
+      # to the output directory so downstream steps read from file rather than
+      # relying on template-serialized topic lists.
+      # -----------------------------------------------------------------------
+      - id: "prepare-topics"
+        type: "bash"
+        output: "prep_result"
+        parse_json: true
+        timeout: 15
+        command: |
+          python3 - <<'EOF'
+          import json
+          from pathlib import Path
+
+          output_dir = "{{change_result.output_dir}}"
+          topics_raw = {{topics}}
+
+          agent_names = ["code-tracer", "behavior-observer", "integration-mapper"]
+          created = []
+
+          for topic in topics_raw:
+              slug = topic.get("slug", "")
+              if not slug:
+                  continue
+              # Investigation artifacts: raw per-agent outputs
+              investigation_dir = Path(output_dir) / "investigation" / "modules" / slug
+              for agent_name in agent_names:
+                  agent_dir = investigation_dir / "agents" / agent_name
+                  agent_dir.mkdir(parents=True, exist_ok=True)
+              # Output artifacts: consensus DOT + findings (written by synthesizer)
+              output_module_dir = Path(output_dir) / "output" / "modules" / slug
+              output_module_dir.mkdir(parents=True, exist_ok=True)
+              created.append(slug)
+
+          # Write topics.json for downstream steps to read from file
+          topics_path = Path(output_dir) / "topics.json"
+          topics_path.write_text(json.dumps(topics_raw, indent=2))
+
+          print(json.dumps({
+              "created_dirs": created,
+              "topic_count": len(created),
+              "topics_path": str(topics_path),
+          }))
+          EOF
+
+      # -----------------------------------------------------------------------
+      # Step 2: Investigate topics — dispatch shared sub-recipe per topic
+      # Runs discovery-investigate-topic.yaml for each selected topic.
+      # References the SHARED sub-recipe at recipes/ root (not quick/).
+      # Each invocation dispatches 2 agents (standard) or 3 agents (deep).
+      # -----------------------------------------------------------------------
+      - id: "investigate-topics"
+        type: "recipe"
+        foreach: "{{topics}}"
+        as: "topic"
+        recipe: "@dot-graph:recipes/discovery-investigate-topic.yaml"
+        context:
+          topic: "{{topic}}"
+          fidelity: "{{fidelity}}"
+          repo_path: "{{change_result.repo_path}}"
+          output_dir: "{{change_result.output_dir}}"
+        output: "investigation_results"
+        timeout: 7200
+
+  # ---------------------------------------------------------------------------
+  # Stage 3: Synthesize — produce consensus diagrams and final manifest
+  # ---------------------------------------------------------------------------
+  - name: "synthesize"
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Reconcile modules — synthesize per-topic agent findings
+      # Runs discovery-synthesize-module.yaml for each topic to produce a
+      # consensus diagram.dot and findings.md in each module directory.
+      # References the SHARED sub-recipe at recipes/ root (not quick/).
+      # -----------------------------------------------------------------------
+      - id: "reconcile-modules"
+        type: "recipe"
+        foreach: "{{topics}}"
+        as: "topic"
+        recipe: "@dot-graph:recipes/discovery-synthesize-module.yaml"
+        context:
+          module_name: "{{topic.name}}"
+          module_dir: "{{change_result.output_dir}}/output/modules/{{topic.slug}}"
+          investigation_dir: "{{change_result.output_dir}}/investigation/modules/{{topic.slug}}"
+          fidelity: "{{fidelity}}"
+          output_dir: "{{change_result.output_dir}}"
+        output: "reconciliation_results"
+        timeout: 7200
+
+      # -----------------------------------------------------------------------
+      # Step 2: Assemble — build the discovery manifest
+      # Gathers all per-topic diagrams and findings into a unified manifest.
+      # Reads topics from topics.json to avoid template-serialized list issues.
+      # -----------------------------------------------------------------------
+      - id: "assemble"
+        type: "bash"
+        output: "assemble_result"
+        parse_json: true
+        timeout: 120
+        command: |
+          python3 - <<'EOF'
+          import json
+          from pathlib import Path
+
+          output_dir = "{{change_result.output_dir}}"
+
+          # Read topics from file to avoid template injection issues
+          topics_path = Path(output_dir) / "topics.json"
+          if topics_path.exists():
+              topics = json.loads(topics_path.read_text())
+          else:
+              topics = []
+
+          manifest = {
+              "output_dir": output_dir,
+              "topics": [],
+              "error": None,
+          }
+
+          try:
+              from amplifier_module_tool_dot_graph import assemble
+              modules_dir = Path(output_dir) / "output" / "modules"
+              modules_def = {
+                  topic.get("slug", ""): {
+                      "dot_path": str(modules_dir / topic.get("slug", "") / "diagram.dot"),
+                      "subsystem": "discovery",
+                  }
+                  for topic in topics if topic.get("slug")
+              }
+              assemble_manifest = {
+                  "modules": modules_def,
+                  "subsystems": {"discovery": {"modules": list(modules_def.keys())}},
+              }
+              assembly_output_dir = str(Path(output_dir) / "output")
+              hierarchy = assemble.assemble_hierarchy(assemble_manifest, assembly_output_dir)
+              manifest["assembly"] = hierarchy
+              for topic in topics:
+                  slug = topic.get("slug", "")
+                  module_dir = modules_dir / slug
+                  manifest["topics"].append({
+                      "name": topic.get("name", ""),
+                      "slug": slug,
+                      "diagram": str(module_dir / "diagram.dot") if (module_dir / "diagram.dot").exists() else None,
+                      "findings": str(module_dir / "findings.md") if (module_dir / "findings.md").exists() else None,
+                  })
+              manifest_path = Path(output_dir) / "manifest.json"
+              manifest_path.write_text(json.dumps(manifest, indent=2))
+              manifest["manifest_path"] = str(manifest_path)
+          except Exception as e:
+              try:
+                  modules_dir = Path(output_dir) / "output" / "modules"
+                  for topic in topics:
+                      slug = topic.get("slug", "")
+                      module_dir = modules_dir / slug
+                      diagram_path = module_dir / "diagram.dot"
+                      findings_path = module_dir / "findings.md"
+                      manifest["topics"].append({
+                          "name": topic.get("name", ""),
+                          "slug": slug,
+                          "diagram": str(diagram_path) if diagram_path.exists() else None,
+                          "findings": str(findings_path) if findings_path.exists() else None,
+                      })
+                  manifest["error"] = str(e)
+                  manifest_path = Path(output_dir) / "manifest.json"
+                  manifest_path.write_text(json.dumps(manifest, indent=2))
+                  manifest["manifest_path"] = str(manifest_path)
+              except Exception as e2:
+                  manifest["error"] = str(e2)
+
+          print(json.dumps(manifest))
+          EOF
+
+      # -----------------------------------------------------------------------
+      # Step 3: Validate — validate all produced .dot files via pydot
+      # Finds every .dot file under output_dir, validates each with pydot,
+      # and reports valid/error counts.
+      # -----------------------------------------------------------------------
+      - id: "validate"
+        type: "bash"
+        output: "validation_result"
+        parse_json: true
+        timeout: 60
+        command: |
+          python3 - <<'EOF'
+          import json
+          from pathlib import Path
+
+          output_dir = "{{change_result.output_dir}}"
+
+          result = {
+              "valid_count": 0,
+              "error_count": 0,
+              "errors": [],
+              "dot_files": [],
+          }
+
+          dot_files = list(Path(output_dir).rglob("*.dot"))
+          result["dot_files"] = [str(f) for f in dot_files]
+
+          try:
+              import pydot
+              for dot_file in dot_files:
+                  try:
+                      graphs = pydot.graph_from_dot_file(str(dot_file))
+                      if graphs:
+                          result["valid_count"] += 1
+                      else:
+                          result["error_count"] += 1
+                          result["errors"].append(str(dot_file) + ": empty parse result")
+                  except Exception as e:
+                      result["error_count"] += 1
+                      result["errors"].append(str(dot_file) + ": " + str(e))
+          except ImportError:
+              result["errors"].append("pydot not available - validation skipped")
+
+          print(json.dumps(result))
+          EOF
+
+      # -----------------------------------------------------------------------
+      # Step 4: Hoist outputs — copy per-module artifacts to output/ root
+      # Copies consensus diagram.dot and findings.md from each module's
+      # output directory to the top-level output/ directory for easy access.
+      # Reads topics from topics.json to avoid template injection issues.
+      # -----------------------------------------------------------------------
+      - id: "hoist-outputs"
+        type: "bash"
+        output: "hoist_result"
+        parse_json: true
+        timeout: 30
+        command: |
+          python3 - <<'EOF'
+          import json
+          import shutil
+          from pathlib import Path
+
+          output_dir = "{{change_result.output_dir}}"
+
+          # Read topics from file to avoid template injection issues
+          topics_path = Path(output_dir) / "topics.json"
+          if topics_path.exists():
+              topics = json.loads(topics_path.read_text())
+          else:
+              topics = []
+
+          hoisted = []
+          errors = []
+          modules_dir = Path(output_dir) / "output" / "modules"
+          top_output_dir = Path(output_dir) / "output"
+          top_output_dir.mkdir(parents=True, exist_ok=True)
+
+          for topic in topics:
+              slug = topic.get("slug", "")
+              if not slug:
+                  continue
+              module_dir = modules_dir / slug
+              for filename in ["diagram.dot", "findings.md"]:
+                  src = module_dir / filename
+                  if src.exists():
+                      dst = top_output_dir / (slug + "-" + filename)
+                      try:
+                          shutil.copy2(str(src), str(dst))
+                          hoisted.append(str(dst))
+                      except Exception as e:
+                          errors.append(str(e))
+
+          print(json.dumps({"hoisted": hoisted, "errors": errors, "count": len(hoisted)}))
+          EOF
+
+      # -----------------------------------------------------------------------
+      # Step 5: Summarize — produce architecture overview via writer agent
+      # Dispatches the discovery-architecture-writer agent to produce an
+      # overview.md summarizing all findings and diagrams.
+      # -----------------------------------------------------------------------
+      - id: "summarize"
+        agent: "dot-graph:discovery-architecture-writer"
+        output: "summary_result"
+        timeout: 1200
+        prompt: |
+          You are the discovery-architecture-writer agent for a Parallax Discovery pipeline run.
+
+          Your task: synthesize all per-module findings into a coherent architecture
+          overview document (overview.md) for the target repository.
+
+          Repository: {{change_result.repo_path}}
+          Fidelity: {{fidelity}}
+          Output directory: {{change_result.output_dir}}
+
+          Assembly results:
+          {{assemble_result}}
+
+          Validation results:
+          {{validation_result}}
+
+          Produce a comprehensive overview.md that:
+          1. Describes the overall architecture and key subsystems
+          2. Summarizes findings from each investigated module/topic
+          3. Highlights key relationships and dependencies
+          4. Notes any validation issues or gaps for follow-up
+
+          Write the overview.md to: {{change_result.output_dir}}/output/overview.md
+
+      # -----------------------------------------------------------------------
+      # Step 6: Update metadata — write last-run.json
+      # Records commit hash, timestamp, fidelity, repo_path, and validation
+      # counts so future runs can use change detection. Uses os.path.join()
+      # to resolve output_dir safely in case template was not fully expanded.
+      # -----------------------------------------------------------------------
+      - id: "update-metadata"
+        type: "bash"
+        output: "metadata_result"
+        parse_json: true
+        timeout: 10
+        command: |
+          python3 - <<'EOF'
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          repo_path = "{{change_result.repo_path}}"
+          output_dir = "{{change_result.output_dir}}"
+          commit_hash = "{{change_result.current_commit}}"
+          fidelity = "{{fidelity}}"
+
+          # Ensure output_dir is resolved using os.path.join as a safe fallback
+          if not output_dir or "{{" in output_dir:
+              output_dir = os.path.join(repo_path, ".discovery")
+
+          valid_count = {{validation_result.valid_count}}
+          error_count = {{validation_result.error_count}}
+
+          metadata = {
+              "commit_hash": commit_hash,
+              "timestamp": datetime.now(timezone.utc).isoformat(),
+              "fidelity": fidelity,
+              "repo_path": repo_path,
+              "valid_count": valid_count,
+              "error_count": error_count,
+          }
+
+          last_run_path = Path(output_dir) / "last-run.json"
+          last_run_path.write_text(json.dumps(metadata, indent=2))
+
+          print(json.dumps({"written": str(last_run_path), **metadata}))
+          EOF
+
+final_output: "metadata_result"

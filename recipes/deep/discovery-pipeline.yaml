@@ -18,6 +18,8 @@ context:
   strategies: "both"                    # Optional: topdown | bottomup | both (default: both)
   node_target: "25"                     # Optional: soft target for overview DOT node count (default: 25)
 
+max_concurrent_llm: 4
+
 stages:
   # ---------------------------------------------------------------------------
   # Stage 1: Scan — prescan repo structure and select investigation topics

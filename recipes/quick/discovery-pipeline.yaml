@@ -25,6 +25,8 @@ context:
   render_png: "true"                     # Optional: render assembled DOTs to PNG (default: true)
   node_target: "25"                      # Optional: target node count per diagram (default: 25)
 
+max_concurrent_llm: 4
+
 stages:
   # ---------------------------------------------------------------------------
   # Stage 1: Scan — discover codebase structure and select investigation topics
@@ -278,6 +280,7 @@ stages:
       - id: "investigate-topics"
         type: "recipe"
         foreach: "{{topics}}"
+        parallel: true
         as: "topic"
         recipe: "@dot-graph:recipes/discovery-investigate-topic.yaml"
         context:
@@ -302,6 +305,7 @@ stages:
       - id: "reconcile-modules"
         type: "recipe"
         foreach: "{{topics}}"
+        parallel: true
         as: "topic"
         recipe: "@dot-graph:recipes/discovery-synthesize-module.yaml"
         context:

@@ -466,3 +466,30 @@ def test_recipe_has_final_output():
     assert final_output == "metadata_result", (
         f"final_output must be 'metadata_result', got: {final_output!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Parallelism: investigate-topics and reconcile-modules (2 tests)
+# ---------------------------------------------------------------------------
+
+
+def test_investigate_topics_is_parallel():
+    """investigate-topics foreach step must have parallel: true for concurrent topic investigation."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "investigate", "investigate-topics")
+    assert step is not None, "investigate-topics step must exist"
+    assert step.get("parallel") is True, (
+        f"investigate-topics step must have parallel=true for concurrent execution, "
+        f"got: {step.get('parallel')!r}"
+    )
+
+
+def test_reconcile_modules_is_parallel():
+    """reconcile-modules foreach step must have parallel: true for concurrent synthesis."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "synthesize", "reconcile-modules")
+    assert step is not None, "reconcile-modules step must exist"
+    assert step.get("parallel") is True, (
+        f"reconcile-modules step must have parallel=true for concurrent execution, "
+        f"got: {step.get('parallel')!r}"
+    )

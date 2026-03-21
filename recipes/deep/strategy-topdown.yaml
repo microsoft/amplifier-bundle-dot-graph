@@ -261,6 +261,7 @@ stages:
       - id: "investigate-topics"
         type: "recipe"
         foreach: "{{topics}}"
+        parallel: true
         as: "topic"
         recipe: "@dot-graph:recipes/discovery-investigate-topic.yaml"
         context:
@@ -286,6 +287,7 @@ stages:
       - id: "reconcile-modules"
         type: "recipe"
         foreach: "{{topics}}"
+        parallel: true
         as: "topic"
         recipe: "@dot-graph:recipes/discovery-synthesize-module.yaml"
         context:

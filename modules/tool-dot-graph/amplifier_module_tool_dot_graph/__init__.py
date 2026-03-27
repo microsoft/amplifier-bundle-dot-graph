@@ -11,7 +11,19 @@ import json
 import logging
 from typing import Any
 
-from amplifier_core import ToolResult
+try:
+    from amplifier_core import ToolResult  # type: ignore[assignment]
+except ImportError:
+    # amplifier_core may not be installed in all environments (e.g. CI without the full
+    # Amplifier stack).  Provide a minimal stand-in so the module can be imported and
+    # mount() can be referenced without amplifier_core being on the path.
+    class ToolResult:  # type: ignore[no-redef]
+        """Minimal ToolResult stub used when amplifier_core is not installed."""
+
+        def __init__(self, success: bool = True, output: str = "") -> None:
+            self.success = success
+            self.output = output
+
 
 from amplifier_module_tool_dot_graph import (
     analyze,

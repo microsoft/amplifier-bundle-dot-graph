@@ -30,10 +30,39 @@ stages:
   - name: "scan-and-plan"
     steps:
       # -----------------------------------------------------------------------
+      # Step 0: Resolve context — detect unresolved template strings and
+      # resolve output_dir/repo_path before any downstream step uses them.
+      # Guards against {{repo_path}} not being recursively substituted in
+      # the output_dir default value (Known Gotcha #5).
+      # -----------------------------------------------------------------------
+      - id: "resolve-context"
+        type: "bash"
+        output: "ctx"
+        parse_json: true
+        timeout: 10
+        command: |
+          python3 - <<'EOF'
+          import json
+          import os
+          from pathlib import Path
+
+          repo_path = "{{repo_path}}"
+          output_dir = "{{output_dir}}"
+
+          # Unresolved template guard: if output_dir is empty or still contains
+          # a '{{' placeholder, resolve it from repo_path at runtime.
+          if not output_dir or '{{' in output_dir:
+              output_dir = os.path.join(repo_path, '.discovery', 'investigation', 'bottomup')
+
+          Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+          print(json.dumps({"repo_path": repo_path, "output_dir": output_dir}))
+          EOF
+
+      # -----------------------------------------------------------------------
       # Step 1: Prescan — map repository structure
       # Invokes amplifier_module_tool_dot_graph.prescan with fallback to basic
-      # directory listing. Resolves default output_dir and writes
-      # prescan-result.json to the output directory.
+      # directory listing. Writes prescan-result.json to the output directory.
       # -----------------------------------------------------------------------
       - id: "prescan"
         type: "bash"
@@ -46,12 +75,8 @@ stages:
           import os
           from pathlib import Path
 
-          repo_path = "{{repo_path}}"
-          output_dir = "{{output_dir}}"
-
-          # Resolve default output_dir if empty
-          if not output_dir:
-              output_dir = str(Path(repo_path) / ".discovery" / "investigation" / "bottomup")
+          repo_path = "{{ctx.repo_path}}"
+          output_dir = "{{ctx.output_dir}}"
 
           # Create output directory
           Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -308,7 +333,7 @@ stages:
         context:
           subsystem_name: "bottomup-discovery"
           module_dot_files: "[]"   # agents search output_dir for per-level diagram.dot files
-          source_dirs: '["{{repo_path}}"]'   # repo root for boundary investigation
+          source_dirs: '["{{ctx.repo_path}}"]'   # repo root for boundary investigation
           output_dir: "{{subsystems_result.output_dir}}"
         output: "subsystem_result"
         timeout: 3600
@@ -322,7 +347,7 @@ stages:
         type: "recipe"
         recipe: "@dot-graph:recipes/deep/synthesize-overview.yaml"
         context:
-          repo_root: "{{repo_path}}"   # needed so agent can examine top-level files
+          repo_root: "{{ctx.repo_path}}"   # needed so agent can examine top-level files
           subsystem_dot_files: '["{{subsystems_result.output_dir}}/bottomup-discovery.dot"]'
           output_dir: "{{subsystems_result.output_dir}}"
         output: "overview_result"
@@ -373,6 +398,7 @@ stages:
           }
 
           last_run_path = Path(output_dir) / "last-run.json"
+          last_run_path.parent.mkdir(parents=True, exist_ok=True)
           last_run_path.write_text(json.dumps(metadata, indent=2))
           print(json.dumps({"written": str(last_run_path), **metadata}))
           EOF

@@ -431,3 +431,61 @@ def test_recipe_mentions_traversal_plan_json():
         "Recipe must mention 'traversal-plan.json' as a mutable state file "
         "(used by compute-traversal and traverse stages)"
     )
+
+
+# ---------------------------------------------------------------------------
+# resolve-context step regression tests (4 tests)
+# Added to guard against literal {{repo_path}} directory creation (Known Gotcha #5)
+# ---------------------------------------------------------------------------
+
+
+def test_strategy_bottomup_has_resolve_context_step(recipe_data):
+    """scan-and-plan stage must have a step with id='resolve-context'."""
+    step = _get_stage_step_by_id(recipe_data, "scan-and-plan", "resolve-context")
+    assert step is not None, (
+        "No step with id='resolve-context' found in scan-and-plan stage. "
+        f"Step IDs: {[s.get('id') for s in _get_stage_steps(recipe_data, 'scan-and-plan')]}"
+    )
+
+
+def test_strategy_bottomup_resolve_context_is_bash_parse_json(recipe_data):
+    """resolve-context step must be type='bash', parse_json=True, output='ctx', timeout=10."""
+    step = _get_stage_step_by_id(recipe_data, "scan-and-plan", "resolve-context")
+    assert step is not None, "resolve-context step must exist in scan-and-plan stage"
+    assert step.get("type") == "bash", (
+        f"resolve-context step must be type='bash', got: {step.get('type')!r}"
+    )
+    assert step.get("parse_json") is True, (
+        f"resolve-context step must have parse_json=True, got: {step.get('parse_json')!r}"
+    )
+    assert step.get("output") == "ctx", (
+        f"resolve-context step must have output='ctx', got: {step.get('output')!r}"
+    )
+    assert step.get("timeout") == 10, (
+        f"resolve-context step must have timeout=10, got: {step.get('timeout')!r}"
+    )
+
+
+def test_strategy_bottomup_resolve_context_guards_template_expansion(recipe_data):
+    """resolve-context command must contain the '{{' guard to detect unresolved templates."""
+    step = _get_stage_step_by_id(recipe_data, "scan-and-plan", "resolve-context")
+    assert step is not None, "resolve-context step must exist in scan-and-plan stage"
+    command = str(step.get("command", ""))
+    assert "{{" in command, (
+        "resolve-context command must contain the '{{' guard pattern to detect "
+        "unresolved template strings (Known Gotcha #5 protection)"
+    )
+    # The guard should check if output_dir contains the placeholder
+    assert "bottomup" in command, (
+        "resolve-context command must resolve to the 'bottomup' output directory path"
+    )
+
+
+def test_strategy_bottomup_resolve_context_is_first_step(recipe_data):
+    """resolve-context must be the FIRST step in the scan-and-plan stage."""
+    steps = _get_stage_steps(recipe_data, "scan-and-plan")
+    assert len(steps) > 0, "scan-and-plan stage must have steps"
+    first_step_id = steps[0].get("id")
+    assert first_step_id == "resolve-context", (
+        f"First step in scan-and-plan must be 'resolve-context', got: {first_step_id!r}"
+    )

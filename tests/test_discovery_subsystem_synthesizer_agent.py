@@ -64,13 +64,14 @@ def test_discovery_subsystem_synthesizer_description_has_two_examples():
     )
 
 
-def test_discovery_subsystem_synthesizer_frontmatter_model_role_coding():
+def test_discovery_subsystem_synthesizer_frontmatter_model_role_reasoning():
     """Frontmatter must have model_role: reasoning."""
     content = SUBSYSTEM_SYNTHESIZER_AGENT_PATH.read_text()
     frontmatter, _ = _parse_frontmatter(content)
     assert "model_role" in frontmatter, "Frontmatter must have 'model_role' key"
-    assert frontmatter["model_role"] == "coding", (
-        f"model_role must be 'reasoning', got: {frontmatter['model_role']}"
+    assert frontmatter["model_role"] == "reasoning", (
+        f"model_role must be 'reasoning', got: {frontmatter['model_role']}. "
+        "These agents reconcile multi-agent findings and produce analytical synthesis — not code."
     )
 
 

@@ -6,7 +6,7 @@ meta:
 tools:
   - module: tool-dot-graph
 
-model_role: coding
+model_role: reasoning
 ---
 
 # Discovery Combiner Agent — Convergence and Divergence Analysis

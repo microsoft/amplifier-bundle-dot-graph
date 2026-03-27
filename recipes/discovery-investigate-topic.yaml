@@ -31,9 +31,11 @@ steps:
     timeout: 10
     command: |
       python3 - <<'EOF'
-      import json, os, sys
+      import json, os
 
-      lens = os.environ.get("RECIPE_CONTEXT_lens", "architecture")
+      # Use template substitution ({{lens}}) — consistent with all other bash steps
+      # in this codebase. Amplifier substitutes context variables before shell execution.
+      lens = "{{lens}}"
 
       guidance = ""
 
@@ -53,13 +55,14 @@ steps:
                       guidance = f.read().strip()
 
       # Strategy 3: use importlib to find bundle root via package location
+      # Path layout: __init__.py → amplifier_module_tool_dot_graph/ → tool-dot-graph/ → modules/ → bundle_root
       if not guidance:
           try:
               import importlib.util
               spec = importlib.util.find_spec("amplifier_module_tool_dot_graph")
               if spec and spec.origin:
-                  pkg_dir = os.path.dirname(spec.origin)
-                  bundle_root = os.path.dirname(pkg_dir)
+                  pkg_dir = os.path.dirname(spec.origin)  # amplifier_module_tool_dot_graph/
+                  bundle_root = os.path.dirname(os.path.dirname(os.path.dirname(pkg_dir)))  # 3 levels up
                   path = os.path.join(bundle_root, "context", "lenses", f"{lens}.md")
                   if os.path.exists(path):
                       with open(path) as f:

@@ -47,31 +47,32 @@ Produce one artifact before signaling completion:
 
 ### structured JSON output
 
-The topic selection result as a JSON object matching the schema in your instructions:
+The topic selection result as a **flat JSON array** — one object per topic. This is the exact format the recipe iterates to dispatch triplicate teams:
 
 ```json
-{
-  "topics": [
-    {
-      "name": "short-slug",
-      "description": "one sentence describing what this module does",
-      "directories": ["path/to/relevant/dir"],
-      "investigation_focus": "specific question to answer",
-      "suggested_agents": ["code-tracer", "behavior-observer", "integration-mapper"]
-    }
-  ],
-  "module_boundaries": ["boundary description"],
-  "rationale": "why these topics were selected"
-}
+[
+  {
+    "name": "auth-layer",
+    "slug": "auth-layer",
+    "description": "Handles authentication and session token validation across all API routes."
+  },
+  {
+    "name": "config-loading",
+    "slug": "config-loading",
+    "description": "Loads and merges configuration from environment variables and YAML files."
+  }
+]
 ```
 
-Output this JSON as your primary response. The recipe reads it to dispatch the next wave.
+The `slug` field is **load-bearing**: downstream steps construct `output/modules/{slug}/` directories from it. Use kebab-case (e.g., `auth-layer`, `config-loading`). Do not include `module_boundaries`, `rationale`, `directories`, `investigation_focus`, or `suggested_agents` — these fields are not consumed by the recipe.
+
+Output this JSON array as your primary response. The recipe reads it to dispatch the next wave.
 
 ## Final Response Contract
 
 Your response must include:
 
-1. **The structured JSON output** — complete, valid, matching the schema
+1. **The structured JSON array** — complete, valid, flat array of `{name, slug, description}` objects
 2. **Brief rationale** — 2–4 sentences explaining the selection strategy
 
 Do not produce source code, DOT diagrams, or investigation findings. Your output is the scope definition for the investigation that follows.

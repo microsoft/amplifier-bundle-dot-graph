@@ -39,37 +39,42 @@ The number of topics to select depends on the investigation depth requested:
 
 When fidelity tier is not specified, default to **standard** (3–5 topics).
 
-## Structured JSON Output Format
+## Output Format
 
-Produce your output as a JSON object matching this schema:
+Produce your output as a **flat JSON array** — one object per topic:
 
 ```json
-{
-  "topics": [
-    {
-      "name": "string — short identifier for the topic",
-      "description": "string — what this module/area does",
-      "directories": ["list of relevant paths"],
-      "investigation_focus": "string — specific question or concern to investigate",
-      "suggested_agents": ["code-tracer", "behavior-observer", "integration-mapper"]
-    }
-  ],
-  "module_boundaries": [
-    "string — identified boundary between subsystems"
-  ],
-  "rationale": "string — explanation of why these topics were selected"
-}
+[
+  {
+    "name": "auth-layer",
+    "slug": "auth-layer",
+    "description": "Handles authentication and session token validation across all API routes."
+  },
+  {
+    "name": "config-loading",
+    "slug": "config-loading",
+    "description": "Loads and merges configuration from environment variables and YAML files."
+  }
+]
 ```
 
 ### Field Descriptions
 
-- **topics[].name** — A short slug identifying the topic (e.g., `auth-layer`, `config-loading`)
-- **topics[].description** — One sentence describing the module's purpose
-- **topics[].directories** — Paths within the repo relevant to this topic
-- **topics[].investigation_focus** — The specific question this topic should answer
-- **topics[].suggested_agents** — Which triplicate agents are best suited for this topic
-- **module_boundaries** — Significant interfaces between subsystems (e.g., `api → service layer`)
-- **rationale** — Why these 3–7 topics were selected over alternatives
+- **`name`** — Human-readable display name for the topic (e.g., `"Auth Layer"` or `"auth-layer"`)
+- **`slug`** — Kebab-case identifier used for **directory path construction**. This field is **load-bearing**: downstream steps create `output/modules/{slug}/` directories and write all investigation artifacts there. Must be unique across topics and must be valid as a filesystem path segment (no spaces, no special characters). Examples: `auth-layer`, `config-loading`, `api-routing`.
+- **`description`** — One sentence describing what this module/area does and why it matters.
+
+### What NOT to Include
+
+Do **not** include any of the following fields in your output array:
+
+- `module_boundaries` — not consumed by any downstream step
+- `rationale` — not consumed by any downstream step
+- `directories` — not consumed; slug drives path construction instead
+- `investigation_focus` — not consumed by any downstream step
+- `suggested_agents` — not consumed; triplicate teams are always the same three agents
+
+The recipe iterates `topic.slug` directly to dispatch triplicate agent teams. Extra fields are silently ignored and add noise — omit them.
 
 ## 6-Step Selection Process
 

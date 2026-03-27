@@ -62,13 +62,60 @@ def test_prescan_instructions_has_fidelity_guidance():
 
 
 def test_prescan_instructions_has_json_output_format():
-    """File must contain structured JSON output format with schema."""
+    """File must contain JSON output format with flat array schema fields."""
     content = PRESCAN_INSTRUCTIONS_PATH.read_text()
     assert "json" in content.lower(), "Must contain JSON output format"
-    # Must contain required schema fields
-    required_fields = ["topics", "name", "description", "directories"]
+    # Must contain required schema fields (flat array format)
+    required_fields = ["name", "slug", "description"]
     for field in required_fields:
         assert field in content, f"JSON schema must include field: '{field}'"
+
+
+def test_prescan_instructions_documents_flat_array_format():
+    """File must document flat JSON array format (not nested {topics: [...]} wrapper)."""
+    content = PRESCAN_INSTRUCTIONS_PATH.read_text()
+    # Must NOT present the nested topics wrapper as the output format
+    # (it should document a flat array)
+    # Check that there's a JSON code block starting with '[' (flat array)
+    import re
+    json_blocks = re.findall(r"```json\s*(.*?)```", content, re.DOTALL)
+    assert json_blocks, "Must contain at least one JSON code block"
+    flat_array_blocks = [b for b in json_blocks if b.strip().startswith("[")]
+    assert flat_array_blocks, (
+        "JSON code block must show flat array format starting with '[', not nested object"
+    )
+
+
+def test_prescan_instructions_documents_slug_field():
+    """File must document the 'slug' field as an explicit JSON field in the output schema."""
+    content = PRESCAN_INSTRUCTIONS_PATH.read_text()
+    # slug must appear as a JSON field (in quotes) or explicitly named as a field
+    # "slug" as a word in descriptions is not enough — it must be documented as an output field
+    assert '"slug"' in content or "**slug**" in content or "`slug`" in content, (
+        "Must document 'slug' as an explicit field in the output format "
+        "(e.g. in a JSON example block or field description)"
+    )
+
+
+def test_prescan_instructions_explains_slug_is_kebab_case():
+    """File must explain that slug is kebab-case."""
+    content = PRESCAN_INSTRUCTIONS_PATH.read_text()
+    assert "kebab" in content.lower() or "kebab-case" in content.lower(), (
+        "Must explain that slug is kebab-case"
+    )
+
+
+def test_prescan_instructions_explains_slug_drives_directories():
+    """File must explain that slug is used for directory path construction (output/modules/{slug}/)."""
+    content = PRESCAN_INSTRUCTIONS_PATH.read_text()
+    # Must mention specific directory path pattern using slug
+    assert any(
+        phrase in content
+        for phrase in ["output/modules/", "modules/{slug}", "{slug}"]
+    ), (
+        "Must explain that slug drives directory path construction, "
+        "e.g. referencing 'output/modules/{slug}/' pattern"
+    )
 
 
 def test_prescan_instructions_mentions_structural_inventory():

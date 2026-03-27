@@ -148,3 +148,25 @@ def test_discovery_prescan_ends_with_common_agent_base():
     assert "common-agent-base.md" in last_100, (
         "File must END with @foundation:context/shared/common-agent-base.md"
     )
+
+
+def test_discovery_prescan_contract_documents_slug_field():
+    """Required Artifacts section must document the 'slug' field."""
+    content = PRESCAN_AGENT_PATH.read_text()
+    assert "slug" in content, (
+        "agents/discovery-prescan.md must document the 'slug' field in the output contract"
+    )
+
+
+def test_discovery_prescan_contract_shows_flat_array_example():
+    """JSON code block in Required Artifacts must show flat array starting with '['."""
+    import re
+
+    content = PRESCAN_AGENT_PATH.read_text()
+    json_blocks = re.findall(r"```json\s*(.*?)```", content, re.DOTALL)
+    assert json_blocks, "Must contain at least one JSON code block"
+    flat_array_blocks = [b for b in json_blocks if b.strip().startswith("[")]
+    assert flat_array_blocks, (
+        "JSON code block must show flat array format starting with '[', "
+        "not a nested object starting with '{'"
+    )

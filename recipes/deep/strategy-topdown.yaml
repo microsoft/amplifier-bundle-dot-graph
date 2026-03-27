@@ -29,10 +29,40 @@ stages:
   - name: "scan"
     steps:
       # -----------------------------------------------------------------------
+      # Step 0: Resolve context — detect unresolved template strings and
+      # resolve output_dir/repo_path before any downstream step uses them.
+      # Guards against {{repo_path}} not being recursively substituted in
+      # the output_dir default value (Known Gotcha #5).
+      # -----------------------------------------------------------------------
+      - id: "resolve-context"
+        type: "bash"
+        output: "ctx"
+        parse_json: true
+        timeout: 10
+        command: |
+          python3 - <<'EOF'
+          import json
+          import os
+          from pathlib import Path
+
+          repo_path = "{{repo_path}}"
+          output_dir = "{{output_dir}}"
+
+          # Unresolved template guard: if output_dir is empty or still contains
+          # a '{{' placeholder, resolve it from repo_path at runtime.
+          if not output_dir or '{{' in output_dir:
+              output_dir = os.path.join(repo_path, '.discovery', 'investigation', 'topdown')
+
+          Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+          print(json.dumps({"repo_path": repo_path, "output_dir": output_dir}))
+          EOF
+
+      # -----------------------------------------------------------------------
       # Step 1: Structural scan — map the repository layout
       # Invokes prescan via amplifier_module_tool_dot_graph.prescan with
       # fallback to basic directory listing.
-      # Resolves default output_dir and writes prescan-result.json.
+      # Writes prescan-result.json.
       # -----------------------------------------------------------------------
       - id: "structural-scan"
         condition: "{{parent_topics_available}} != 'true'"
@@ -46,12 +76,8 @@ stages:
           import os
           from pathlib import Path
 
-          repo_path = "{{repo_path}}"
-          output_dir = "{{output_dir}}"
-
-          # Resolve default output_dir if empty
-          if not output_dir:
-              output_dir = str(Path(repo_path) / ".discovery" / "investigation" / "topdown")
+          repo_path = "{{ctx.repo_path}}"
+          output_dir = "{{ctx.output_dir}}"
 
           # Create output directory
           Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -108,9 +134,9 @@ stages:
           Your task: analyze the structural scan results and select 3-7 investigation
           topics that would best illuminate the architecture of this repository.
 
-          Repository: {{repo_path}}
+          Repository: {{ctx.repo_path}}
           Fidelity tier: {{fidelity}}
-          Output directory: {{output_dir}}
+          Output directory: {{ctx.output_dir}}
 
           Structural scan results:
           {{scan_result}}
@@ -151,7 +177,7 @@ stages:
           import json
           from pathlib import Path
 
-          output_dir = "{{output_dir}}"
+          output_dir = "{{ctx.output_dir}}"
           topics_json = r"""{{topics}}"""
           try:
               topics = json.loads(topics_json)
@@ -199,7 +225,7 @@ stages:
                   print("[]")  # Empty list fallback
                   raise SystemExit(0)
 
-          output_dir = "{{output_dir}}"
+          output_dir = "{{ctx.output_dir}}"
           Path(output_dir).mkdir(parents=True, exist_ok=True)
           dest = Path(output_dir) / "topics.json"
 
@@ -228,7 +254,7 @@ stages:
           import json
           from pathlib import Path
 
-          output_dir = "{{output_dir}}"
+          output_dir = "{{ctx.output_dir}}"
 
           # Load topics from the file that save-topics wrote (avoids template
           # serialization issues with {{topics}} — Python repr vs JSON quotes)
@@ -269,8 +295,8 @@ stages:
           topic_slug: "{{topic.slug}}"
           topic_description: "{{topic.description}}"
           fidelity: "{{fidelity}}"
-          repo_path: "{{repo_path}}"
-          output_dir: "{{output_dir}}"
+          repo_path: "{{ctx.repo_path}}"
+          output_dir: "{{ctx.output_dir}}"
         output: "investigation_results"
         timeout: 7200
 
@@ -292,10 +318,10 @@ stages:
         recipe: "@dot-graph:recipes/discovery-synthesize-module.yaml"
         context:
           module_name: "{{topic.name}}"
-          module_dir: "{{output_dir}}/modules/{{topic.slug}}"
-          investigation_dir: "{{output_dir}}/modules/{{topic.slug}}"
+          module_dir: "{{ctx.output_dir}}/modules/{{topic.slug}}"
+          investigation_dir: "{{ctx.output_dir}}/modules/{{topic.slug}}"
           fidelity: "{{fidelity}}"
-          output_dir: "{{output_dir}}"
+          output_dir: "{{ctx.output_dir}}"
         output: "reconciliation_results"
         timeout: 7200
 
@@ -309,8 +335,8 @@ stages:
         context:
           subsystem_name: "topdown-discovery"
           module_dot_files: "[]"   # agents search output_dir for per-module diagram.dot files
-          source_dirs: '["{{repo_path}}"]'   # repo root for boundary investigation
-          output_dir: "{{output_dir}}"
+          source_dirs: '["{{ctx.repo_path}}"]'   # repo root for boundary investigation
+          output_dir: "{{ctx.output_dir}}"
         output: "subsystem_result"
         timeout: 3600
 
@@ -321,9 +347,9 @@ stages:
         type: "recipe"
         recipe: "@dot-graph:recipes/deep/synthesize-overview.yaml"
         context:
-          repo_root: "{{repo_path}}"   # needed so agent can examine top-level files
-          subsystem_dot_files: '["{{output_dir}}/topdown-discovery.dot"]'
-          output_dir: "{{output_dir}}"
+          repo_root: "{{ctx.repo_path}}"   # needed so agent can examine top-level files
+          subsystem_dot_files: '["{{ctx.output_dir}}/topdown-discovery.dot"]'
+          output_dir: "{{ctx.output_dir}}"
         output: "overview_result"
         timeout: 3600
 
@@ -372,6 +398,7 @@ stages:
           }
 
           last_run_path = Path(output_dir) / "last-run.json"
+          last_run_path.parent.mkdir(parents=True, exist_ok=True)
           last_run_path.write_text(json.dumps(metadata, indent=2))
           print(json.dumps({"written": str(last_run_path), **metadata}))
           EOF

@@ -479,3 +479,60 @@ def test_synthesize_level_sub_recipe_exists():
     assert sub_recipe.exists(), (
         f"Sub-recipe synthesize-level.yaml not found at {sub_recipe}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Resolve-context step regression tests (4 tests)
+# ---------------------------------------------------------------------------
+
+
+def test_strategy_topdown_has_resolve_context_step():
+    """Scan stage must have a step with id='resolve-context'."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "scan", "resolve-context")
+    assert step is not None, (
+        f"No step with id='resolve-context' found in scan stage. "
+        f"Step IDs: {[s.get('id') for s in _get_stage_steps(data, 'scan')]}"
+    )
+
+
+def test_strategy_topdown_resolve_context_is_bash_parse_json():
+    """resolve-context step must be type=bash with parse_json=True, output='ctx', timeout=10."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "scan", "resolve-context")
+    assert step is not None, "resolve-context step not found in scan stage"
+    assert step.get("type") == "bash", (
+        f"resolve-context must have type='bash', got: {step.get('type')!r}"
+    )
+    assert step.get("parse_json") is True, (
+        f"resolve-context must have parse_json=True, got: {step.get('parse_json')!r}"
+    )
+    assert step.get("output") == "ctx", (
+        f"resolve-context must have output='ctx', got: {step.get('output')!r}"
+    )
+    assert step.get("timeout") == 10, (
+        f"resolve-context must have timeout=10, got: {step.get('timeout')!r}"
+    )
+
+
+def test_strategy_topdown_resolve_context_guards_template_expansion():
+    """resolve-context command must contain the '{{' guard for unresolved template strings."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "scan", "resolve-context")
+    assert step is not None, "resolve-context step not found in scan stage"
+    command = step.get("command", "")
+    assert "{{" in command, (
+        "resolve-context command must contain '{{' guard to detect unresolved template strings"
+    )
+
+
+def test_strategy_topdown_resolve_context_is_first_step():
+    """resolve-context must be the FIRST step in the scan stage."""
+    data = _load_recipe()
+    steps = _get_stage_steps(data, "scan")
+    assert len(steps) > 0, "Scan stage must have steps"
+    first_step = steps[0]
+    assert first_step.get("id") == "resolve-context", (
+        f"First step in scan stage must be 'resolve-context', "
+        f"got: {first_step.get('id')!r}"
+    )

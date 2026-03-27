@@ -3,8 +3,7 @@ bundle:
   version: 0.1.0
   description: DOT/Graphviz codebase discovery pipeline
 
-includes:
-  - bundle: dot-graph:behaviors/dot-core
+# dot-core is included by the dot-graph.yaml umbrella — do not re-include here.
 
 agents:
   include:

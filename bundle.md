@@ -9,5 +9,3 @@ includes:
 ---
 
 # DOT/Graphviz Infrastructure
-
-@dot-graph:context/dot-awareness.md

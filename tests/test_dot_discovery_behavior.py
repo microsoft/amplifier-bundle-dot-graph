@@ -67,23 +67,34 @@ def test_behavior_bundle_description(data):
 # --- includes section ---
 
 
-def test_behavior_has_includes_key(data):
-    """behaviors/dot-discovery.yaml must include dot-core as a dependency."""
-    assert "includes" in data, "behaviors/dot-discovery.yaml must have 'includes' key"
+def test_behavior_does_not_have_includes_key(data):
+    """behaviors/dot-discovery.yaml must NOT have an 'includes' key.
+
+    dot-core is included by the dot-graph.yaml umbrella behavior which includes
+    both dot-core and dot-discovery. Re-including dot-core here would cause
+    double-injection of its context.
+    """
+    assert "includes" not in data, (
+        "behaviors/dot-discovery.yaml must NOT have 'includes' key "
+        "(dot-core is already included by dot-graph.yaml umbrella — do not re-include here)"
+    )
 
 
-def test_behavior_includes_is_list(data):
-    """includes must be a list."""
-    assert isinstance(data["includes"], list), "includes must be a list"
+def test_behavior_does_not_include_dot_core_directly(data):
+    """dot-graph:behaviors/dot-core must NOT be in an includes block.
 
-
-def test_behavior_includes_dot_core(data):
-    """includes must reference 'dot-graph:behaviors/dot-core'."""
+    dot-core is already provided via the dot-graph.yaml umbrella behavior.
+    Direct re-inclusion here would cause double-injection.
+    """
+    includes = data.get("includes")
+    if includes is None:
+        return  # No includes key — correct state
     bundle_refs = [
-        item.get("bundle") for item in data["includes"] if isinstance(item, dict)
+        item.get("bundle") for item in includes if isinstance(item, dict)
     ]
-    assert "dot-graph:behaviors/dot-core" in bundle_refs, (
-        f"includes must contain 'dot-graph:behaviors/dot-core', got: {bundle_refs}"
+    assert "dot-graph:behaviors/dot-core" not in bundle_refs, (
+        "dot-graph:behaviors/dot-core must NOT be directly included in dot-discovery.yaml "
+        "(already provided by dot-graph.yaml umbrella)"
     )
 
 

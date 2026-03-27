@@ -87,10 +87,16 @@ def test_bundle_md_body_has_heading():
     )
 
 
-def test_bundle_md_body_has_dot_awareness_mention():
-    """Markdown body must contain @mention for dot-graph:context/dot-awareness.md."""
+def test_bundle_md_body_does_not_have_dot_awareness_mention():
+    """Markdown body must NOT directly @mention dot-graph:context/dot-awareness.md.
+
+    dot-awareness.md is injected once via the composition chain:
+    bundle.md -> dot-graph.yaml -> dot-core.yaml -> context.include -> dot-awareness.md
+    Including it again in bundle.md body would cause double-injection.
+    """
     content = BUNDLE_MD_PATH.read_text()
     _, body = _parse_frontmatter(content)
-    assert "@dot-graph:context/dot-awareness.md" in body, (
-        "Markdown body must contain '@dot-graph:context/dot-awareness.md'"
+    assert "@dot-graph:context/dot-awareness.md" not in body, (
+        "Markdown body must NOT contain '@dot-graph:context/dot-awareness.md' "
+        "(already injected via dot-core.yaml context.include — removing duplicate prevents double-injection)"
     )

@@ -186,8 +186,8 @@ def test_behavior_agents_includes_architecture_writer(data):
 
 
 def test_behavior_agents_total_count(data):
-    """agents.include must contain exactly 10 agent references."""
+    """agents.include must contain exactly 11 agent references (10 original + discovery-orchestrator)."""
     actual = data["agents"]["include"]
-    assert len(actual) == 10, (
-        f"agents.include must have exactly 10 agents, got {len(actual)}: {actual}"
+    assert len(actual) == 11, (
+        f"agents.include must have exactly 11 agents, got {len(actual)}: {actual}"
     )

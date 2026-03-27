@@ -26,5 +26,5 @@ Discovery runs at three fidelity tiers: `quick` (patch affected files only), `st
 
 ## Delegation
 
-- **Codebase discovery** (generate architecture diagrams from code): delegate to the discovery pipeline recipe. It handles prescan, multi-agent investigation, consensus reconciliation, and hierarchical DOT assembly.
-- **Do NOT** invoke discovery agents directly — the recipe controls agent dispatch based on fidelity tier and topic selection.
+- **Codebase discovery** (generate architecture diagrams from code): delegate to `discovery-orchestrator`. It translates natural language investigation requests into the correct pipeline recipe invocation (quick or deep `discovery-pipeline`). Do NOT invoke discovery agents or pipeline recipes directly — the orchestrator handles routing.
+- **Do NOT** invoke discovery agents directly — `discovery-orchestrator` controls recipe selection based on fidelity signal.

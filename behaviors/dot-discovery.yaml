@@ -7,6 +7,7 @@ bundle:
 
 agents:
   include:
+    - dot-graph:discovery-orchestrator
     - dot-graph:discovery-prescan
     - dot-graph:discovery-code-tracer
     - dot-graph:discovery-behavior-observer

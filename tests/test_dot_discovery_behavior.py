@@ -1,7 +1,7 @@
 """
 Tests for behaviors/dot-discovery.yaml existence and required content.
-This behavior provides the discovery pipeline capability and includes
-dot-core as a dependency.
+This behavior provides the discovery pipeline capability.
+dot-core is provided via the dot-graph.yaml umbrella and is not re-included here.
 """
 
 from pathlib import Path

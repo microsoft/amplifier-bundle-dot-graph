@@ -170,11 +170,24 @@ def test_recipe_has_flat_steps_not_staged():
     assert isinstance(data["steps"], list), "steps must be a list"
 
 
-def test_recipe_has_exactly_3_steps():
-    """Recipe must have exactly 3 agent steps."""
+def test_recipe_has_exactly_4_steps():
+    """Recipe must have exactly 4 steps (1 bash + 3 agent steps)."""
     data = _load_recipe()
     steps = data.get("steps", [])
-    assert len(steps) == 3, f"Expected exactly 3 steps, got {len(steps)}"
+    step_ids = [s.get("id") for s in steps]
+    assert len(steps) == 4, (
+        f"Expected exactly 4 steps, got {len(steps)}. Step IDs: {step_ids}"
+    )
+
+
+def test_recipe_has_exactly_3_agent_steps():
+    """Recipe must have exactly 3 agent steps (steps with 'agent' field)."""
+    data = _load_recipe()
+    steps = data.get("steps", [])
+    agent_steps = [s for s in steps if "agent" in s]
+    assert len(agent_steps) == 3, (
+        f"Expected exactly 3 agent steps, got {len(agent_steps)}"
+    )
 
 
 # ---------------------------------------------------------------------------

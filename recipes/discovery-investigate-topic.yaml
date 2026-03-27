@@ -17,10 +17,65 @@ context:
   fidelity: "standard"
   repo_path: ""
   output_dir: ""
+  lens: "architecture"   # Investigation framing lens — architecture | security | quality | onboarding | debugging
 
 steps:
   # ---------------------------------------------------------------------------
-  # Step 1: Code Tracer — HOW things work
+  # Step 1: Lens Resolver — resolve investigation framing guidance
+  # Reads lens guidance from context/lenses/{lens}.md via 4 strategies.
+  # ---------------------------------------------------------------------------
+  - id: "lens-resolver"
+    type: "bash"
+    output: "lens_result"
+    parse_json: true
+    timeout: 10
+    command: |
+      python3 - <<'EOF'
+      import json, os, sys
+
+      lens = os.environ.get("RECIPE_CONTEXT_lens", "architecture")
+
+      guidance = ""
+
+      # Strategy 1: read context/lenses/{lens}.md from CWD (bundle root)
+      cwd_path = os.path.join(os.getcwd(), "context", "lenses", f"{lens}.md")
+      if os.path.exists(cwd_path):
+          with open(cwd_path) as f:
+              guidance = f.read().strip()
+
+      # Strategy 2: check DOT_GRAPH_BUNDLE_ROOT env var
+      if not guidance:
+          bundle_root = os.environ.get("DOT_GRAPH_BUNDLE_ROOT", "")
+          if bundle_root:
+              path = os.path.join(bundle_root, "context", "lenses", f"{lens}.md")
+              if os.path.exists(path):
+                  with open(path) as f:
+                      guidance = f.read().strip()
+
+      # Strategy 3: use importlib to find bundle root via package location
+      if not guidance:
+          try:
+              import importlib.util
+              spec = importlib.util.find_spec("amplifier_module_tool_dot_graph")
+              if spec and spec.origin:
+                  pkg_dir = os.path.dirname(spec.origin)
+                  bundle_root = os.path.dirname(pkg_dir)
+                  path = os.path.join(bundle_root, "context", "lenses", f"{lens}.md")
+                  if os.path.exists(path):
+                      with open(path) as f:
+                          guidance = f.read().strip()
+          except Exception:
+              pass
+
+      # Strategy 4: treat lens values >30 chars as inline free-text guidance
+      if not guidance and len(lens) > 30:
+          guidance = lens
+
+      print(json.dumps({"guidance": guidance, "lens": lens}))
+      EOF
+
+  # ---------------------------------------------------------------------------
+  # Step 2: Code Tracer — HOW things work
   # Traces actual code execution paths using LSP and filesystem tools.
   # Runs at standard and deep fidelity (skipped for quick).
   # ---------------------------------------------------------------------------
@@ -31,6 +86,11 @@ steps:
     spawn_mode: subprocess
     timeout: 1800
     prompt: |
+      {% if lens_result.guidance %}
+      ## Investigation Framing
+      {{lens_result.guidance}}
+
+      {% endif %}
       You are the code-tracer agent investigating the topic: {{topic_name}}.
 
       Your role is the HOW agent. Trace actual code execution paths through real
@@ -63,6 +123,11 @@ steps:
     spawn_mode: subprocess
     timeout: 1800
     prompt: |
+      {% if lens_result.guidance %}
+      ## Investigation Framing
+      {{lens_result.guidance}}
+
+      {% endif %}
       You are the behavior-observer agent investigating the topic: {{topic_name}}.
 
       Your role is the WHAT agent. Observe behavioral patterns by examining at
@@ -98,6 +163,11 @@ steps:
     spawn_mode: subprocess
     timeout: 1800
     prompt: |
+      {% if lens_result.guidance %}
+      ## Investigation Framing
+      {{lens_result.guidance}}
+
+      {% endif %}
       You are the integration-mapper agent investigating the topic: {{topic_name}}.
 
       Your role is the WHERE/WHY agent. Map how {{topic_name}} integrates across

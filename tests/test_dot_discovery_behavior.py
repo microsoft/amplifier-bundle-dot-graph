@@ -88,10 +88,9 @@ def test_behavior_does_not_include_dot_core_directly(data):
     """
     includes = data.get("includes")
     if includes is None:
-        return  # No includes key — correct state
-    bundle_refs = [
-        item.get("bundle") for item in includes if isinstance(item, dict)
-    ]
+        # Pass-through guard — the primary check is test_behavior_does_not_have_includes_key
+        return
+    bundle_refs = [item.get("bundle") for item in includes if isinstance(item, dict)]
     assert "dot-graph:behaviors/dot-core" not in bundle_refs, (
         "dot-graph:behaviors/dot-core must NOT be directly included in dot-discovery.yaml "
         "(already provided by dot-graph.yaml umbrella)"

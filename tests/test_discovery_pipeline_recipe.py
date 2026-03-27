@@ -17,8 +17,9 @@ Validates:
   combine reads from both (4)
 - All referenced sub-recipes exist on disk (3)
 - final_output declared (1)
+- resolve-context step: first step in scan stage, bash+parse_json, guards {{ (4)
 
-Total: 42 tests
+Total: 49 tests
 """
 
 from pathlib import Path
@@ -587,4 +588,55 @@ def test_recipe_context_has_6_variables():
     assert actual_keys == expected_keys, (
         f"Context must have exactly these keys: {sorted(expected_keys)}, "
         f"got: {sorted(actual_keys)}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# resolve-context step regression tests (4 tests) — Task A1d
+# ---------------------------------------------------------------------------
+
+
+def test_deep_pipeline_scan_stage_has_resolve_context_step():
+    """Scan stage must have a step with id='resolve-context'."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "scan", "resolve-context")
+    assert step is not None, (
+        "No step with id='resolve-context' found in scan stage. "
+        f"Step IDs: {[s.get('id') for s in _get_stage_steps(data, 'scan')]}"
+    )
+
+
+def test_deep_pipeline_resolve_context_is_bash_parse_json():
+    """resolve-context step must have type='bash' and parse_json=true."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "scan", "resolve-context")
+    assert step is not None
+    assert step.get("type") == "bash", (
+        f"resolve-context step must have type='bash', got: {step.get('type')!r}"
+    )
+    assert step.get("parse_json") is True, (
+        f"resolve-context step must have parse_json=true, got: {step.get('parse_json')!r}"
+    )
+
+
+def test_deep_pipeline_resolve_context_guards_template_expansion():
+    """resolve-context command must guard against unresolved template markers ('{{')."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "scan", "resolve-context")
+    assert step is not None
+    command = str(step.get("command", ""))
+    assert "{{" in command, (
+        "resolve-context command must contain a '{{' guard check to detect "
+        "unresolved template variables"
+    )
+
+
+def test_deep_pipeline_resolve_context_is_first_step():
+    """resolve-context must be the FIRST step in the scan stage."""
+    data = _load_recipe()
+    steps = _get_stage_steps(data, "scan")
+    assert steps, "Scan stage must have at least one step"
+    first_step_id = steps[0].get("id")
+    assert first_step_id == "resolve-context", (
+        f"First step in scan stage must be 'resolve-context', got: {first_step_id!r}"
     )

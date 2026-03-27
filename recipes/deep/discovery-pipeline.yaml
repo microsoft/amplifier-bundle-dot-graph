@@ -27,9 +27,38 @@ stages:
   - name: "scan"
     steps:
       # -----------------------------------------------------------------------
+      # Step 0: Resolve context — separate path resolution from prescan so the
+      # resolver always runs unconditionally before any downstream step.
+      # Reads repo_path and output_dir from recipe context, guards against
+      # unresolved template markers, and resolves output_dir to
+      # os.path.join(repo_path, '.discovery') when needed.
+      # -----------------------------------------------------------------------
+      - id: "resolve-context"
+        type: "bash"
+        output: "ctx"
+        parse_json: true
+        timeout: 10
+        command: |
+          python3 - <<'PYEOF'
+          import json, os
+
+          repo_path = "{{repo_path}}"
+          output_dir = "{{output_dir}}"
+
+          # Guard: if output_dir was left as an unresolved template, derive it
+          if not output_dir or "{{" in output_dir:
+              output_dir = os.path.join(repo_path, ".discovery")
+
+          print(json.dumps({
+              "repo_path": repo_path,
+              "output_dir": output_dir,
+          }))
+          PYEOF
+
+      # -----------------------------------------------------------------------
       # Step 1: Structural scan — run prescan to map repository layout
       # Invokes prescan via amplifier_module_tool_dot_graph.prescan and writes
-      # the result to {{output_dir}}/prescan-result.json.
+      # the result to {{ctx.output_dir}}/prescan-result.json.
       # -----------------------------------------------------------------------
       - id: "structural-scan"
         type: "bash"
@@ -37,25 +66,33 @@ stages:
         parse_json: true
         timeout: 60
         command: |
-          output_dir="{{output_dir}}"
-          mkdir -p "$output_dir"
           python3 - <<'PYEOF'
           import sys, json, os
+
+          repo_path = "{{ctx.repo_path}}"
+          output_dir = "{{ctx.output_dir}}"
+
+          os.makedirs(output_dir, exist_ok=True)
+
           sys.path.insert(0, 'modules/tool-dot-graph')
           try:
               from amplifier_module_tool_dot_graph import prescan
-              result = prescan.prescan_repo('{{repo_path}}')
+              result = prescan.prescan_repo(repo_path)
           except Exception as e:
               print(f'WARNING: prescan module unavailable ({e}), falling back to basic directory listing', file=sys.stderr)
               import pathlib
-              repo_path = pathlib.Path('{{repo_path}}')
-              files = [str(f.relative_to(repo_path)) for f in repo_path.rglob('*') if f.is_file() and '.git' not in str(f)]
-              result = {'success': True, 'repo_path': str(repo_path), 'total_files': len(files), 'modules': [], 'languages': {}, 'build_manifests': [], 'entry_points': []}
-          output_dir_path = '{{output_dir}}'
-          os.makedirs(output_dir_path, exist_ok=True)
-          with open(output_dir_path + '/prescan-result.json', 'w') as f:
+              rp = pathlib.Path(repo_path)
+              files = [str(f.relative_to(rp)) for f in rp.rglob('*') if f.is_file() and '.git' not in str(f)]
+              result = {'success': True, 'repo_path': repo_path, 'total_files': len(files), 'modules': [], 'languages': {}, 'build_manifests': [], 'entry_points': []}
+          with open(os.path.join(output_dir, 'prescan-result.json'), 'w') as f:
               json.dump(result, f, indent=2)
-          print(json.dumps({'success': result.get('success', True), 'total_files': result.get('total_files', 0), 'modules': len(result.get('modules', []))}, indent=2))
+          print(json.dumps({
+              'success': result.get('success', True),
+              'total_files': result.get('total_files', 0),
+              'modules': len(result.get('modules', [])),
+              'repo_path': repo_path,
+              'output_dir': output_dir,
+          }, indent=2))
           PYEOF
 
       # -----------------------------------------------------------------------
@@ -74,10 +111,10 @@ stages:
           Your task: analyze the prescan results and select 3-7 investigation
           topics that would best illuminate the architecture of this repository.
 
-          Repository: {{repo_path}}
+          Repository: {{ctx.repo_path}}
           Fidelity tier: {{fidelity}}
-          Output directory: {{output_dir}}
-          Prescan result file: {{output_dir}}/prescan-result.json
+          Output directory: {{scan_result.output_dir}}
+          Prescan result file: {{scan_result.output_dir}}/prescan-result.json
 
           Topic count guidelines:
           - standard fidelity: select 3-5 topics
@@ -87,7 +124,7 @@ stages:
           subsystem — something that, if well-understood, would clarify how the
           repository works as a whole.
 
-          Write the topics to {{output_dir}}/topics.json as a JSON array.
+          Write the topics to {{scan_result.output_dir}}/topics.json as a JSON array.
           Return your response as a JSON array only (no markdown, no explanation):
           [
             {
@@ -103,9 +140,9 @@ stages:
       prompt: |
         Prescan complete. Review investigation topics before strategies begin.
 
-        Repository:  {{repo_path}}
+        Repository:  {{ctx.repo_path}}
         Fidelity:    {{fidelity}}
-        Output dir:  {{output_dir}}
+        Output dir:  {{scan_result.output_dir}}
         Strategies:  {{strategies}}
 
         Scan result summary:
@@ -131,8 +168,8 @@ stages:
         recipe: "@dot-graph:recipes/deep/strategy-topdown.yaml"
         condition: "{{strategies}} == 'topdown' or {{strategies}} == 'both'"
         context:
-          repo_path: "{{repo_path}}"
-          output_dir: "{{output_dir}}/investigation/topdown"
+          repo_path: "{{scan_result.repo_path}}"
+          output_dir: "{{scan_result.output_dir}}/investigation/topdown"
           fidelity: "{{fidelity}}"
           render_png: "{{render_png}}"
           parent_topics_available: "true"
@@ -141,15 +178,15 @@ stages:
       # -----------------------------------------------------------------------
       # Step 2: Bottom-up investigation strategy
       # Runs when strategies is 'bottomup' or 'both'.
-      # Writes results to {{output_dir}}/investigation/bottomup/.
+      # Writes results to output_dir/investigation/bottomup/.
       # -----------------------------------------------------------------------
       - id: "run-bottomup"
         type: "recipe"
         recipe: "@dot-graph:recipes/deep/strategy-bottomup.yaml"
         condition: "{{strategies}} == 'bottomup' or {{strategies}} == 'both'"
         context:
-          repo_path: "{{repo_path}}"
-          output_dir: "{{output_dir}}/investigation/bottomup"
+          repo_path: "{{scan_result.repo_path}}"
+          output_dir: "{{scan_result.output_dir}}/investigation/bottomup"
           fidelity: "{{fidelity}}"
           render_png: "{{render_png}}"
         output: "bottomup_result"
@@ -169,10 +206,10 @@ stages:
         recipe: "@dot-graph:recipes/deep/discovery-combine.yaml"
         condition: "{{strategies}} == 'both'"
         context:
-          repo_path: "{{repo_path}}"
-          topdown_dir: "{{output_dir}}/investigation/topdown"
-          bottomup_dir: "{{output_dir}}/investigation/bottomup"
-          output_dir: "{{output_dir}}/output"
+          repo_path: "{{scan_result.repo_path}}"
+          topdown_dir: "{{scan_result.output_dir}}/investigation/topdown"
+          bottomup_dir: "{{scan_result.output_dir}}/investigation/bottomup"
+          output_dir: "{{scan_result.output_dir}}/output"
           render_png: "{{render_png}}"
           node_target: "{{node_target}}"
         output: "combine_result"

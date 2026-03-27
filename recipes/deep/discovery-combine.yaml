@@ -22,6 +22,50 @@ context:
 
 steps:
   # ---------------------------------------------------------------------------
+  # Step 0: resolve-context — resolve path context defaults
+  # Guards topdown_dir, bottomup_dir, and output_dir against unresolved
+  # {{repo_path}} template placeholders. Outputs a 'ctx' object used by all
+  # downstream steps.
+  # ---------------------------------------------------------------------------
+  - id: "resolve-context"
+    type: "bash"
+    output: "ctx"
+    parse_json: true
+    timeout: 10
+    command: |
+      python3 - <<'EOF'
+      import json
+      import os
+
+      repo_path = "{{repo_path}}"
+      topdown_dir = "{{topdown_dir}}"
+      bottomup_dir = "{{bottomup_dir}}"
+      output_dir = "{{output_dir}}"
+
+      # Unresolved template guard: if topdown_dir is empty or still contains
+      # a '{{' placeholder, resolve it from repo_path at runtime.
+      if not topdown_dir or '{{' in topdown_dir:
+          topdown_dir = os.path.join(repo_path, '.discovery', 'investigation', 'topdown')
+
+      # Unresolved template guard: if bottomup_dir is empty or still contains
+      # a '{{' placeholder, resolve it from repo_path at runtime.
+      if not bottomup_dir or '{{' in bottomup_dir:
+          bottomup_dir = os.path.join(repo_path, '.discovery', 'investigation', 'bottomup')
+
+      # Unresolved template guard: if output_dir is empty or still contains
+      # a '{{' placeholder, resolve it from repo_path at runtime.
+      if not output_dir or '{{' in output_dir:
+          output_dir = os.path.join(repo_path, '.discovery/output')
+
+      print(json.dumps({
+          "repo_path": repo_path,
+          "topdown_dir": topdown_dir,
+          "bottomup_dir": bottomup_dir,
+          "output_dir": output_dir,
+      }))
+      EOF
+
+  # ---------------------------------------------------------------------------
   # Step 1: check-inputs — verify strategy output directories exist
   # Uses test -d to check for each directory. Logs a warning if either is
   # missing but does NOT fail hard — allows degraded mode where only one
@@ -33,9 +77,9 @@ steps:
     command: |
       echo "=== discovery-combine: checking strategy output directories ==="
 
-      topdown_dir="{{topdown_dir}}"
-      bottomup_dir="{{bottomup_dir}}"
-      output_dir="{{output_dir}}"
+      topdown_dir="{{ctx.topdown_dir}}"
+      bottomup_dir="{{ctx.bottomup_dir}}"
+      output_dir="{{ctx.output_dir}}"
 
       # Check top-down directory
       if test -d "$topdown_dir"; then
@@ -65,10 +109,10 @@ steps:
   # ---------------------------------------------------------------------------
   # Step 2: combine — dispatch discovery-combiner agent
   # Agent reads all DOT files from both strategy directories and produces:
-  #   - {{output_dir}}/combined.dot — unified diagram with findings classified as
+  #   - {{ctx.output_dir}}/combined.dot — unified diagram with findings classified as
   #     Convergence (both strategies agree), Top-down-only, Bottom-up-only,
   #     or Divergence (tracked as D-01, D-02, ...)
-  #   - {{output_dir}}/discrepancies.md — detailed divergence report
+  #   - {{ctx.output_dir}}/discrepancies.md — detailed divergence report
   # ---------------------------------------------------------------------------
   - id: "combine"
     agent: "dot-graph:discovery-combiner"
@@ -81,10 +125,10 @@ steps:
       strategies — top-down and bottom-up — to produce a unified architectural
       view that captures where the strategies agree and where they differ.
 
-      Repository: {{repo_path}}
-      Top-down strategy output: {{topdown_dir}}
-      Bottom-up strategy output: {{bottomup_dir}}
-      Output directory: {{output_dir}}
+      Repository: {{ctx.repo_path}}
+      Top-down strategy output: {{ctx.topdown_dir}}
+      Bottom-up strategy output: {{ctx.bottomup_dir}}
+      Output directory: {{ctx.output_dir}}
 
       Classify every finding into one of four categories:
       - Convergence: both strategies identified the same element/relationship
@@ -95,7 +139,7 @@ steps:
       Read all DOT files (*.dot) from both strategy directories. For each DOT
       file, extract nodes and edges to understand what each strategy discovered.
 
-      Output: Write the following artifacts to {{output_dir}}/:
+      Output: Write the following artifacts to {{ctx.output_dir}}/:
         - combined.dot — Unified DOT graph that represents both strategy views.
           Use node/edge styling to distinguish convergence vs. strategy-specific
           findings. Include a legend. Keep the diagram well-structured.
@@ -127,12 +171,12 @@ steps:
       sys.path.insert(0, 'modules/tool-dot-graph')
       try:
           from amplifier_module_tool_dot_graph import validate
-          content = open('{{output_dir}}/combined.dot').read()
+          content = open('{{ctx.output_dir}}/combined.dot').read()
           r = validate.validate_dot(content)
           print('VALID' if r['valid'] else 'INVALID')
           for i in r.get('issues', []): print(i)
       except FileNotFoundError:
-          print('WARNING: combined.dot not found at {{output_dir}}/combined.dot')
+          print('WARNING: combined.dot not found at {{ctx.output_dir}}/combined.dot')
           print('         Skipping validation (combine step may not have produced output)')
       except Exception as e:
           print(f'WARNING: validation skipped ({e})')
@@ -148,7 +192,7 @@ steps:
     condition: "{{render_png}} == 'true'"
     timeout: 30
     command: |
-      output_dir="{{output_dir}}"
+      output_dir="{{ctx.output_dir}}"
       dot -Tpng -Gdpi=150 "${output_dir}/combined.dot" -o "${output_dir}/combined.png" 2>/dev/null || true
       if [ -f "${output_dir}/combined.png" ]; then
         echo "Rendered: ${output_dir}/combined.png"
@@ -171,7 +215,7 @@ steps:
       import shutil
       from pathlib import Path
 
-      output_dir = "{{output_dir}}"
+      output_dir = "{{ctx.output_dir}}"
       output_root = Path(output_dir)
       output_root.mkdir(parents=True, exist_ok=True)
 
@@ -199,18 +243,18 @@ steps:
       Your task: read all findings and produce a polished overview.md
       that serves as the human-readable entry point to the discovery results.
 
-      Repository: {{repo_path}}
-      Output directory: {{output_dir}}
+      Repository: {{ctx.repo_path}}
+      Output directory: {{ctx.output_dir}}
       Node target for overview: {{node_target}}
 
       Read the combined output from:
-        {{output_dir}}/
+        {{ctx.output_dir}}/
 
       Look for per-module findings, combined.dot, discrepancies.md, and any
       per-strategy investigation artifacts.
 
       Write overview.md to:
-        {{output_dir}}/overview.md
+        {{ctx.output_dir}}/overview.md
 
       Structure overview.md with:
       1. Executive summary (2-3 sentences)
@@ -235,7 +279,7 @@ steps:
       from datetime import datetime, timezone
       from pathlib import Path
 
-      repo_path = "{{repo_path}}"
+      repo_path = "{{ctx.repo_path}}"
       output_dir = os.path.join(repo_path, ".discovery")
 
       try:

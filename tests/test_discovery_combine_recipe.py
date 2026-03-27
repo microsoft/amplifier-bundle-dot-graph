@@ -7,9 +7,11 @@ Validates:
 - Top-level metadata: name, description, version, author, tags (5 tests)
 - Context variables: repo_path, topdown_dir, bottomup_dir, output_dir,
   render_png default 'true', node_target default '25' (6 tests)
-- Steps structure: flat steps, 7 steps, correct order
-  [check-inputs, combine, validate, render, hoist-outputs, summarize,
+- Steps structure: flat steps, 8 steps, correct order
+  [resolve-context, check-inputs, combine, validate, render, hoist-outputs, summarize,
   update-metadata] (3 tests)
+- resolve-context step: type=bash, parse_json=true, output='ctx', timeout=10,
+  guards all three path vars, is first step (4 tests)
 - check-inputs step: type=bash, references topdown_dir, references bottomup_dir,
   handles missing dirs gracefully (no hard fail) (4 tests)
 - combine step: agent='dot-graph:discovery-combiner', timeout>=600,
@@ -23,7 +25,7 @@ Validates:
 - update-metadata step: type=bash, writes last-run.json with pipeline=deep (1 test)
 - Agent is declared in behaviors/dot-discovery.yaml (1 test)
 
-Total: 2 + 5 + 6 + 3 + 4 + 4 + 3 + 4 + 1 + 1 + 1 + 1 = 35 tests
+Total: 2 + 5 + 6 + 3 + 4 + 4 + 4 + 3 + 4 + 1 + 1 + 1 + 1 = 39 tests
 """
 
 from pathlib import Path
@@ -54,6 +56,11 @@ def _get_step_by_id(data: dict, step_id: str) -> dict | None:
         if step.get("id") == step_id:
             return step
     return None
+
+
+def _get_flat_step_by_id(data: dict, step_id: str) -> dict | None:
+    """Get a step from the flat steps list by its id. Alias for _get_step_by_id."""
+    return _get_step_by_id(data, step_id)
 
 
 # ---------------------------------------------------------------------------
@@ -212,20 +219,21 @@ def test_recipe_has_flat_steps_not_staged():
     assert isinstance(data["steps"], list), "steps must be a list"
 
 
-def test_recipe_has_exactly_7_steps():
-    """Recipe must have exactly 7 flat steps."""
+def test_recipe_has_exactly_8_steps():
+    """Recipe must have exactly 8 flat steps (resolve-context + 7 original steps)."""
     data = _load_recipe()
     steps = _get_steps(data)
-    assert len(steps) == 7, f"Expected exactly 7 steps, got {len(steps)}"
+    assert len(steps) == 8, f"Expected exactly 8 steps, got {len(steps)}"
 
 
 def test_recipe_steps_correct_order():
-    """Steps must be in order: [check-inputs, combine, validate, render, hoist-outputs, summarize, update-metadata]."""
+    """Steps must be in order: [resolve-context, check-inputs, combine, validate, render, hoist-outputs, summarize, update-metadata]."""
     data = _load_recipe()
     steps = _get_steps(data)
-    assert len(steps) == 7, f"Expected 7 steps to check order, got {len(steps)}"
+    assert len(steps) == 8, f"Expected 8 steps to check order, got {len(steps)}"
     step_ids = [s.get("id") for s in steps]
     expected = [
+        "resolve-context",
         "check-inputs",
         "combine",
         "validate",
@@ -234,8 +242,89 @@ def test_recipe_steps_correct_order():
         "summarize",
         "update-metadata",
     ]
-    assert step_ids == expected, (
-        f"Steps must be in order {expected}, got: {step_ids}"
+    assert step_ids == expected, f"Steps must be in order {expected}, got: {step_ids}"
+
+
+# ---------------------------------------------------------------------------
+# resolve-context step (4 tests)
+# ---------------------------------------------------------------------------
+
+
+def test_discovery_combine_has_resolve_context_step():
+    """Recipe must have a 'resolve-context' step."""
+    data = _load_recipe()
+    step = _get_flat_step_by_id(data, "resolve-context")
+    assert step is not None, (
+        f"No step with id='resolve-context' found. "
+        f"Step IDs: {[s.get('id') for s in _get_steps(data)]}"
+    )
+
+
+def test_discovery_combine_resolve_context_is_bash_parse_json():
+    """resolve-context step must be type='bash', parse_json=true, output='ctx', timeout=10."""
+    data = _load_recipe()
+    step = _get_flat_step_by_id(data, "resolve-context")
+    assert step is not None, "No resolve-context step found"
+    assert step.get("type") == "bash", (
+        f"resolve-context step must have type='bash', got: {step.get('type')!r}"
+    )
+    assert step.get("parse_json") is True, (
+        f"resolve-context step must have parse_json=true, got: {step.get('parse_json')!r}"
+    )
+    assert step.get("output") == "ctx", (
+        f"resolve-context step must have output='ctx', got: {step.get('output')!r}"
+    )
+    assert step.get("timeout") == 10, (
+        f"resolve-context step must have timeout=10, got: {step.get('timeout')!r}"
+    )
+
+
+def test_discovery_combine_resolve_context_guards_template_expansion():
+    """resolve-context step command must guard all three path vars (output_dir, topdown_dir, bottomup_dir)."""
+    data = _load_recipe()
+    step = _get_flat_step_by_id(data, "resolve-context")
+    assert step is not None, "No resolve-context step found"
+    command = step.get("command", "")
+    assert isinstance(command, str) and command.strip(), (
+        "resolve-context step must have a non-empty command"
+    )
+    # topdown_dir guard: must resolve to .discovery/investigation/topdown
+    assert "topdown" in command, (
+        "resolve-context command must guard topdown_dir path var"
+    )
+    assert ".discovery/investigation/topdown" in command or (
+        "investigation" in command and "topdown" in command
+    ), (
+        "resolve-context command must include topdown guard resolving to "
+        ".discovery/investigation/topdown"
+    )
+    # bottomup_dir guard: must resolve to .discovery/investigation/bottomup
+    assert "bottomup" in command, (
+        "resolve-context command must guard bottomup_dir path var"
+    )
+    assert ".discovery/investigation/bottomup" in command or (
+        "investigation" in command and "bottomup" in command
+    ), (
+        "resolve-context command must include bottomup guard resolving to "
+        ".discovery/investigation/bottomup"
+    )
+    # output_dir guard: must resolve to .discovery/output
+    assert "output_dir" in command, (
+        "resolve-context command must guard output_dir path var"
+    )
+    assert ".discovery/output" in command, (
+        "resolve-context command must include output_dir guard resolving to .discovery/output"
+    )
+
+
+def test_discovery_combine_resolve_context_is_first_step():
+    """resolve-context step must be the first step in the recipe."""
+    data = _load_recipe()
+    steps = _get_steps(data)
+    assert steps, "Recipe must have at least one step"
+    first_step = steps[0]
+    assert first_step.get("id") == "resolve-context", (
+        f"First step must be 'resolve-context', got: {first_step.get('id')!r}"
     )
 
 

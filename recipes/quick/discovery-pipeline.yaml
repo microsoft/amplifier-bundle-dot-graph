@@ -24,6 +24,7 @@ context:
   output_dir: "{{repo_path}}/.discovery" # Optional: resolved in change-detect to avoid nested template gotcha
   render_png: "true"                     # Optional: render assembled DOTs to PNG (default: true)
   node_target: "25"                      # Optional: target node count per diagram (default: 25)
+  lens: "architecture"                   # Optional: investigation framing lens (default: architecture)
 
 max_concurrent_llm: 4
 
@@ -294,6 +295,7 @@ stages:
           fidelity: "{{fidelity}}"
           repo_path: "{{change_result.repo_path}}"
           output_dir: "{{change_result.output_dir}}"
+          lens: "{{lens}}"
         output: "investigation_results"
         timeout: 7200
 

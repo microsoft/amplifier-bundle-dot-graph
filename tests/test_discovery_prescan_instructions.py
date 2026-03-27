@@ -3,6 +3,7 @@ Tests for context/discovery-prescan-instructions.md existence and required conte
 Covers the Topic Selection Methodology for the prescan agent.
 """
 
+import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -77,7 +78,6 @@ def test_prescan_instructions_documents_flat_array_format():
     # Must NOT present the nested topics wrapper as the output format
     # (it should document a flat array)
     # Check that there's a JSON code block starting with '[' (flat array)
-    import re
     json_blocks = re.findall(r"```json\s*(.*?)```", content, re.DOTALL)
     assert json_blocks, "Must contain at least one JSON code block"
     flat_array_blocks = [b for b in json_blocks if b.strip().startswith("[")]
@@ -110,8 +110,7 @@ def test_prescan_instructions_explains_slug_drives_directories():
     content = PRESCAN_INSTRUCTIONS_PATH.read_text()
     # Must mention specific directory path pattern using slug
     assert any(
-        phrase in content
-        for phrase in ["output/modules/", "modules/{slug}", "{slug}"]
+        phrase in content for phrase in ["output/modules/", "modules/{slug}", "{slug}"]
     ), (
         "Must explain that slug drives directory path construction, "
         "e.g. referencing 'output/modules/{slug}/' pattern"

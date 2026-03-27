@@ -3,6 +3,7 @@ Tests for agents/discovery-prescan.md existence and required content.
 TDD: This test is written BEFORE the agents/discovery-prescan.md file is created.
 """
 
+import re
 from pathlib import Path
 
 from conftest import _parse_frontmatter
@@ -160,8 +161,6 @@ def test_discovery_prescan_contract_documents_slug_field():
 
 def test_discovery_prescan_contract_shows_flat_array_example():
     """JSON code block in Required Artifacts must show flat array starting with '['."""
-    import re
-
     content = PRESCAN_AGENT_PATH.read_text()
     json_blocks = re.findall(r"```json\s*(.*?)```", content, re.DOTALL)
     assert json_blocks, "Must contain at least one JSON code block"

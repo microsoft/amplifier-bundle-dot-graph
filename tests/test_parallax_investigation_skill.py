@@ -25,12 +25,8 @@ def test_parallax_investigation_skill_is_not_empty():
 def test_parallax_investigation_skill_has_yaml_frontmatter():
     """SKILL.md must start with YAML frontmatter (---)."""
     content = SKILL_PATH.read_text()
-    assert content.startswith("---"), (
-        "SKILL.md must start with YAML frontmatter (---)"
-    )
-    assert content.count("---") >= 2, (
-        "SKILL.md must have closing --- for frontmatter"
-    )
+    assert content.startswith("---"), "SKILL.md must start with YAML frontmatter (---)"
+    assert content.count("---") >= 2, "SKILL.md must have closing --- for frontmatter"
 
 
 def test_parallax_investigation_skill_documents_three_perspectives():

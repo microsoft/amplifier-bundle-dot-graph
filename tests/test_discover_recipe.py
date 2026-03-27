@@ -56,9 +56,7 @@ def _get_step_by_id(data: dict, step_id: str) -> dict | None:
 
 def test_discover_recipe_file_exists():
     """recipes/discover.yaml must exist."""
-    assert RECIPE_PATH.exists(), (
-        f"recipes/discover.yaml not found at {RECIPE_PATH}"
-    )
+    assert RECIPE_PATH.exists(), f"recipes/discover.yaml not found at {RECIPE_PATH}"
 
 
 def test_discover_recipe_parses_as_valid_yaml():
@@ -77,7 +75,9 @@ def test_discover_recipe_context_has_repo_path():
     """Context must declare repo_path."""
     data = _load_recipe()
     ctx = data.get("context", {})
-    assert "repo_path" in ctx, f"Context missing 'repo_path'. Context keys: {list(ctx.keys())}"
+    assert "repo_path" in ctx, (
+        f"Context missing 'repo_path'. Context keys: {list(ctx.keys())}"
+    )
 
 
 def test_discover_recipe_context_has_mode():
@@ -100,7 +100,9 @@ def test_discover_recipe_context_has_fidelity():
     """Context must declare fidelity."""
     data = _load_recipe()
     ctx = data.get("context", {})
-    assert "fidelity" in ctx, f"Context missing 'fidelity'. Context keys: {list(ctx.keys())}"
+    assert "fidelity" in ctx, (
+        f"Context missing 'fidelity'. Context keys: {list(ctx.keys())}"
+    )
 
 
 def test_discover_recipe_context_has_lens():
@@ -155,9 +157,7 @@ def test_discover_recipe_has_resolve_mode_step():
     """Recipe must have a step with id='resolve-mode'."""
     data = _load_recipe()
     step = _get_step_by_id(data, "resolve-mode")
-    assert step is not None, (
-        "No step with id='resolve-mode' found in flat steps list"
-    )
+    assert step is not None, "No step with id='resolve-mode' found in flat steps list"
 
 
 def test_resolve_mode_is_bash_with_parse_json():
@@ -226,9 +226,7 @@ def test_discover_recipe_has_run_pipeline_step():
     """Recipe must have a step with id='run-pipeline'."""
     data = _load_recipe()
     step = _get_step_by_id(data, "run-pipeline")
-    assert step is not None, (
-        "No step with id='run-pipeline' found in flat steps list"
-    )
+    assert step is not None, "No step with id='run-pipeline' found in flat steps list"
 
 
 def test_run_pipeline_is_type_recipe():

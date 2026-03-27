@@ -112,7 +112,7 @@ steps:
       Focus exclusively on HOW the {{topic_name}} mechanism works in code.
 
   # ---------------------------------------------------------------------------
-  # Step 2: Behavior Observer — WHAT patterns emerge
+  # Step 3: Behavior Observer — WHAT patterns emerge
   # Observes behavioral patterns by examining many real artifacts (10+ instances).
   # Runs at deep fidelity only.
   # ---------------------------------------------------------------------------
@@ -152,7 +152,7 @@ steps:
       Report what actually exists, not what the docs claim.
 
   # ---------------------------------------------------------------------------
-  # Step 3: Integration Mapper — WHERE/WHY things connect
+  # Step 4: Integration Mapper — WHERE/WHY things connect
   # Maps cross-boundary integration and composition effects.
   # Runs at standard and deep fidelity (skipped for quick).
   # ---------------------------------------------------------------------------

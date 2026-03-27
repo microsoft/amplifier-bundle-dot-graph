@@ -1,0 +1,93 @@
+name: "discover"
+description: >
+  Top-level discovery entry point. Routes to quick or deep pipeline based on
+  mode. Auto-mode counts repository files and routes to quick (< 50 files) or
+  deep (>= 50 files). Thin routing recipe that delegates to the appropriate
+  pipeline sub-recipe based on repository size or explicit mode selection.
+version: "1.0.0"
+author: "DOT Graph Bundle"
+tags: ["discovery", "pipeline", "entry-point", "routing"]
+
+context:
+  repo_path: ""           # Required: path to target repository
+  mode: "auto"            # Optional: auto | quick | deep (default: auto)
+  fidelity: "standard"    # Optional: quick | standard | deep (default: standard)
+  lens: "architecture"    # Optional: architecture | security | quality | onboarding | debugging (default: architecture)
+  node_target: "25"       # Optional: target node count per overview diagram (default: 25)
+
+steps:
+  # ---------------------------------------------------------------------------
+  # Step 1: Resolve mode — determine which pipeline to run based on mode
+  # ---------------------------------------------------------------------------
+  # If mode == 'quick': routes to quick/discovery-pipeline.yaml
+  # If mode == 'deep': routes to deep/discovery-pipeline.yaml
+  # If mode == 'auto': counts files in repo_path; < 50 -> quick, >= 50 -> deep
+  # ---------------------------------------------------------------------------
+  - id: "resolve-mode"
+    type: "bash"
+    output: "mode_result"
+    parse_json: true
+    timeout: 15
+    command: |
+      python3 - <<'PYEOF'
+      import json, os, sys
+
+      mode = "{{mode}}"
+      repo_path = "{{repo_path}}"
+
+      # Validate repo_path
+      if not repo_path or "{{" in repo_path:
+          print(json.dumps({"error": "repo_path is required and must not be empty"}), file=sys.stderr)
+          sys.exit(1)
+
+      # Resolve pipeline based on mode
+      if mode == "quick":
+          recipe_path = "@dot-graph:recipes/quick/discovery-pipeline.yaml"
+          resolved_mode = "quick"
+      elif mode == "deep":
+          recipe_path = "@dot-graph:recipes/deep/discovery-pipeline.yaml"
+          resolved_mode = "deep"
+      elif mode == "auto":
+          # Count files in repo_path to determine which pipeline to use
+          try:
+              file_count = 0
+              for root, dirs, files in os.walk(repo_path):
+                  # Skip hidden directories (like .git, .discovery)
+                  dirs[:] = [d for d in dirs if not d.startswith('.')]
+                  file_count += len(files)
+              if file_count < 50:
+                  recipe_path = "@dot-graph:recipes/quick/discovery-pipeline.yaml"
+                  resolved_mode = "quick"
+              else:
+                  recipe_path = "@dot-graph:recipes/deep/discovery-pipeline.yaml"
+                  resolved_mode = "deep"
+          except Exception as e:
+              # Default to deep on error
+              recipe_path = "@dot-graph:recipes/deep/discovery-pipeline.yaml"
+              resolved_mode = "deep"
+      else:
+          # Unknown mode — default to deep
+          recipe_path = "@dot-graph:recipes/deep/discovery-pipeline.yaml"
+          resolved_mode = "deep"
+
+      print(json.dumps({
+          "recipe_path": recipe_path,
+          "mode": resolved_mode,
+          "repo_path": repo_path,
+      }))
+      PYEOF
+
+  # ---------------------------------------------------------------------------
+  # Step 2: Run pipeline — delegate to the appropriate discovery pipeline
+  # ---------------------------------------------------------------------------
+  - id: "run-pipeline"
+    type: "recipe"
+    recipe: "{{mode_result.recipe_path}}"
+    output: "pipeline_result"
+    timeout: 14400
+    context:
+      repo_path: "{{mode_result.repo_path}}"
+      fidelity: "{{fidelity}}"
+      node_target: "{{node_target}}"
+
+final_output: "pipeline_result"

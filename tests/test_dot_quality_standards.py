@@ -360,8 +360,8 @@ def test_quality_standards_legend_must_document_each_edge_style(doc_content):
     """Authoring Rules must state the legend must include a row for each edge style used."""
     content_lower = doc_content.lower()
     assert "legend" in content_lower, "Authoring Rules must mention 'legend'"
-    assert "each" in content_lower or "row" in content_lower, (
-        "Authoring Rules must state legend must document 'each' style or include a 'row' per style"
+    assert "row for each" in content_lower, (
+        "Authoring Rules must state the legend must include a 'row for each' style used"
     )
 
 

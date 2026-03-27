@@ -92,6 +92,41 @@ Used by the `diagram-reviewer` agent and the `dot_validate` tool during automate
 
 ---
 
+## Authoring Rules
+
+### Multi-Style Edge Diagrams
+
+If a diagram uses more than one edge style (solid, dashed, dotted, bold), the legend MUST include a row for each style with its semantic meaning. Do not assume the reader knows which style means which relationship.
+
+**Example legend rows for a multi-style edge diagram:**
+
+| Edge Style | DOT Attribute | Meaning |
+|---|---|---|
+| Solid | `style=solid` | Synchronous call |
+| Dashed | `style=dashed` | Optional delegation |
+| Dotted | `style=dotted` | Read-only access |
+| Bold | `style=bold` | Critical path |
+
+> A reader should never need to guess what a line style means.
+
+### Shape Vocabulary
+
+Before assigning shapes to nodes, define your shape vocabulary in a comment block at the top of the diagram. Do not reuse a shape for a different semantic role within the same diagram.
+
+**Example DOT comment block:**
+
+```dot
+// Shape vocabulary for this diagram:
+// ellipse  = actor (human or external system)
+// box      = component (internal service or module)
+// cylinder = data store (database, cache, file system)
+// octagon  = halt/terminal state (end of flow, error exit)
+```
+
+> If a box means component in cluster A, it must mean component throughout the entire diagram.
+
+---
+
 ## Anti-Patterns
 
 ### Structural

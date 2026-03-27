@@ -338,3 +338,60 @@ def test_reconciliation_principle_explains_purpose(doc_content):
     assert "artifact" in content_lower or "reconcil" in content_lower, (
         "Reconciliation Principle must describe diagrams as reconciliation artifacts"
     )
+
+
+# --- Authoring Rules section ---
+
+
+def test_quality_standards_requires_legend_for_multiple_edge_styles(doc_content):
+    """Authoring Rules must require a legend when multiple edge styles are used."""
+    content_lower = doc_content.lower()
+    assert (
+        "more than one edge style" in content_lower
+        or "multiple edge styles" in content_lower
+        or "multi-style" in content_lower
+    ), (
+        "Authoring Rules must mention multi-style edge diagram legend requirement "
+        "(e.g. 'more than one edge style', 'multiple edge styles', or 'multi-style')"
+    )
+
+
+def test_quality_standards_legend_must_document_each_edge_style(doc_content):
+    """Authoring Rules must state the legend must include a row for each edge style used."""
+    content_lower = doc_content.lower()
+    assert "legend" in content_lower, "Authoring Rules must mention 'legend'"
+    assert "each" in content_lower or "row" in content_lower, (
+        "Authoring Rules must state legend must document 'each' style or include a 'row' per style"
+    )
+
+
+def test_quality_standards_requires_shape_vocabulary_comment(doc_content):
+    """Authoring Rules must require a shape vocabulary comment block in diagrams."""
+    content_lower = doc_content.lower()
+    assert (
+        "shape vocabulary" in content_lower
+        or "vocabulary comment" in content_lower
+        or "comment block" in content_lower
+        or "define your shape" in content_lower
+        or "shape vocab" in content_lower
+    ), (
+        "Authoring Rules must describe the shape vocabulary comment block requirement "
+        "(e.g. 'shape vocabulary', 'vocabulary comment', 'comment block', "
+        "'define your shape', or 'shape vocab')"
+    )
+
+
+def test_quality_standards_prohibits_shape_reuse_across_roles(doc_content):
+    """Authoring Rules must prohibit reusing a shape for a different semantic role."""
+    content_lower = doc_content.lower()
+    assert (
+        "do not reuse" in content_lower
+        or "not reuse a shape" in content_lower
+        or "reuse a shape" in content_lower
+        or "same shape for a different" in content_lower
+        or "different semantic role" in content_lower
+    ), (
+        "Authoring Rules must prohibit shape reuse across different semantic roles "
+        "(e.g. 'do not reuse', 'not reuse a shape', 'reuse a shape', "
+        "'same shape for a different', or 'different semantic role')"
+    )

@@ -20,6 +20,7 @@ context:
   output_dir: "{{repo_path}}/.discovery/investigation/topdown"  # Optional: defaults to {{repo_path}}/.discovery/investigation/topdown
   fidelity: "standard"      # Optional: quick | standard | deep (default: standard)
   parent_topics_available: ""  # Set to "true" by parent pipeline when topics already selected
+  lens: "architecture"      # Optional: investigation framing lens (default: architecture)
 
 stages:
   # ---------------------------------------------------------------------------
@@ -297,6 +298,7 @@ stages:
           fidelity: "{{fidelity}}"
           repo_path: "{{ctx.repo_path}}"
           output_dir: "{{ctx.output_dir}}"
+          lens: "{{lens}}"
         output: "investigation_results"
         timeout: 7200
 

@@ -571,8 +571,8 @@ def test_recipe_context_node_target_default_25():
     )
 
 
-def test_recipe_context_has_6_variables():
-    """Context must declare exactly 6 variables after adding node_target."""
+def test_recipe_context_has_7_variables():
+    """Context must declare exactly 7 variables after adding lens."""
     data = _load_recipe()
     ctx = data.get("context", {})
     expected_keys = {
@@ -582,6 +582,7 @@ def test_recipe_context_has_6_variables():
         "render_png",
         "strategies",
         "node_target",
+        "lens",
     }
     actual_keys = set(ctx.keys())
     assert actual_keys == expected_keys, (

@@ -20,6 +20,7 @@ context:
   repo_path: ""             # Required: path to target repository
   output_dir: "{{repo_path}}/.discovery/investigation/bottomup"  # Optional: defaults to {{repo_path}}/.discovery/investigation/bottomup
   fidelity: "standard"      # Optional: quick | standard | deep (default: standard)
+  lens: "architecture"      # Optional: investigation framing lens (default: architecture)
 
 stages:
   # ---------------------------------------------------------------------------

@@ -17,6 +17,7 @@ context:
   render_png: "true"                    # Optional: render assembled DOTs to PNG (default: true)
   strategies: "both"                    # Optional: topdown | bottomup | both (default: both)
   node_target: "25"                     # Optional: soft target for overview DOT node count (default: 25)
+  lens: "architecture"                  # Optional: investigation framing lens (default: architecture)
 
 max_concurrent_llm: 4
 
@@ -173,6 +174,7 @@ stages:
           fidelity: "{{fidelity}}"
           render_png: "{{render_png}}"
           parent_topics_available: "true"
+          lens: "{{lens}}"
         output: "topdown_result"
 
       # -----------------------------------------------------------------------
@@ -189,6 +191,7 @@ stages:
           output_dir: "{{scan_result.output_dir}}/investigation/bottomup"
           fidelity: "{{fidelity}}"
           render_png: "{{render_png}}"
+          lens: "{{lens}}"
         output: "bottomup_result"
 
   # ---------------------------------------------------------------------------

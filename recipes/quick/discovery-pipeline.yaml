@@ -241,7 +241,12 @@ stages:
           from pathlib import Path
 
           output_dir = "{{change_result.output_dir}}"
-          topics_raw = {{topics}}
+
+          # Read topics from disk instead of template substitution
+          # (the template engine may serialize the list as a Python repr, not valid JSON)
+          import os
+          topics_file = os.path.join(output_dir, "topics.json")
+          topics_raw = json.loads(open(topics_file).read())
 
           agent_names = ["code-tracer", "behavior-observer", "integration-mapper"]
           created = []
@@ -268,6 +273,7 @@ stages:
               "created_dirs": created,
               "topic_count": len(created),
               "topics_path": str(topics_path),
+              "topics": topics_raw,
           }))
           EOF
 
@@ -279,7 +285,7 @@ stages:
       # -----------------------------------------------------------------------
       - id: "investigate-topics"
         type: "recipe"
-        foreach: "{{topics}}"
+        foreach: "{{prep_result.topics}}"
         parallel: true
         as: "topic"
         recipe: "@dot-graph:recipes/discovery-investigate-topic.yaml"
@@ -304,7 +310,7 @@ stages:
       # -----------------------------------------------------------------------
       - id: "reconcile-modules"
         type: "recipe"
-        foreach: "{{topics}}"
+        foreach: "{{prep_result.topics}}"
         parallel: true
         as: "topic"
         recipe: "@dot-graph:recipes/discovery-synthesize-module.yaml"
@@ -530,7 +536,39 @@ stages:
           Write the overview.md to: {{change_result.output_dir}}/output/overview.md
 
       # -----------------------------------------------------------------------
-      # Step 6: Update metadata — write last-run.json
+      # Step 6: Write overview DOT — produce system-spine overview diagram
+      # Dispatches the dot-author agent to read the architecture overview.md
+      # and per-module diagram.dot files, then produce a concise 10-15 node
+      # overview.dot representing the primary components and key relationships.
+      # -----------------------------------------------------------------------
+      - id: "write-overview-dot"
+        agent: "dot-graph:dot-author"
+        output: "overview_dot_result"
+        timeout: 600
+        prompt: |
+          You are the dot-author agent for a Parallax Discovery pipeline run.
+
+          Your task: read the architecture overview document and the per-module
+          diagram files, then produce a single concise system-spine DOT diagram.
+
+          Architecture overview document:
+          {{change_result.output_dir}}/output/overview.md
+
+          Per-module diagram files (read all diagram.dot files found under):
+          {{change_result.output_dir}}/output/modules/
+
+          Produce a single DOT diagram named overview.dot with 10-15 nodes:
+          - Each node represents a primary component or subsystem
+          - Show important relationships and dependencies between components
+          - Use a clean, readable layout appropriate for a high-level overview
+          - Include a descriptive title and a legend explaining node/edge types
+          - Do NOT copy module diagrams verbatim — synthesize a new system-spine view
+          - Keep node count between 10 and 15 for readability and clarity
+
+          Write the final diagram to: {{change_result.output_dir}}/output/overview.dot
+
+      # -----------------------------------------------------------------------
+      # Step 7: Update metadata — write last-run.json
       # Records commit hash, timestamp, fidelity, repo_path, and validation
       # counts so future runs can use change detection. Uses os.path.join()
       # to resolve output_dir safely in case template was not fully expanded.

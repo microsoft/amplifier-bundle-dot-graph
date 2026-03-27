@@ -493,3 +493,79 @@ def test_reconcile_modules_is_parallel():
         f"reconcile-modules step must have parallel=true for concurrent execution, "
         f"got: {step.get('parallel')!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# write-overview-dot step in synthesize stage (5 regression tests)
+# ---------------------------------------------------------------------------
+
+
+def test_synthesize_stage_has_write_overview_dot_step():
+    """synthesize stage must have a step with id='write-overview-dot'."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "synthesize", "write-overview-dot")
+    assert step is not None, (
+        f"No step with id='write-overview-dot' found in synthesize stage. "
+        f"Step IDs: {[s.get('id') for s in _get_stage_steps(data, 'synthesize')]}"
+    )
+
+
+def test_write_overview_dot_uses_dot_author_agent():
+    """write-overview-dot step must use the 'dot-graph:dot-author' agent."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "synthesize", "write-overview-dot")
+    assert step is not None, "write-overview-dot step must exist"
+    assert step.get("agent") == "dot-graph:dot-author", (
+        f"write-overview-dot must use agent='dot-graph:dot-author', "
+        f"got: {step.get('agent')!r}"
+    )
+
+
+def test_write_overview_dot_prompt_references_overview_dot_filename():
+    """write-overview-dot prompt must reference 'overview.dot' filename."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "synthesize", "write-overview-dot")
+    assert step is not None, "write-overview-dot step must exist"
+    prompt = step.get("prompt", "")
+    assert "overview.dot" in prompt, (
+        "write-overview-dot prompt must reference 'overview.dot', "
+        "but 'overview.dot' not found in prompt"
+    )
+
+
+def test_write_overview_dot_comes_after_summarize():
+    """write-overview-dot step must appear after the summarize step."""
+    data = _load_recipe()
+    steps = _get_stage_steps(data, "synthesize")
+    step_ids = [s.get("id") for s in steps]
+    assert "write-overview-dot" in step_ids, (
+        f"'write-overview-dot' not found in synthesize stage steps: {step_ids}"
+    )
+    assert "summarize" in step_ids, (
+        f"'summarize' not found in synthesize stage steps: {step_ids}"
+    )
+    summarize_idx = step_ids.index("summarize")
+    write_dot_idx = step_ids.index("write-overview-dot")
+    assert write_dot_idx > summarize_idx, (
+        f"'write-overview-dot' (index {write_dot_idx}) must come AFTER "
+        f"'summarize' (index {summarize_idx}) in synthesize stage"
+    )
+
+
+def test_write_overview_dot_comes_before_update_metadata():
+    """write-overview-dot step must appear before the update-metadata step."""
+    data = _load_recipe()
+    steps = _get_stage_steps(data, "synthesize")
+    step_ids = [s.get("id") for s in steps]
+    assert "write-overview-dot" in step_ids, (
+        f"'write-overview-dot' not found in synthesize stage steps: {step_ids}"
+    )
+    assert "update-metadata" in step_ids, (
+        f"'update-metadata' not found in synthesize stage steps: {step_ids}"
+    )
+    write_dot_idx = step_ids.index("write-overview-dot")
+    update_metadata_idx = step_ids.index("update-metadata")
+    assert write_dot_idx < update_metadata_idx, (
+        f"'write-overview-dot' (index {write_dot_idx}) must come BEFORE "
+        f"'update-metadata' (index {update_metadata_idx}) in synthesize stage"
+    )

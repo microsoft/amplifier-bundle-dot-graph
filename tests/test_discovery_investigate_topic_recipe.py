@@ -450,3 +450,52 @@ def test_integration_mapper_output_variable():
     assert step.get("output") == "integration_mapper_result", (
         f"integration-mapper output must be 'integration_mapper_result', got: {step.get('output')!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Subprocess isolation — spawn_mode: subprocess on all agent steps
+# ---------------------------------------------------------------------------
+
+
+def test_code_tracer_has_spawn_mode_subprocess():
+    """code-tracer step must have spawn_mode='subprocess' for OOM isolation."""
+    data = _load_recipe()
+    step = _get_step_by_id(data, "code-tracer")
+    assert step is not None
+    assert step.get("spawn_mode") == "subprocess", (
+        f"code-tracer must have spawn_mode='subprocess', got: {step.get('spawn_mode')!r}"
+    )
+
+
+def test_behavior_observer_has_spawn_mode_subprocess():
+    """behavior-observer step must have spawn_mode='subprocess' for OOM isolation."""
+    data = _load_recipe()
+    step = _get_step_by_id(data, "behavior-observer")
+    assert step is not None
+    assert step.get("spawn_mode") == "subprocess", (
+        f"behavior-observer must have spawn_mode='subprocess', got: {step.get('spawn_mode')!r}"
+    )
+
+
+def test_integration_mapper_has_spawn_mode_subprocess():
+    """integration-mapper step must have spawn_mode='subprocess' for OOM isolation."""
+    data = _load_recipe()
+    step = _get_step_by_id(data, "integration-mapper")
+    assert step is not None
+    assert step.get("spawn_mode") == "subprocess", (
+        f"integration-mapper must have spawn_mode='subprocess', got: {step.get('spawn_mode')!r}"
+    )
+
+
+def test_all_agent_steps_have_spawn_mode_subprocess():
+    """Every step with an 'agent' key must have spawn_mode='subprocess'."""
+    data = _load_recipe()
+    steps = _get_steps(data)
+    agent_steps = [s for s in steps if "agent" in s]
+    assert len(agent_steps) > 0, "Recipe must have at least one agent step"
+    for step in agent_steps:
+        step_id = step.get("id", "<unknown>")
+        assert step.get("spawn_mode") == "subprocess", (
+            f"Agent step '{step_id}' must have spawn_mode='subprocess', "
+            f"got: {step.get('spawn_mode')!r}"
+        )

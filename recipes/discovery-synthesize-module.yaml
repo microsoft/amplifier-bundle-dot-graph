@@ -45,6 +45,7 @@ steps:
       - id: "synthesize"
         agent: "dot-graph:discovery-synthesizer"
         output: "synthesis_result"
+        spawn_mode: subprocess
         timeout: 1200
         prompt: |
           You are the synthesis agent for module: {{module_name}}.

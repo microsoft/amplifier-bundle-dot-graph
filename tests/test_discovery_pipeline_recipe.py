@@ -558,8 +558,7 @@ def test_recipe_context_has_node_target():
     data = _load_recipe()
     ctx = data.get("context", {})
     assert "node_target" in ctx, (
-        f"Context must declare 'node_target' variable. "
-        f"Found keys: {list(ctx.keys())}"
+        f"Context must declare 'node_target' variable. Found keys: {list(ctx.keys())}"
     )
 
 

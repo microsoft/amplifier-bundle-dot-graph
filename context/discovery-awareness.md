@@ -26,5 +26,4 @@ Discovery runs at three fidelity tiers: `quick` (patch affected files only), `st
 
 ## Delegation
 
-- **Codebase discovery** (generate architecture diagrams from code): delegate to `discovery-orchestrator`. It translates natural language investigation requests into the correct pipeline recipe invocation (quick or deep `discovery-pipeline`). Do NOT invoke discovery agents or pipeline recipes directly — the orchestrator handles routing.
-- **Do NOT** invoke discovery agents directly — `discovery-orchestrator` controls recipe selection based on fidelity signal.
+- **Codebase discovery** (generate architecture diagrams from code): delegate to `discovery-orchestrator`. It translates natural language investigation requests into the correct pipeline recipe invocation (quick or deep `discovery-pipeline`). Do NOT invoke discovery agents or pipeline recipes directly — the orchestrator handles routing based on fidelity signal.

@@ -344,3 +344,43 @@ def test_topdown_strategy_investigate_topics_passes_lens():
         f"strategy-topdown investigate-topics must pass 'lens' in context. "
         f"Found context keys: {list(ctx.keys())}"
     )
+
+
+# ---------------------------------------------------------------------------
+# discover.yaml: top-level entry point lens context variable and propagation
+# ---------------------------------------------------------------------------
+
+
+def test_discover_recipe_context_has_lens_default_architecture():
+    """discover.yaml context must declare 'lens' with default 'architecture'."""
+    if not DISCOVER_RECIPE_PATH.exists():
+        import pytest
+
+        pytest.skip("discover.yaml not found — Workstream B not yet merged")
+    data = _load_yaml(DISCOVER_RECIPE_PATH)
+    ctx = data.get("context", {})
+    assert "lens" in ctx, (
+        f"discover.yaml context must declare 'lens'. Found keys: {list(ctx.keys())}"
+    )
+    assert ctx.get("lens") == "architecture", (
+        f"discover.yaml 'lens' default must be 'architecture', got: {ctx.get('lens')!r}"
+    )
+
+
+def test_discover_recipe_run_pipeline_step_passes_lens():
+    """discover.yaml run-pipeline step must pass 'lens' in its context to the sub-recipe."""
+    if not DISCOVER_RECIPE_PATH.exists():
+        import pytest
+
+        pytest.skip("discover.yaml not found — Workstream B not yet merged")
+    data = _load_yaml(DISCOVER_RECIPE_PATH)
+    step = _get_step_by_id(data, "run-pipeline")
+    assert step is not None, (
+        "run-pipeline step not found in discover.yaml. "
+        f"Step IDs: {[s.get('id') for s in _get_steps(data)]}"
+    )
+    ctx = step.get("context", {})
+    assert "lens" in ctx, (
+        f"discover.yaml run-pipeline step must pass 'lens' in context to sub-recipe. "
+        f"Found context keys: {list(ctx.keys())}"
+    )

@@ -12,7 +12,8 @@ context:
   repo_path: ""           # Required: path to target repository
   mode: "auto"            # Optional: auto | quick | deep (default: auto)
   fidelity: "standard"    # Optional: quick | standard | deep (default: standard)
-  lens: "architecture"    # Optional: architecture | security | quality | onboarding | debugging (default: architecture)
+  lens: "architecture"    # Optional: architecture | security | quality | onboarding | debugging
+                          #   Custom free-text strings also accepted as inline guidance
   node_target: "25"       # Optional: target node count per overview diagram (default: 25)
 
 steps:
@@ -88,6 +89,7 @@ steps:
     context:
       repo_path: "{{mode_result.repo_path}}"
       fidelity: "{{fidelity}}"
+      lens: "{{lens}}"
       node_target: "{{node_target}}"
 
 final_output: "pipeline_result"

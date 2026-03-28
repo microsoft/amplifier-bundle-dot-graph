@@ -13,6 +13,7 @@ Validates:
 - deep pipeline context (discovery-pipeline.yaml) declares `lens` with default `architecture`
 - strategy-topdown.yaml context declares `lens` with default `architecture`
 - strategy-topdown.yaml investigate-topics step passes `lens` to the sub-recipe
+- strategy-bottomup.yaml context declares `lens` with default `architecture`
 """
 
 from pathlib import Path
@@ -32,6 +33,7 @@ INVESTIGATE_RECIPE_PATH = REPO_ROOT / "recipes" / "discovery-investigate-topic.y
 QUICK_PIPELINE_PATH = REPO_ROOT / "recipes" / "quick" / "discovery-pipeline.yaml"
 DEEP_PIPELINE_PATH = REPO_ROOT / "recipes" / "deep" / "discovery-pipeline.yaml"
 TOPDOWN_STRATEGY_PATH = REPO_ROOT / "recipes" / "deep" / "strategy-topdown.yaml"
+BOTTOMUP_STRATEGY_PATH = REPO_ROOT / "recipes" / "deep" / "strategy-bottomup.yaml"
 DISCOVER_RECIPE_PATH = REPO_ROOT / "recipes" / "discover.yaml"
 
 AGENT_STEP_IDS = ["code-tracer", "behavior-observer", "integration-mapper"]
@@ -343,6 +345,18 @@ def test_topdown_strategy_investigate_topics_passes_lens():
     assert "lens" in ctx, (
         f"strategy-topdown investigate-topics must pass 'lens' in context. "
         f"Found context keys: {list(ctx.keys())}"
+    )
+
+
+def test_bottomup_strategy_context_has_lens_default_architecture():
+    """strategy-bottomup.yaml context must declare 'lens' with default 'architecture'."""
+    data = _load_yaml(BOTTOMUP_STRATEGY_PATH)
+    ctx = data.get("context", {})
+    assert "lens" in ctx, (
+        f"strategy-bottomup.yaml context must declare 'lens'. Found keys: {list(ctx.keys())}"
+    )
+    assert ctx.get("lens") == "architecture", (
+        f"strategy-bottomup 'lens' default must be 'architecture', got: {ctx.get('lens')!r}"
     )
 
 

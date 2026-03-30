@@ -86,7 +86,6 @@ steps:
     agent: "dot-graph:discovery-code-tracer"
     condition: "{{fidelity}} != 'quick'"
     output: "code_tracer_result"
-    spawn_mode: subprocess
     timeout: 1800
     prompt: |
       {% if lens_result.guidance %}
@@ -123,7 +122,6 @@ steps:
     agent: "dot-graph:discovery-behavior-observer"
     condition: "{{fidelity}} == 'deep'"
     output: "behavior_observer_result"
-    spawn_mode: subprocess
     timeout: 1800
     prompt: |
       {% if lens_result.guidance %}
@@ -163,7 +161,6 @@ steps:
     agent: "dot-graph:discovery-integration-mapper"
     condition: "{{fidelity}} != 'quick'"
     output: "integration_mapper_result"
-    spawn_mode: subprocess
     timeout: 1800
     prompt: |
       {% if lens_result.guidance %}

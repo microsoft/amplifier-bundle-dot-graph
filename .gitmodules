@@ -19,3 +19,6 @@
 [submodule "amplifier-resolver-dot-graph"]
 	path = amplifier-resolver-dot-graph
 	url = https://github.com/bkrabach/amplifier-resolver-dot-graph.git
+[submodule "muxplex"]
+	path = muxplex
+	url = https://github.com/bkrabach/muxplex.git

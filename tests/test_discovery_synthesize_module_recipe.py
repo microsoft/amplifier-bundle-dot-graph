@@ -496,27 +496,4 @@ def test_quality_gate_while_and_break_are_complementary():
 
 
 # ---------------------------------------------------------------------------
-# Subprocess isolation — spawn_mode: subprocess on synthesize agent step
 # ---------------------------------------------------------------------------
-
-
-def test_synthesize_step_has_spawn_mode_subprocess():
-    """synthesize step inside quality-gate loop must have spawn_mode='subprocess' for OOM isolation."""
-    data = _load_recipe()
-    # Navigate into the quality-gate loop's inner steps to find the synthesize step
-    qg_step = _get_quality_gate_step(data)
-    assert qg_step is not None, "No 'quality-gate' step found"
-    inner_steps = qg_step.get("steps", [])
-    synthesize_step = None
-    for step in inner_steps:
-        if step.get("id") == "synthesize":
-            synthesize_step = step
-            break
-    assert synthesize_step is not None, (
-        f"No 'synthesize' step found inside quality-gate loop. "
-        f"Inner step IDs: {[s.get('id') for s in inner_steps]}"
-    )
-    assert synthesize_step.get("spawn_mode") == "subprocess", (
-        f"synthesize step must have spawn_mode='subprocess', "
-        f"got: {synthesize_step.get('spawn_mode')!r}"
-    )

@@ -44,6 +44,7 @@ steps:
       # -----------------------------------------------------------------------
       - id: "synthesize"
         agent: "dot-graph:discovery-synthesizer"
+        spawn_mode: subprocess
         output: "synthesis_result"
         timeout: 1200
         prompt: |

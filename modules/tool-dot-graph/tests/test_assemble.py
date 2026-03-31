@@ -1,13 +1,13 @@
-"""Tests for assemble.py — Filesystem plumbing (copy DOTs, write manifest).
+"""Tests for assemble.py — Filesystem plumbing (discover agent DOTs, write manifest).
 
 16 tests covering:
 - Error handling: empty/missing manifest, missing 'modules'/'subsystems' key, missing DOT (warn and skip)
 - Directory creation: subsystems/ subdir, nested output_dir
-- File copying: module DOT files copied to subsystems/
+- No-copy behaviour: module DOT files are NOT copied to subsystems/
 - Manifest I/O: manifest.json written with correct structure
 - Result structure: success, outputs, stats, warnings; outputs has overview, subsystems
 - Stats: module and subsystem counts (no pydot-era total_nodes/total_edges)
-- Agent-produced DOT discovery: overview.dot discovered / None when absent
+- Agent-produced DOT discovery: agent subsystem DOTs discovered / overview.dot discovered / None when absent
 - render_png parameter: no PNG files when render_png=False
 """
 
@@ -172,40 +172,46 @@ def test_output_dir_created_when_missing(dot_dir: str, tmp_path: Path):
     assert result["success"] is True, (
         f"assemble_hierarchy must succeed with missing nested output_dir, got: {result}"
     )
-    assert result["outputs"]["subsystems"], "subsystems must not be empty"
+    assert (nested_out / "subsystems").exists(), "subsystems/ subdir must be created"
 
 
 # ---------------------------------------------------------------------------
-# File copying tests (2)
+# No-copy behaviour tests (2) — module DOTs stay in their canonical location
 # ---------------------------------------------------------------------------
 
 
-def test_module_dot_copied_to_output(dot_dir: str, tmp_path: Path):
-    """alpha.dot and beta.dot are copied to subsystems/ directory."""
+def test_module_dot_not_copied_to_subsystems(dot_dir: str, tmp_path: Path):
+    """alpha.dot and beta.dot must NOT be copied to subsystems/ directory.
+
+    Per-module DOT files stay in their canonical location
+    (output/modules/{slug}/diagram.dot). The subsystems/ directory is
+    reserved for true subsystem-aggregate DOTs written by agents.
+    """
     manifest = _build_minimal_manifest(dot_dir)
     out = tmp_path / "output"
 
     result = assemble_hierarchy(manifest, str(out))
     assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
-    assert (out / "subsystems" / "alpha.dot").exists(), (
-        "alpha.dot must be copied to subsystems/"
+    assert not (out / "subsystems" / "alpha.dot").exists(), (
+        "alpha.dot must NOT be copied to subsystems/ (canonical location is modules/)"
     )
-    assert (out / "subsystems" / "beta.dot").exists(), (
-        "beta.dot must be copied to subsystems/"
+    assert not (out / "subsystems" / "beta.dot").exists(), (
+        "beta.dot must NOT be copied to subsystems/ (canonical location is modules/)"
     )
 
 
-def test_copied_dot_has_correct_content(dot_dir: str, tmp_path: Path):
-    """Copied DOT file content matches the source module DOT."""
+def test_source_module_dot_unchanged_after_assemble(dot_dir: str, tmp_path: Path):
+    """Source module DOT files are accessible and unmodified after assemble."""
     manifest = _build_minimal_manifest(dot_dir)
     out = tmp_path / "output"
 
     result = assemble_hierarchy(manifest, str(out))
     assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
-    alpha_content = (out / "subsystems" / "alpha.dot").read_text()
+    alpha_source = Path(dot_dir) / "alpha.dot"
+    alpha_content = alpha_source.read_text()
 
     assert alpha_content == MOD_ALPHA_DOT, (
-        f"Copied alpha.dot must have original content.\n"
+        f"Source alpha.dot must be unchanged after assemble.\n"
         f"Expected: {MOD_ALPHA_DOT!r}\nGot: {alpha_content!r}"
     )
 
@@ -296,12 +302,14 @@ def test_stats_has_module_and_subsystem_counts(dot_dir: str, tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
-def test_subsystems_output_contains_module_dot_names(dot_dir: str, tmp_path: Path):
-    """outputs['subsystems'] includes module-level DOTs (keyed by module name).
+def test_subsystems_output_does_not_contain_module_dot_names(
+    dot_dir: str, tmp_path: Path
+):
+    """outputs['subsystems'] does NOT include per-module DOTs.
 
-    The broad glob scan in subsystems/ picks up per-module DOTs that were just
-    copied there alongside any agent-produced subsystem-named DOTs.  Callers
-    should expect both kinds to appear together under outputs['subsystems'].
+    Module DOTs stay in their canonical location (output/modules/{slug}/diagram.dot).
+    The subsystems/ directory only holds true subsystem-aggregate DOTs written by
+    agents — not per-module copies.
     """
     manifest = _build_minimal_manifest(dot_dir)
     out = tmp_path / "output"
@@ -311,21 +319,22 @@ def test_subsystems_output_contains_module_dot_names(dot_dir: str, tmp_path: Pat
     assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
     subsystems_out = result["outputs"]["subsystems"]
 
-    assert "alpha" in subsystems_out, (
-        f"outputs['subsystems'] must contain copied module DOT 'alpha', "
-        f"got keys: {list(subsystems_out)}"
+    assert "alpha" not in subsystems_out, (
+        f"outputs['subsystems'] must NOT contain module DOT 'alpha' "
+        f"(stays in canonical modules/ location), got keys: {list(subsystems_out)}"
     )
-    assert "beta" in subsystems_out, (
-        f"outputs['subsystems'] must contain copied module DOT 'beta', "
-        f"got keys: {list(subsystems_out)}"
+    assert "beta" not in subsystems_out, (
+        f"outputs['subsystems'] must NOT contain module DOT 'beta' "
+        f"(stays in canonical modules/ location), got keys: {list(subsystems_out)}"
     )
 
 
 def test_subsystems_output_includes_agent_produced_dot(dot_dir: str, tmp_path: Path):
     """Agent-produced subsystem-named DOT written to subsystems/ appears in outputs['subsystems'].
 
-    When a recipe writes backend.dot to subsystems/, it is discovered alongside
-    the module-level DOTs during the broad glob scan.
+    When a recipe writes backend.dot to subsystems/, it is discovered during
+    the glob scan and reported in outputs['subsystems']. Per-module DOTs do NOT
+    appear here — only agent-produced subsystem DOTs.
     """
     manifest = _build_minimal_manifest(dot_dir)
     out = tmp_path / "output"
@@ -344,8 +353,8 @@ def test_subsystems_output_includes_agent_produced_dot(dot_dir: str, tmp_path: P
         f"outputs['subsystems'] must contain agent-produced 'backend.dot', "
         f"got keys: {list(subsystems_out)}"
     )
-    assert "alpha" in subsystems_out, (
-        "Module-level DOTs must still appear alongside agent-produced subsystem DOTs"
+    assert "alpha" not in subsystems_out, (
+        "Per-module DOTs must NOT appear in subsystems — only agent-produced subsystem DOTs"
     )
 
 

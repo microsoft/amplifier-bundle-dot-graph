@@ -1,7 +1,9 @@
 """Hierarchical DOT Assembly — filesystem plumbing only.
 
-Copies per-module DOT files to an output directory, discovers agent-produced
-DOT files, and writes manifest.json.
+Discovers agent-produced DOT files in subsystems/ and writes manifest.json.
+Per-module DOT files are NOT copied — they remain in their canonical location
+(output/modules/{slug}/diagram.dot). The subsystems/ directory is reserved for
+true subsystem-aggregate DOTs explicitly written by agents or recipes.
 
 Public API: assemble_hierarchy(manifest, output_dir, render_png=False) -> dict
 """
@@ -10,7 +12,6 @@ from __future__ import annotations
 
 import json
 import logging
-import shutil
 from pathlib import Path
 
 from amplifier_module_tool_dot_graph import render as _render
@@ -28,7 +29,11 @@ def assemble_hierarchy(
     output_dir: str,
     render_png: bool = False,
 ) -> dict:
-    """Copy per-module DOT files, discover agent outputs, write manifest.json.
+    """Discover agent-produced DOT outputs and write manifest.json.
+
+    Per-module DOT files are NOT copied to subsystems/ — they remain in their
+    canonical location (output/modules/{slug}/diagram.dot). The subsystems/
+    directory is reserved for true subsystem-aggregate DOTs written by agents.
 
     Args:
         manifest: Dict with 'modules' and 'subsystems' keys describing the structure.
@@ -71,27 +76,17 @@ def assemble_hierarchy(
     subsystems_dir = out_path / "subsystems"
     subsystems_dir.mkdir(exist_ok=True)
 
-    # --- Copy per-module DOT files to subsystems/ ---
+    # --- Warn about missing module DOT files (but do NOT copy them to subsystems/) ---
     for mod_name, mod_info in modules_def.items():
         dot_path = mod_info.get("dot_path", "")
         if not dot_path or not Path(dot_path).exists():
             warnings.append(
                 f"Module '{mod_name}': DOT file '{dot_path}' not found — skipped"
             )
-            continue
-        dest = subsystems_dir / f"{mod_name}.dot"
-        try:
-            shutil.copy2(dot_path, dest)
-        except OSError as exc:
-            warnings.append(
-                f"Module '{mod_name}': could not copy DOT file '{dot_path}': {exc}"
-            )
 
-    # --- Discover agent-produced DOTs ---
-    # Subsystem DOTs: scan ALL .dot files in subsystems/, including per-module DOTs that were
-    # just copied there and any agent-produced subsystem-named DOTs written by recipes.
-    # Callers should expect both module-level DOTs (e.g. "auth.dot") and subsystem-named DOTs
-    # (e.g. "backend.dot") to appear together under outputs["subsystems"].
+    # --- Discover agent-produced subsystem DOTs ---
+    # Only scan for DOTs that agents explicitly wrote to subsystems/.
+    # Per-module DOTs stay in their canonical location (output/modules/{slug}/diagram.dot).
     subsystem_paths: dict[str, str] = {}
     for dot_file in sorted(subsystems_dir.glob("*.dot")):
         name = dot_file.stem

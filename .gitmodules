@@ -22,3 +22,6 @@
 [submodule "muxplex"]
 	path = muxplex
 	url = https://github.com/bkrabach/muxplex.git
+[submodule "ramparte-dev-machine"]
+	path = ramparte-dev-machine
+	url = https://github.com/ramparte/amplifier-bundle-dev-machine.git

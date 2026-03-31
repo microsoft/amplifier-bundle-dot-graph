@@ -12,7 +12,7 @@ Validates:
   topic-select step (agent: discovery-prescan), approval gate with required=true (5)
 - investigate stage: prepare-topics step, investigate-topics (foreach, shared sub-recipe) (4)
 - synthesize stage: reconcile-modules (shared sub-recipe), assemble, validate,
-  hoist-outputs, summarize (agent: discovery-architecture-writer), update-metadata (7)
+  summarize (agent: discovery-architecture-writer), write-overview-dot, update-metadata (6)
 - Shared sub-recipe references (NOT quick/) (2)
 - final_output declared (1)
 
@@ -396,13 +396,19 @@ def test_synthesize_stage_has_validate_step():
     )
 
 
-def test_synthesize_stage_has_hoist_outputs_step():
-    """synthesize stage must have a step with id='hoist-outputs'."""
+def test_synthesize_stage_has_no_hoist_outputs_step():
+    """synthesize stage must NOT have a 'hoist-outputs' step.
+
+    The hoist step was removed because it created duplicate copies of
+    diagram.dot at the top-level output/ directory (triple duplicates with
+    modules/ and subsystems/). The canonical location for per-topic diagrams
+    is output/modules/{slug}/diagram.dot — no top-level copies needed.
+    """
     data = _load_recipe()
     step = _get_stage_step_by_id(data, "synthesize", "hoist-outputs")
-    assert step is not None, (
-        f"No step with id='hoist-outputs' found in synthesize stage. "
-        f"Step IDs: {[s.get('id') for s in _get_stage_steps(data, 'synthesize')]}"
+    assert step is None, (
+        "synthesize stage must NOT have a 'hoist-outputs' step "
+        "(removed to eliminate triple-duplicate DOT files)"
     )
 
 

@@ -70,11 +70,12 @@ def assemble_hierarchy(
 
     warnings: list[str] = []
 
-    # --- Create output directories ---
+    # --- Create output directory ---
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
+    # NOTE: subsystems/ is NOT created unconditionally — agents create it by writing to it.
+    # We discover it lazily below only if it already exists.
     subsystems_dir = out_path / "subsystems"
-    subsystems_dir.mkdir(exist_ok=True)
 
     # --- Warn about missing module DOT files (but do NOT copy them to subsystems/) ---
     for mod_name, mod_info in modules_def.items():
@@ -87,8 +88,11 @@ def assemble_hierarchy(
     # --- Discover agent-produced subsystem DOTs ---
     # Only scan for DOTs that agents explicitly wrote to subsystems/.
     # Per-module DOTs stay in their canonical location (output/modules/{slug}/diagram.dot).
+    # If no agent wrote to subsystems/, the directory will not exist — that is correct.
     subsystem_paths: dict[str, str] = {}
-    for dot_file in sorted(subsystems_dir.glob("*.dot")):
+    for dot_file in (
+        sorted(subsystems_dir.glob("*.dot")) if subsystems_dir.exists() else []
+    ):
         name = dot_file.stem
         subsystem_paths[name] = str(dot_file)
 

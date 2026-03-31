@@ -1,8 +1,8 @@
 """Tests for assemble.py — Filesystem plumbing (discover agent DOTs, write manifest).
 
-16 tests covering:
+17 tests covering:
 - Error handling: empty/missing manifest, missing 'modules'/'subsystems' key, missing DOT (warn and skip)
-- Directory creation: subsystems/ subdir, nested output_dir
+- Directory creation: output_dir created when missing; subsystems/ NOT created unless agents wrote to it
 - No-copy behaviour: module DOT files are NOT copied to subsystems/
 - Manifest I/O: manifest.json written with correct structure
 - Result structure: success, outputs, stats, warnings; outputs has overview, subsystems
@@ -148,18 +148,25 @@ def test_assemble_missing_dot_file_warns_and_skips(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
-# Directory creation tests (2)
+# Directory creation tests (3)
 # ---------------------------------------------------------------------------
 
 
-def test_subsystems_subdir_created(dot_dir: str, tmp_path: Path):
-    """assemble_hierarchy must create the subsystems/ subdirectory."""
+def test_subsystems_dir_not_created_when_no_agent_dots(dot_dir: str, tmp_path: Path):
+    """subsystems/ must NOT be created when no agent wrote DOTs there.
+
+    assemble_hierarchy does NOT pre-create subsystems/ — agents create it when
+    they write subsystem DOT files. If no agent wrote to subsystems/, the
+    directory must remain absent after assemble.
+    """
     manifest = _build_minimal_manifest(dot_dir)
     out = tmp_path / "output"
 
     result = assemble_hierarchy(manifest, str(out))
     assert result["success"] is True, f"assemble_hierarchy must succeed, got: {result}"
-    assert (out / "subsystems").exists(), "subsystems/ subdir must be created"
+    assert not (out / "subsystems").exists(), (
+        "subsystems/ must NOT be created unconditionally — only when agents write to it"
+    )
 
 
 def test_output_dir_created_when_missing(dot_dir: str, tmp_path: Path):
@@ -172,7 +179,11 @@ def test_output_dir_created_when_missing(dot_dir: str, tmp_path: Path):
     assert result["success"] is True, (
         f"assemble_hierarchy must succeed with missing nested output_dir, got: {result}"
     )
-    assert (nested_out / "subsystems").exists(), "subsystems/ subdir must be created"
+    assert nested_out.exists(), "output_dir must be created when missing"
+    # NOTE: subsystems/ is NOT created unless an agent wrote to it
+    assert not (nested_out / "subsystems").exists(), (
+        "subsystems/ must NOT be created unconditionally — only when agents write to it"
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -67,6 +67,10 @@ next-steps.md
 
 # Working folders
 ai_working/tmp
+.worktrees/
+
+# Guard against literal template variable directory (created when {{repo_path}} fails to expand)
+{{repo_path}}/
 
 # Rendered DOT output (generated files — keep docs/ exceptions)
 *.svg

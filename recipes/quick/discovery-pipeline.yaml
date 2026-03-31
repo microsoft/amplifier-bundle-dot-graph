@@ -7,9 +7,9 @@ description: >
   review and confirm before agent dispatch. Stage 2 investigates each topic
   using the shared discovery-investigate-topic sub-recipe. Stage 3 synthesizes
   per-topic findings into consensus diagrams, assembles the final discovery
-  manifest, hoists outputs, and produces a summary via the architecture-writer
-  agent. Uses os.path.join() to resolve output_dir to avoid nested template
-  expansion issues.
+  manifest, and produces a summary and system-spine overview DOT via the
+  writer agents. Uses os.path.join() to resolve output_dir to avoid nested
+  template expansion issues.
 version: "1.0.0"
 author: "DOT Graph Bundle"
 tags: ["discovery", "pipeline", "quick", "architecture", "dot-graph", "multi-agent"]
@@ -272,7 +272,9 @@ stages:
               if not slug:
                   continue
               # Investigation artifacts: raw per-agent outputs
-              investigation_dir = Path(output_dir) / "investigation" / "modules" / slug
+              # NOTE: agents write to {output_dir}/modules/{slug}/agents/{agent}/
+              # (without an "investigation/" prefix), so we pre-create dirs there.
+              investigation_dir = Path(output_dir) / "modules" / slug
               for agent_name in agent_names:
                   agent_dir = investigation_dir / "agents" / agent_name
                   agent_dir.mkdir(parents=True, exist_ok=True)
@@ -334,7 +336,7 @@ stages:
         context:
           module_name: "{{topic.name}}"
           module_dir: "{{change_result.output_dir}}/output/modules/{{topic.slug}}"
-          investigation_dir: "{{change_result.output_dir}}/investigation/modules/{{topic.slug}}"
+          investigation_dir: "{{change_result.output_dir}}/modules/{{topic.slug}}"
           fidelity: "{{fidelity}}"
           output_dir: "{{change_result.output_dir}}"
         output: "reconciliation_results"
@@ -470,57 +472,7 @@ stages:
           EOF
 
       # -----------------------------------------------------------------------
-      # Step 4: Hoist outputs — copy per-module artifacts to output/ root
-      # Copies consensus diagram.dot and findings.md from each module's
-      # output directory to the top-level output/ directory for easy access.
-      # Reads topics from topics.json to avoid template injection issues.
-      # -----------------------------------------------------------------------
-      - id: "hoist-outputs"
-        type: "bash"
-        output: "hoist_result"
-        parse_json: true
-        timeout: 30
-        command: |
-          python3 - <<'EOF'
-          import json
-          import shutil
-          from pathlib import Path
-
-          output_dir = "{{change_result.output_dir}}"
-
-          # Read topics from file to avoid template injection issues
-          topics_path = Path(output_dir) / "topics.json"
-          if topics_path.exists():
-              topics = json.loads(topics_path.read_text())
-          else:
-              topics = []
-
-          hoisted = []
-          errors = []
-          modules_dir = Path(output_dir) / "output" / "modules"
-          top_output_dir = Path(output_dir) / "output"
-          top_output_dir.mkdir(parents=True, exist_ok=True)
-
-          for topic in topics:
-              slug = topic.get("slug", "")
-              if not slug:
-                  continue
-              module_dir = modules_dir / slug
-              for filename in ["diagram.dot", "findings.md"]:
-                  src = module_dir / filename
-                  if src.exists():
-                      dst = top_output_dir / (slug + "-" + filename)
-                      try:
-                          shutil.copy2(str(src), str(dst))
-                          hoisted.append(str(dst))
-                      except Exception as e:
-                          errors.append(str(e))
-
-          print(json.dumps({"hoisted": hoisted, "errors": errors, "count": len(hoisted)}))
-          EOF
-
-      # -----------------------------------------------------------------------
-      # Step 5: Summarize — produce architecture overview via writer agent
+      # Step 4: Summarize — produce architecture overview via writer agent
       # Dispatches the discovery-architecture-writer agent to produce an
       # overview.md summarizing all findings and diagrams.
       # -----------------------------------------------------------------------
@@ -553,7 +505,7 @@ stages:
           Write the overview.md to: {{change_result.output_dir}}/output/overview.md
 
       # -----------------------------------------------------------------------
-      # Step 6: Write overview DOT — produce system-spine overview diagram
+      # Step 5: Write overview DOT — produce system-spine overview diagram
       # Dispatches the dot-author agent to read the architecture overview.md
       # and per-module diagram.dot files, then produce a concise 10-15 node
       # overview.dot representing the primary components and key relationships.

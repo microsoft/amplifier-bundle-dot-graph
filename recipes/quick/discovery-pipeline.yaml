@@ -536,6 +536,69 @@ stages:
 
           Write the final diagram to: {{change_result.output_dir}}/output/overview.dot
 
+          CRITICAL: You MUST use the write_file tool to write the DOT file to disk.
+          Do NOT just include the DOT content in your response text — it must be
+          saved as a file using write_file. After writing, verify the file exists
+          by reading it back. The pipeline will fail if overview.dot is not on disk.
+
+      # -----------------------------------------------------------------------
+      # Step 6: Verify overview DOT — bash fallback if agent did not write file
+      # Checks if overview.dot was written. If the agent included the DOT in its
+      # response text but forgot to call write_file, this step extracts it.
+      # on_error: continue — missing overview.dot is non-fatal; report and proceed.
+      # -----------------------------------------------------------------------
+      - id: "verify-overview-dot"
+        type: "bash"
+        output: "overview_dot_verify_result"
+        on_error: continue
+        parse_json: true
+        timeout: 30
+        command: |
+          python3 - <<'PYEOF'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          output_dir = "{{change_result.output_dir}}"
+          if not output_dir or "{{" in output_dir:
+              output_dir = os.path.join("{{change_result.repo_path}}", ".discovery")
+
+          overview_path = Path(output_dir) / "output" / "overview.dot"
+
+          if overview_path.exists() and overview_path.stat().st_size > 50:
+              print(json.dumps({
+                  "status": "ok",
+                  "path": str(overview_path),
+                  "bytes": int(overview_path.stat().st_size),
+              }))
+          else:
+              # Agent did not write the file — try to extract DOT from response text
+              agent_result = '''{{overview_dot_result}}'''
+              # Find a digraph or strict digraph block (may be inside a code fence)
+              match = re.search(
+                  r'((?:strict\s+)?(?:di)?graph\s+\w*\s*\{.*?\})',
+                  agent_result,
+                  re.DOTALL | re.IGNORECASE,
+              )
+              if match:
+                  dot_content = match.group(1).strip()
+                  overview_path.parent.mkdir(parents=True, exist_ok=True)
+                  overview_path.write_text(dot_content)
+                  print(json.dumps({
+                      "status": "recovered",
+                      "path": str(overview_path),
+                      "bytes": len(dot_content),
+                      "note": "extracted DOT from agent response text (agent forgot write_file)",
+                  }))
+              else:
+                  print(json.dumps({
+                      "status": "missing",
+                      "path": str(overview_path),
+                      "reason": "agent did not write file and no DOT block found in response",
+                  }))
+          PYEOF
+
       # -----------------------------------------------------------------------
       # Step 7: Update metadata — write last-run.json
       # Records commit hash, timestamp, fidelity, repo_path, and validation

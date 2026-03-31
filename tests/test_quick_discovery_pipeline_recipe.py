@@ -12,11 +12,14 @@ Validates:
   topic-select step (agent: discovery-prescan), approval gate with required=true (5)
 - investigate stage: prepare-topics step, investigate-topics (foreach, shared sub-recipe) (4)
 - synthesize stage: reconcile-modules (shared sub-recipe), assemble, validate,
-  summarize (agent: discovery-architecture-writer), write-overview-dot, update-metadata (6)
+  summarize (agent: discovery-architecture-writer), write-overview-dot,
+  verify-overview-dot (bash fallback), update-metadata (6)
+- write-overview-dot step: prompt/agent/ordering (5)
+- verify-overview-dot step: existence, type=bash, on_error=continue, ordering (4)
 - Shared sub-recipe references (NOT quick/) (2)
 - final_output declared (1)
 
-Total: 35 tests
+Total: 39 tests
 """
 
 from pathlib import Path
@@ -573,5 +576,75 @@ def test_write_overview_dot_comes_before_update_metadata():
     update_metadata_idx = step_ids.index("update-metadata")
     assert write_dot_idx < update_metadata_idx, (
         f"'write-overview-dot' (index {write_dot_idx}) must come BEFORE "
+        f"'update-metadata' (index {update_metadata_idx}) in synthesize stage"
+    )
+
+
+# ---------------------------------------------------------------------------
+# verify-overview-dot step in synthesize stage (4 regression tests)
+# This bash fallback step was added because the agent write-overview-dot step
+# was unreliable — the agent sometimes included DOT in its response text but
+# failed to call write_file. The verify step checks existence and recovers.
+# ---------------------------------------------------------------------------
+
+
+def test_synthesize_stage_has_verify_overview_dot_step():
+    """synthesize stage must have a step with id='verify-overview-dot'."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "synthesize", "verify-overview-dot")
+    assert step is not None, (
+        f"No step with id='verify-overview-dot' found in synthesize stage. "
+        f"Step IDs: {[s.get('id') for s in _get_stage_steps(data, 'synthesize')]}"
+    )
+
+
+def test_verify_overview_dot_is_bash_step():
+    """verify-overview-dot must be a bash step (not agent) with on_error=continue."""
+    data = _load_recipe()
+    step = _get_stage_step_by_id(data, "synthesize", "verify-overview-dot")
+    assert step is not None, "verify-overview-dot step must exist"
+    assert step.get("type") == "bash", (
+        f"verify-overview-dot must be type='bash', got: {step.get('type')!r}"
+    )
+    assert step.get("on_error") == "continue", (
+        f"verify-overview-dot must have on_error='continue' (missing file is non-fatal), "
+        f"got: {step.get('on_error')!r}"
+    )
+
+
+def test_verify_overview_dot_comes_after_write_overview_dot():
+    """verify-overview-dot must appear immediately after write-overview-dot."""
+    data = _load_recipe()
+    steps = _get_stage_steps(data, "synthesize")
+    step_ids = [s.get("id") for s in steps]
+    assert "write-overview-dot" in step_ids, (
+        f"'write-overview-dot' not found in synthesize stage steps: {step_ids}"
+    )
+    assert "verify-overview-dot" in step_ids, (
+        f"'verify-overview-dot' not found in synthesize stage steps: {step_ids}"
+    )
+    write_dot_idx = step_ids.index("write-overview-dot")
+    verify_dot_idx = step_ids.index("verify-overview-dot")
+    assert verify_dot_idx > write_dot_idx, (
+        f"'verify-overview-dot' (index {verify_dot_idx}) must come AFTER "
+        f"'write-overview-dot' (index {write_dot_idx}) in synthesize stage"
+    )
+
+
+def test_verify_overview_dot_comes_before_update_metadata():
+    """verify-overview-dot must appear before update-metadata."""
+    data = _load_recipe()
+    steps = _get_stage_steps(data, "synthesize")
+    step_ids = [s.get("id") for s in steps]
+    assert "verify-overview-dot" in step_ids, (
+        f"'verify-overview-dot' not found in synthesize stage steps: {step_ids}"
+    )
+    assert "update-metadata" in step_ids, (
+        f"'update-metadata' not found in synthesize stage steps: {step_ids}"
+    )
+    verify_dot_idx = step_ids.index("verify-overview-dot")
+    update_metadata_idx = step_ids.index("update-metadata")
+    assert verify_dot_idx < update_metadata_idx, (
+        f"'verify-overview-dot' (index {verify_dot_idx}) must come BEFORE "
         f"'update-metadata' (index {update_metadata_idx}) in synthesize stage"
     )

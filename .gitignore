@@ -69,26 +69,6 @@ next-steps.md
 ai_working/
 .worktrees/
 
-# Workspace-level directories (NOT part of the bundle)
-# These are submodules/clones used for development/testing only
-amplifier/
-amplifier-core/
-amplifier-foundation/
-amplifier-bundle-dev-machine/
-amplifier-bundle-recipes/
-amplifier-resolve/
-amplifier-resolver-dot-graph/
-attractor/
-muxplex/
-ramparte-dev-machine/
-.gitmodules
-
-# Workspace artifacts
-CONTEXT-TRANSFER.md
-AGENTS.md
-demos/
-.discovery/
-
 # Guard against literal template variable directory (created when {{repo_path}} fails to expand)
 {{repo_path}}/
 

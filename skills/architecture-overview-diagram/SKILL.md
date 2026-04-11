@@ -113,6 +113,10 @@ Extract:
 **Rules**: When working within an ecosystem of repos, visual consistency
 matters. If sibling repos use specific color palettes, shape vocabularies,
 or cluster patterns, match them — the diagrams should look like a family.
+If the system has an underlying DSL with defined shape semantics (e.g. a
+pipeline DSL where hexagon=human gate), the overview diagrams should use
+those same shapes — don't introduce conflicting meanings at different
+documentation layers.
 
 **Success criteria**: A numbered list of design principles extracted from the
 reference, ready to apply to our diagram.
@@ -155,7 +159,10 @@ Generate the DOT source following these hard constraints:
 - **Maximum cluster nesting depth = 2**
 - **Pure DAG** (top-to-bottom flow, feedback loops use `constraint=false`)
 - **≤3 node shapes** plus special shapes for gates/safety (note=data,
-  rounded-box=process, folder=external, diamond=gate, octagon=safety)
+  rounded-box=process, folder=external, hexagon=human-gate, octagon=safety).
+  If the system has an underlying DSL with its own shape vocabulary (e.g. the
+  attractor pipeline DSL), align overview shapes with that vocabulary — don't
+  introduce shape meanings in the overview that conflict with the DSL layer.
 - **≤6 semantic fill colors**, all pastel (~90% lightness)
 - **Cluster border color matches node fill family**
 - **Node labels: ≤3 lines**, name what it IS not what it DOES

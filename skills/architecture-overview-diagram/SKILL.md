@@ -7,6 +7,7 @@ description: >
   diagram", "top-level overview diagram", or wants a single diagram that
   gives a non-technical reader the "I get it" understanding of a system.
   Produces a .dot source, .svg, and .png — reviewed to PASS quality.
+  Also surfaces doc/code discrepancies and optionally generates detail diagrams.
 user-invocable: true
 allowed-tools:
   - read_file
@@ -32,11 +33,17 @@ The process is code-first: read the actual source code, not documentation, to
 determine what the system really does. Then iterate the diagram design with user
 feedback and antagonistic review until it passes quality gates.
 
+This skill commonly surfaces doc/code discrepancies, dead code, and stale
+artifacts as a side effect of the investigation. Those findings should be
+presented to the user for cleanup alongside the diagram work.
+
 ## Inputs
 
 - `<repo_path>`: Path to the repository to diagram.
 - `<reference_diagram>`: (Optional) Path to a gold-standard diagram to use as a
-  style/structure reference.
+  style/structure reference. If this repo is part of an ecosystem with sibling
+  repos that already have overview diagrams, use those as implicit references
+  for visual consistency — even if the user doesn't explicitly provide one.
 
 ## Steps
 
@@ -58,6 +65,7 @@ Investigation targets:
 - User-facing interaction patterns (how do humans interact)
 - Safety/enforcement mechanisms
 - Plugin/extension points
+- Awareness boundaries (what should this repo know about, what shouldn't it?)
 
 **Success criteria**: A complete mental model of what the system does, its
 components, data flows, external dependencies, and user-facing behaviors —
@@ -75,14 +83,21 @@ Find:
 - All architecture/design docs
 - README claims about system structure
 - Any discrepancies between docs and code (note these for later)
+- Stale artifacts, dead code, duplicate files, awareness boundary violations
+
+**Artifacts**: Compile a cleanup backlog of doc/code discrepancies, stale
+references, and other issues found. Present this to the user alongside the
+diagram work — the investigation commonly surfaces significant cleanup needs.
 
 **Success criteria**: Complete inventory of existing documentation with
-accuracy assessment against code findings from Step 1.
+accuracy assessment against code findings from Step 1, plus a cleanup
+backlog for the user to review.
 
-### 3. Analyze Reference Diagram (if provided)
+### 3. Analyze Reference Diagram (if provided or available)
 
-If a gold-standard reference diagram was provided, analyze its design
-principles to guide our diagram's style and structure.
+If a gold-standard reference diagram was provided, OR if sibling repos in the
+same ecosystem already have overview diagrams, analyze their design principles
+to guide our diagram's style and structure.
 
 **Execution**: Delegate to `design-intelligence:design-system-architect`
 with the reference diagram.
@@ -94,6 +109,10 @@ Extract:
 - Text density per node and edge
 - What makes it work as an "I get it" overview
 - Concrete design principles to follow
+
+**Rules**: When working within an ecosystem of repos, visual consistency
+matters. If sibling repos use specific color palettes, shape vocabularies,
+or cluster patterns, match them — the diagrams should look like a family.
 
 **Success criteria**: A numbered list of design principles extracted from the
 reference, ready to apply to our diagram.
@@ -121,6 +140,7 @@ Present the story to the user for feedback before proceeding.
 - DO name real ecosystem dependencies that all users will encounter
 - DO show safety/enforcement mechanisms if they exist
 - DO show bidirectional interactions (human-in-the-loop, feedback channels)
+- Respect awareness boundaries — the repo should only reference its direct deps
 
 **Success criteria**: User confirms the story and scope before diagram creation.
 
@@ -164,21 +184,40 @@ Iterate Steps 5-6 as needed based on feedback. Expect 2-4 iterations.
 
 **Human checkpoint**: User reviews and provides feedback each iteration.
 
-### 7. Antagonistic Review
+### 7. Hunt for Missing Mechanisms
 
-Once the user is satisfied with the direction, launch parallel antagonistic
-reviews from three different perspectives:
+Before the antagonistic review, proactively search for important mechanisms
+that the diagram does NOT yet show. Send fresh agents to read the code with
+the specific question: "what user-facing capabilities exist that aren't in
+this diagram?"
 
-**7a. Fresh code audit** — Delegate to `foundation:explorer` with
+**Execution**: Delegate to `foundation:explorer` (fresh, `context_depth="none"`)
+and `resolve:resolve-expert` or domain-appropriate expert agents. Give them
+the current diagram's node list and ask them to find what's missing.
+
+Rate each finding: CRITICAL (users need to know), IMPORTANT (valuable but
+detail-level), or IMPLEMENTATION (skip for overview).
+
+Present the findings to the user for decision on what to add.
+
+**Success criteria**: User confirms which missing mechanisms to add (if any).
+
+**Human checkpoint**: Present missing mechanism candidates and get approval.
+
+### 8. Antagonistic Review
+
+Launch parallel antagonistic reviews from three different perspectives:
+
+**8a. Fresh code audit** — Delegate to `foundation:explorer` with
 `context_depth="none"` and `model_role="critique"`. Give it the diagram's
 claims and ask it to verify each against the actual source code. For each
 claim: ACCURATE, INACCURATE, or PARTIALLY ACCURATE with file:line evidence.
 
-**7b. Diagram quality review** — Delegate to `dot-graph:diagram-reviewer`.
+**8b. Diagram quality review** — Delegate to `dot-graph:diagram-reviewer`.
 Get a structured PASS/WARN/FAIL verdict covering syntax, structure, color
 consistency, edge labels, readability, and comparison to reference.
 
-**7c. Design critique** — Delegate to `design-intelligence:design-system-architect`
+**8c. Design critique** — Delegate to `design-intelligence:design-system-architect`
 with `model_role="critique"`. Ask it to compare against the reference diagram
 and find problems in story clarity, balance, missing/excess information, edge
 label quality, and feedback loop clarity.
@@ -187,9 +226,9 @@ label quality, and feedback loop clarity.
 as ACCURATE. Diagram reviewer returns PASS or WARN (no FAIL). Design critique
 identifies only minor issues.
 
-### 8. Incorporate Review Findings
+### 9. Incorporate Review Findings
 
-Fix any issues found in Step 7:
+Fix any issues found in Step 8:
 - Factual inaccuracies → fix the diagram to match code reality
 - Missing mechanisms identified by code audit → add if README-level important
 - Quality warnings → fix per reviewer guidance
@@ -199,7 +238,7 @@ Re-render the diagram after fixes.
 
 **Success criteria**: All review findings addressed. Diagram re-rendered.
 
-### 9. Final Review
+### 10. Final Review
 
 Run one more `dot-graph:diagram-reviewer` pass on the final version to
 confirm PASS (or acceptable WARN).
@@ -207,7 +246,7 @@ confirm PASS (or acceptable WARN).
 **Success criteria**: Diagram reviewer returns PASS or WARN with no blocking
 issues.
 
-### 10. Place and Commit
+### 11. Place and Commit
 
 1. Copy the `.dot`, `.svg`, and `.png` to the target repo's `docs/` directory
 2. Add an `![Architecture](docs/<name>.svg)` reference to the repo's README.md
@@ -218,3 +257,24 @@ issues.
 repo's README on GitHub.
 
 **Human checkpoint**: Confirm the placement and commit message before pushing.
+
+### 12. Detail Diagrams (Optional)
+
+After the overview is placed, assess whether detail-level diagrams would add
+value. Good candidates are:
+- The system's most architecturally distinctive feature
+- Core data flows that are non-obvious from the overview
+- Plugin/extension lifecycle if the system is extensible
+- State machines if the system has a rich lifecycle
+
+Look at sibling repos for patterns — if the backend has 7 detail diagrams
+covering different angles, the frontend likely benefits from 2-3 covering
+its distinctive perspectives.
+
+**Execution**: Delegate to `dot-graph:dot-author` with specific angle and
+code-level findings from Step 1. Use the same visual conventions as the
+overview. Save to `docs/diagrams/` subdirectory.
+
+**Success criteria**: Detail diagrams committed and pushed.
+
+**Human checkpoint**: Confirm which detail diagrams to create.

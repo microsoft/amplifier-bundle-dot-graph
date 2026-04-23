@@ -9,7 +9,7 @@ tools:
 
   # Register dot-graph bundle skills for discovery
   - module: tool-skills
-    source: git+https://github.com/microsoft/amplifier-module-tool-skills@main
+    source: git+https://github.com/microsoft/amplifier-bundle-skills@main#subdirectory=modules/tool-skills
     config:
       skills:
         - "git+https://github.com/microsoft/amplifier-bundle-dot-graph@main#subdirectory=skills"

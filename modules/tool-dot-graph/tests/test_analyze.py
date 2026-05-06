@@ -875,3 +875,266 @@ def test_stats_simple_dag_unaffected_by_subgraph_fix():
     assert result["edge_count"] == 3, (
         f"SIMPLE_DAG still has 3 edges, got: {result['edge_count']}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Producer/consumer operation fixtures
+# ---------------------------------------------------------------------------
+
+# Pipeline with proper producer/consumer declarations — all condition keys match
+PIPELINE_WITH_PRODUCERS = '''digraph pipeline {
+    Start [shape=ellipse]
+    Eval [shape=parallelogram tool_outputs="verdict,confidence" parse_json=true]
+    Approve [shape=box]
+    Retry [shape=box]
+    Start -> Eval
+    Eval -> Approve [condition="verdict=approved"]
+    Eval -> Retry [condition="verdict=rejected"]
+}'''
+
+# Pipeline where a condition references a key no producer declares
+PIPELINE_UNMATCHED = '''digraph pipeline {
+    Start [shape=ellipse]
+    Eval [shape=parallelogram tool_outputs="verdict" parse_json=true]
+    Route [shape=diamond]
+    End [shape=ellipse]
+    Start -> Eval
+    Eval -> Route
+    Route -> End [condition="nonexistent_key=yes"]
+}'''
+
+# Pipeline with no condition edges — valid graph, nothing to analyse
+PIPELINE_NO_CONDITIONS = '''digraph pipeline {
+    A [shape=box]
+    B [shape=box]
+    A -> B
+}'''
+
+# Pipeline with conditions but no tool_outputs declarations — all keys unmatched
+PIPELINE_NO_PRODUCERS = '''digraph pipeline {
+    A [shape=box]
+    B [shape=box]
+    A -> B [condition="status=done"]
+}'''
+
+# Pipeline where the producer is DOWNSTREAM of the condition edge (not an ancestor)
+PIPELINE_DOWNSTREAM_PRODUCER = '''digraph pipeline {
+    Start [shape=ellipse]
+    Router [shape=diamond]
+    Worker [shape=parallelogram tool_outputs="result" parse_json=true]
+    End [shape=ellipse]
+    Start -> Router
+    Router -> Worker
+    Router -> End [condition="result=ok"]
+    Worker -> End
+}'''
+
+# Pipeline with the producer node inside a subgraph cluster
+PIPELINE_CLUSTERED_PRODUCER = '''digraph pipeline {
+    subgraph cluster_eval {
+        Eval [shape=parallelogram tool_outputs="verdict" parse_json=true]
+    }
+    Start -> Eval
+    Eval -> End [condition="verdict=approved"]
+}'''
+
+# Pipeline testing all condition formats: key=value, key!=value, key=
+PIPELINE_CONDITION_FORMATS = '''digraph pipeline {
+    A [shape=parallelogram tool_outputs="status,flag,mode" parse_json=true]
+    A -> B [condition="status=ok"]
+    A -> C [condition="flag!=yes"]
+    A -> D [condition="mode="]
+}'''
+
+
+# ---------------------------------------------------------------------------
+# Producer/consumer operation tests
+# ---------------------------------------------------------------------------
+
+
+def test_producer_consumer_all_matched():
+    """All condition keys have upstream producers: unmatched_keys is empty."""
+    result = analyze_dot(PIPELINE_WITH_PRODUCERS, {"analysis": "producer_consumer"})
+
+    assert result["success"] is True, f"producer_consumer must succeed, got: {result}"
+    assert result["unmatched_keys"] == [], (
+        f"All keys should be matched; unmatched_keys must be [], "
+        f"got: {result['unmatched_keys']}"
+    )
+    matched_key_names = [m["key"] for m in result["matched_keys"]]
+    assert "verdict" in matched_key_names, (
+        f"'verdict' must be in matched_keys, got: {matched_key_names}"
+    )
+
+
+def test_producer_consumer_unmatched_key():
+    """Condition referencing a key no producer declares appears in unmatched_keys."""
+    result = analyze_dot(PIPELINE_UNMATCHED, {"analysis": "producer_consumer"})
+
+    assert result["success"] is True, f"producer_consumer must succeed, got: {result}"
+    unmatched_key_names = [u["key"] for u in result["unmatched_keys"]]
+    assert "nonexistent_key" in unmatched_key_names, (
+        f"'nonexistent_key' must be in unmatched_keys, got: {unmatched_key_names}"
+    )
+
+
+def test_producer_consumer_no_conditions():
+    """Graph with no condition edges returns success with empty matched/unmatched lists."""
+    result = analyze_dot(PIPELINE_NO_CONDITIONS, {"analysis": "producer_consumer"})
+
+    assert result["success"] is True, f"producer_consumer must succeed, got: {result}"
+    assert result["matched_keys"] == [], (
+        f"No condition edges: matched_keys must be [], got: {result['matched_keys']}"
+    )
+    assert result["unmatched_keys"] == [], (
+        f"No condition edges: unmatched_keys must be [], got: {result['unmatched_keys']}"
+    )
+    assert result["total_condition_edges"] == 0, (
+        f"No condition edges: total must be 0, got: {result['total_condition_edges']}"
+    )
+
+
+def test_producer_consumer_no_producers():
+    """Conditions exist but no tool_outputs declared: all condition keys are unmatched."""
+    result = analyze_dot(PIPELINE_NO_PRODUCERS, {"analysis": "producer_consumer"})
+
+    assert result["success"] is True, f"producer_consumer must succeed, got: {result}"
+    assert result["total_producers"] == 0, (
+        f"No tool_outputs: total_producers must be 0, got: {result['total_producers']}"
+    )
+    unmatched_key_names = [u["key"] for u in result["unmatched_keys"]]
+    assert "status" in unmatched_key_names, (
+        f"'status' must be in unmatched_keys when no producers, got: {unmatched_key_names}"
+    )
+    assert result["matched_keys"] == [], (
+        f"No producers: matched_keys must be [], got: {result['matched_keys']}"
+    )
+
+
+def test_producer_consumer_undirected_error():
+    """Undirected graph returns success=False with a descriptive error."""
+    result = analyze_dot(UNDIRECTED, {"analysis": "producer_consumer"})
+
+    assert result["success"] is False, (
+        "producer_consumer on an undirected graph must return success=False"
+    )
+    assert "error" in result, "Error result must have 'error' key"
+    assert "directed" in result["error"].lower(), (
+        f"Error must mention 'directed', got: {result['error']}"
+    )
+
+
+def test_producer_consumer_result_fields():
+    """Result includes all expected top-level fields with correct types."""
+    result = analyze_dot(PIPELINE_WITH_PRODUCERS, {"analysis": "producer_consumer"})
+
+    assert result["success"] is True, f"producer_consumer must succeed, got: {result}"
+
+    required_fields = [
+        "success",
+        "operation",
+        "total_condition_edges",
+        "total_condition_keys",
+        "total_producers",
+        "matched_keys",
+        "unmatched_keys",
+        "producers",
+        "annotated_dot",
+    ]
+    for field in required_fields:
+        assert field in result, (
+            f"Result must include '{field}', got keys: {list(result.keys())}"
+        )
+
+    assert result["operation"] == "producer_consumer", (
+        f"operation must be 'producer_consumer', got: {result['operation']}"
+    )
+    assert isinstance(result["matched_keys"], list), "'matched_keys' must be a list"
+    assert isinstance(result["unmatched_keys"], list), "'unmatched_keys' must be a list"
+    assert isinstance(result["producers"], dict), "'producers' must be a dict"
+    assert isinstance(result["annotated_dot"], str), "'annotated_dot' must be a string"
+    assert isinstance(result["total_condition_edges"], int), (
+        "'total_condition_edges' must be an int"
+    )
+    assert isinstance(result["total_condition_keys"], int), (
+        "'total_condition_keys' must be an int"
+    )
+    assert isinstance(result["total_producers"], int), "'total_producers' must be an int"
+
+
+def test_producer_consumer_upstream_reachability():
+    """A producer that is DOWNSTREAM of the condition edge source is not counted upstream.
+
+    In PIPELINE_DOWNSTREAM_PRODUCER:
+      Router -> End [condition="result=ok"]
+    Worker (which declares tool_outputs="result") is a child of Router, not an ancestor.
+    Therefore 'result' must appear in unmatched_keys even though a producer exists.
+    """
+    result = analyze_dot(PIPELINE_DOWNSTREAM_PRODUCER, {"analysis": "producer_consumer"})
+
+    assert result["success"] is True, f"producer_consumer must succeed, got: {result}"
+    unmatched_key_names = [u["key"] for u in result["unmatched_keys"]]
+    assert "result" in unmatched_key_names, (
+        f"'result' must be unmatched (Worker is downstream of Router, not upstream); "
+        f"got unmatched: {unmatched_key_names}"
+    )
+
+
+def test_producer_consumer_condition_parsing():
+    """All three condition formats are parsed to correct keys.
+
+    PIPELINE_CONDITION_FORMATS has A -> B [condition="status=ok"],
+    A -> C [condition="flag!=yes"], A -> D [condition="mode="].
+    Node A produces status, flag, mode — all edges should be matched.
+    """
+    result = analyze_dot(PIPELINE_CONDITION_FORMATS, {"analysis": "producer_consumer"})
+
+    assert result["success"] is True, f"producer_consumer must succeed, got: {result}"
+    assert result["unmatched_keys"] == [], (
+        f"All condition formats should parse and match producers; "
+        f"unmatched_keys must be [], got: {result['unmatched_keys']}"
+    )
+    matched_key_names = [m["key"] for m in result["matched_keys"]]
+    assert "status" in matched_key_names, (
+        f"'status' (from key=value) must be matched, got: {matched_key_names}"
+    )
+    assert "flag" in matched_key_names, (
+        f"'flag' (from key!=value) must be matched, got: {matched_key_names}"
+    )
+    assert "mode" in matched_key_names, (
+        f"'mode' (from key=) must be matched, got: {matched_key_names}"
+    )
+    assert result["total_condition_edges"] == 3, (
+        f"3 condition edges, got: {result['total_condition_edges']}"
+    )
+    assert result["total_condition_keys"] == 3, (
+        f"3 unique condition keys, got: {result['total_condition_keys']}"
+    )
+
+
+def test_producer_consumer_clustered_nodes():
+    """Producer nodes declared inside subgraph clusters are found via recursive walk."""
+    result = analyze_dot(PIPELINE_CLUSTERED_PRODUCER, {"analysis": "producer_consumer"})
+
+    assert result["success"] is True, f"producer_consumer must succeed, got: {result}"
+    # Eval is inside cluster_eval but must still be registered as a producer.
+    assert "Eval" in result["producers"], (
+        f"Eval (inside cluster) must appear in producers dict, got: {result['producers']}"
+    )
+    assert result["unmatched_keys"] == [], (
+        f"'verdict' should be matched via clustered Eval; unmatched_keys must be [], "
+        f"got: {result['unmatched_keys']}"
+    )
+
+
+def test_producer_consumer_annotated_dot():
+    """Unmatched condition edges are highlighted red in annotated_dot."""
+    result = analyze_dot(PIPELINE_UNMATCHED, {"analysis": "producer_consumer"})
+
+    assert result["success"] is True, f"producer_consumer must succeed, got: {result}"
+    assert "annotated_dot" in result, "Result must include 'annotated_dot'"
+    assert isinstance(result["annotated_dot"], str), "'annotated_dot' must be a string"
+    assert "red" in result["annotated_dot"], (
+        f"annotated_dot must contain 'red' for unmatched edges, "
+        f"got:\n{result['annotated_dot']}"
+    )

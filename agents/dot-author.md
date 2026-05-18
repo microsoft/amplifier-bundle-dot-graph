@@ -116,3 +116,7 @@ If the DOT tools (`dot_validate`, `dot_render`) are not available:
 ---
 
 @foundation:context/shared/common-agent-base.md
+
+@dot-graph:context/dot-awareness.md
+
+@dot-graph:context/discovery-awareness.md

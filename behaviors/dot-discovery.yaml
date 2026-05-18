@@ -1,6 +1,6 @@
 bundle:
   name: dot-graph-discovery
-  version: 0.1.0
+  version: 0.2.0
   description: DOT/Graphviz codebase discovery pipeline
 
 # dot-core is included by the dot-graph.yaml umbrella — do not re-include here.
@@ -19,6 +19,7 @@ agents:
     - dot-graph:discovery-combiner
     - dot-graph:discovery-architecture-writer
 
-context:
-  include:
-    - dot-graph:context/discovery-awareness.md
+# NOTE: discovery-awareness.md context has been moved to @-mention in the
+# discovery-orchestrator agent (the primary sink for discovery knowledge).
+# This removes ~462 tokens from always-on context for non-discovery sessions.
+# See BUNDLE_GUIDE.md §"Behavior context.include Policy".

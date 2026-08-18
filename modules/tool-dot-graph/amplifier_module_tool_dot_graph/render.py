@@ -96,16 +96,26 @@ def render_dot(
     tmp_dot_path: str | None = None
     succeeded = False
     try:
+        # encoding="utf-8": DOT labels routinely carry non-ASCII (people names,
+        # CJK, accented text). A text-mode write without an encoding uses the
+        # locale codepage (cp1252) on Windows and raises UnicodeEncodeError before
+        # graphviz even runs. Record the path BEFORE writing so the finally-block
+        # cleanup still unlinks the temp file if the write raises.
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".dot", delete=False
+            mode="w", suffix=".dot", delete=False, encoding="utf-8"
         ) as tmp_dot:
-            tmp_dot.write(dot_content)
             tmp_dot_path = tmp_dot.name
+            tmp_dot.write(dot_content)
 
         result = subprocess.run(
             [engine, f"-T{output_format}", tmp_dot_path, "-o", output_path],
             capture_output=True,
             text=True,
+            # graphviz emits UTF-8; its stderr echoes the offending DOT source
+            # (incl. non-ASCII labels) on error. Without an explicit encoding a
+            # cp1252 decode of that stderr crashes on Windows.
+            encoding="utf-8",
+            errors="replace",
             timeout=_RENDER_TIMEOUT_SECS,
         )
 

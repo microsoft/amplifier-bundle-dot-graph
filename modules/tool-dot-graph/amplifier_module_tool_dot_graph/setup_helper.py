@@ -47,6 +47,10 @@ def _check_graphviz() -> dict:
             ["dot", "-V"],
             capture_output=True,
             text=True,
+            # UTF-8 for consistency with the other graphviz calls; the version
+            # banner is ASCII but pinning the codec avoids a cp1252 decode on Windows.
+            encoding="utf-8",
+            errors="replace",
             timeout=5,
         )
         # Version appears in stderr: "dot - graphviz version X.Y.Z (N)"

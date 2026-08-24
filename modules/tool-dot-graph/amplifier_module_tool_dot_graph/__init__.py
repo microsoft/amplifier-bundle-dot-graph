@@ -44,9 +44,10 @@ class DotGraphTool:
     - Validation: three-layer syntax, structural, and render-quality checks via pydot
     - Rendering: graphviz CLI wrapper for SVG/PNG/PDF output
     - Setup: environment check for graphviz, pydot, and networkx availability
-    - Analysis: reachability, cycle detection, critical path, and structural diff via networkx
+    - Analysis: reachability, cycle detection, critical path, structural diff, and
+      producer/consumer static analysis via networkx
       Operations: stats, reachability, unreachable, cycles, paths,
-                  critical_path, subgraph_extract, diff
+                  critical_path, subgraph_extract, diff, producer_consumer
     - Prescan: structural codebase scanner for discovery pipeline
     - Assemble: hierarchical DOT assembly (modules -> subsystems -> overview)
     """
@@ -72,6 +73,7 @@ Operations:
   - critical_path: Longest path in a DAG
   - subgraph_extract: Extract a named cluster subgraph into standalone DOT
   - diff: Structural differences between two DOT graphs
+  - producer_consumer: Detect condition keys on edges with no upstream producer (tool_outputs)
 - prescan: Structural codebase scan — walk a repo and produce language/module/file inventory
 - assemble: Hierarchical DOT assembly — merge per-module DOTs into subsystem + overview graphs"""
 
@@ -140,6 +142,7 @@ Operations:
                                 "critical_path",
                                 "subgraph_extract",
                                 "diff",
+                                "producer_consumer",
                             ],
                             "description": "Analysis operation to perform (required for analyze operation)",
                         },

@@ -67,10 +67,10 @@ def test_recipe_description_non_empty():
 
 
 def test_recipe_version():
-    """Recipe must have version='1.0.0'."""
+    """Recipe must have version='1.1.0' (bumped by the schema v2 migration)."""
     data = _load_recipe()
-    assert data.get("version") == "1.0.0", (
-        f"Expected version='1.0.0', got: {data.get('version')!r}"
+    assert data.get("version") == "1.1.0", (
+        f"Expected version='1.1.0', got: {data.get('version')!r}"
     )
 
 

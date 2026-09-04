@@ -107,10 +107,10 @@ def test_recipe_description_non_empty():
 
 
 def test_recipe_version():
-    """Recipe must have version='1.0.0'."""
+    """Recipe must have version='1.1.0' (bumped by the schema v2 migration)."""
     data = _load_recipe()
-    assert data.get("version") == "1.0.0", (
-        f"Expected version='1.0.0', got: {data.get('version')!r}"
+    assert data.get("version") == "1.1.0", (
+        f"Expected version='1.1.0', got: {data.get('version')!r}"
     )
 
 
@@ -539,12 +539,23 @@ def test_discovery_combine_sub_recipe_exists():
 # ---------------------------------------------------------------------------
 
 
-def test_recipe_has_final_output():
-    """Recipe must declare final_output for consistency with peer recipes."""
+def test_recipe_does_not_declare_top_level_final_output():
+    """Top-level `final_output:` must stay commented out (schema v2 Core 1).
+
+    It was always inert: the v1 Recipe model has no `final_output` field, and
+    the run summary reads a *context* key of that name, not this top-level one.
+    Under schema v2 an unknown top-level key is a hard parse ERROR, so the
+    migration preserved the intent as a comment instead.
+    """
     data = _load_recipe()
-    final_output = data.get("final_output", "")
-    assert final_output == "combine_result", (
-        f"final_output must be 'combine_result', got: {final_output!r}"
+    assert "final_output" not in data, (
+        f"Top-level 'final_output' must not be a live key under schema v2; "
+        f"got: {data.get('final_output')!r}"
+    )
+    raw = RECIPE_PATH.read_text()
+    assert "# final_output: \"combine_result\"" in raw, (
+        "The original final_output intent must be preserved as a comment "
+        "so the recipe's output contract is not silently lost."
     )
 
 

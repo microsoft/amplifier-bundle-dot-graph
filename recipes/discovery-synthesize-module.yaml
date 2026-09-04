@@ -1,3 +1,27 @@
+# --- Dependency manifest (contract: recipe-dependency-manifest.v1) ----------
+# schema_version 2 makes this recipe portable: every `agent:` reference below
+# resolves ONLY from the declared closure here, never from the calling
+# session's agent map. A caller bundle that does not carry the dot-graph agents
+# can still run this recipe.
+#
+# The closure is this bundle itself -- every agent referenced below ships in
+# amplifier-bundle-dot-graph. Core 11: the engine never infers a source from an
+# agent's namespace prefix, so declaring the self-reference is required, not
+# redundant.
+#
+# Pinned to the released tag `v0.3.1`. Foundation fetches a ref with
+# `git clone --branch`, which accepts a branch or a tag but NOT a commit SHA,
+# so a tag is the most immutable pin a `source:` can currently express. Tag
+# v0.3.1 (70e60c5) ships agents/ byte-identical to origin/main (ceed89d).
+schema_version: 2
+
+dependencies:
+  - source: "git+https://github.com/microsoft/amplifier-bundle-dot-graph@v0.3.1"
+    kind: bundle
+    required_agents:
+      - "dot-graph:discovery-synthesizer"
+# ---------------------------------------------------------------------------
+
 name: "discovery-synthesize-module"
 description: >
   Per-module synthesis sub-recipe for the Parallax Discovery pipeline.
@@ -6,7 +30,12 @@ description: >
   quality gate loop: synthesize -> validate -> check-quality -> retry if
   invalid (max 3 iterations). If validation still fails after 3 retries, the
   best attempt is kept for manual review.
-version: "1.0.0"
+version: "1.1.0"
+# Changelog:
+#   1.1.0 - Declare schema_version 2 + dependency manifest (see header) so this
+#           recipe resolves its agents closed-world and runs from any session
+#           bundle. No step, context, or behavioural change.
+#   1.0.0 - Initial release.
 author: "DOT Graph Bundle"
 tags: ["discovery", "synthesis", "quality-gate", "sub-recipe", "dot-graph"]
 

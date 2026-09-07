@@ -59,11 +59,32 @@ simply did not, that is neither B nor C: finish the work."*
 
 **Decision, made once and not revisited:** do the work, ship it, and report the item-id fan-out as
 a goal defect. **This lane cannot call `work_resolve`** — it never held the item, and
-`work_resolve` correctly refuses a non-holder. Resolution of `model_performance-kp79` belongs to
-its single holder (`agent-spark-1-2776455`) once all four repo PRs exist.
+`work_resolve` correctly refuses a non-holder.
 
-**Fix for the next batch:** one item per repo (`kp79-dot-graph`, `kp79-android-tester`, …), or one
-parent item with per-repo children. Four lanes cannot share one claim.
+### How it actually ended — item resolved, record corrected by erratum
+
+`model_performance-kp79` was **resolved at 2026-09-07T16:51:06Z** by its single holder
+(`agent-spark-1-2776455`, the android-tester lane) on finishing **one** of the ~12 repos in the
+sweep. Two sibling lanes had already appended `work_erratum` scope corrections
+(browser-tester → PR #8; reality-check → PR #15), each independently diagnosing the same
+one-item-many-lanes defect. The reality-check erratum still listed **dot-graph as unswept**.
+
+This lane therefore appended its own erratum (`work_erratum`, 16:57:08Z) recording that
+dot-graph is DONE at draft PR #7, with the catalog measurement, the fidelity restorations, the
+`validate-agents` verdict, the two discovered-not-fixed findings, and the corrected remaining list.
+`work_erratum` needs no claim and never rewrites the resolution — the sanctioned way to correct a
+record that understates the work while the work itself stands.
+
+**Terminal state: OUTCOME BRANCH A.** The item is resolved; this repo's deliverables exist as
+draft PR #7; the record now says so. This lane took branch A's **substance** (finish and publish)
+where it could not take its **verb**.
+
+**Fix for the next batch — endorsing, independently, the remedy the two sibling errata propose:**
+one item per repo (`kp79-dot-graph`, `kp79-android-tester`, …), or a `kp79` parent that closes only
+when its per-repo children do. Four lanes cannot share one claim, and after a refusal **all three
+of the goal's outcome branches are unsatisfiable** for a non-holding lane — A and B both require
+`work_resolve`, C requires `work_release`, and a lane that never held the item can call neither.
+The goal template needs a fourth state, or the split.
 
 ---
 

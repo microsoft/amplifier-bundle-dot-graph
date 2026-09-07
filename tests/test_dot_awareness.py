@@ -71,14 +71,11 @@ def test_dot_awareness_has_tools():
 
 
 def test_dot_awareness_has_skills():
-    """File must list skills: dot-syntax, dot-patterns, dot-as-analysis, dot-quality, dot-graph-intelligence."""
+    """File must list the two consolidated skills: dot-authoring, dot-analysis."""
     content = DOT_AWARENESS_PATH.read_text()
     skills = [
-        "dot-syntax",
-        "dot-patterns",
-        "dot-as-analysis",
-        "dot-quality",
-        "dot-graph-intelligence",
+        "dot-authoring",
+        "dot-analysis",
     ]
     for skill in skills:
         assert skill in content, f"Missing skill: '{skill}'"

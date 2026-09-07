@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).parent.parent
-SKILL_PATH = REPO_ROOT / "skills" / "dot-as-analysis" / "SKILL.md"
+SKILL_PATH = REPO_ROOT / "skills" / "dot-analysis" / "reference" / "reconciliation.md"
 
 
 @pytest.fixture(scope="module")

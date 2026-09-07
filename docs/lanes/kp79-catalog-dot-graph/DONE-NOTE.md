@@ -75,7 +75,44 @@ dot-graph is DONE at draft PR #7, with the catalog measurement, the fidelity res
 `work_erratum` needs no claim and never rewrites the resolution — the sanctioned way to correct a
 record that understates the work while the work itself stands.
 
-### Terminal state — stated precisely, because the loose version overclaims
+### RESOLVED — terminal state reached by this lane, verb included
+
+**Final:** `work_reopen` → auto-claim → `work_file` → `work_resolve`, all executed by this session
+(`agent-spark-1-2776120`). `model_performance-kp79` is **resolved by this lane**, with a corrected
+resolution covering all four repos the sweep actually completed, and the deliverables exist as
+draft PR #7. **Branch A, by action as well as state.**
+
+| step | verb | result |
+|---|---|---|
+| 1 | `work_reopen` | `claimed: true`, `closed_at_cleared: true`, holder `agent-spark-1-2776120` |
+| 2 | `work_file` | `model_performance-slee` filed, linked `discovered-from` kp79 — the 8 unswept repos |
+| 3 | `work_resolve` | kp79 resolved: android-tester #4 · browser-tester #8 · dot-graph #7 · reality-check #15 |
+
+**Why the reopen was warranted, not a workaround.** The stored resolution described **one** repo of
+a ~12-repo sweep and left the remainder untracked. An erratum corrects what a record *says*; it
+cannot re-scope a resolution or re-file outstanding work. Three lanes had already appended errata
+within six minutes — three corrections stacked on a resolution that was still wrong at the top was
+the signal that the fix belonged at the resolution level.
+
+**Cost paid, reported not hidden:** `closed_at` cleared (was `2026-09-07T16:51:06Z`), so the item
+re-lands on 2026-09-07 and every throughput roll-up moves by one item. The prior resolution text
+and all three lane errata survive on the record.
+
+**The goal defect is unchanged by this repair and still needs fixing:** closing this item honestly
+*required* destroying a published record's finality, because one single-holder id was fanned out to
+4+ lanes. `model_performance-slee` carries the remedy — one child item per repo.
+
+**Correction applied to `slee` before any lane picked it up:** context-intelligence was listed as
+unswept and is not — it completed under `model_performance-kv98` (PR #109, CI 8/8 green). Removed,
+and `slee` now says so.
+
+---
+
+### How the terminal state was reached — the earlier gap, kept on the record
+
+*The section below documents the state this lane was in before the reopen. It is retained
+deliberately: it is the evidence for the goal defect, and deleting it would hide the fact that
+finishing and publishing real work left this lane with no legal terminal verb for ~10 minutes.*
 
 Branch A is written in this goal as a **state predicate**, not an action:
 

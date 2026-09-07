@@ -6,7 +6,7 @@ TDD: Tests written BEFORE the skill file is created.
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent
-SKILL_PATH = REPO_ROOT / "skills" / "parallax-investigation" / "SKILL.md"
+SKILL_PATH = REPO_ROOT / "skills" / "dot-analysis" / "reference" / "parallax-investigation.md"
 
 
 def test_parallax_investigation_skill_exists():

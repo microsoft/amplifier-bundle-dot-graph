@@ -37,11 +37,25 @@ EXPECTED_FILES = [
     "modules/tool-dot-graph/amplifier_module_tool_dot_graph/__init__.py",
     "scripts/dot-validate.sh",
     "scripts/dot-render.sh",
+    # Consolidated catalog (model_performance-cb58): two model-visible hub
+    # skills, the original bodies preserved as L3 reference files, and
+    # old-name redirect stubs so load_skill(<old name>) still resolves.
+    "skills/dot-authoring/SKILL.md",
+    "skills/dot-authoring/reference/syntax.md",
+    "skills/dot-authoring/reference/patterns.md",
+    "skills/dot-authoring/reference/quality.md",
+    "skills/dot-analysis/SKILL.md",
+    "skills/dot-analysis/reference/graph-intelligence.md",
+    "skills/dot-analysis/reference/reconciliation.md",
+    "skills/dot-analysis/reference/parallax-investigation.md",
+    "skills/dot-analysis/reference/architecture-overview-diagram.md",
     "skills/dot-syntax/SKILL.md",
     "skills/dot-patterns/SKILL.md",
     "skills/dot-as-analysis/SKILL.md",
     "skills/dot-quality/SKILL.md",
     "skills/dot-graph-intelligence/SKILL.md",
+    "skills/parallax-investigation/SKILL.md",
+    "skills/architecture-overview-diagram/SKILL.md",
     # Phase A: discovery architecture
     "behaviors/dot-core.yaml",
     "behaviors/dot-discovery.yaml",
@@ -75,12 +89,13 @@ EXPECTED_FILES = [
     "recipes/quick/discovery-pipeline.yaml",
 ]
 
+# The "Use when ..." routing convention governs the MODEL-VISIBLE index only.
+# The old-name redirect stubs are deliberately excluded: they carry
+# disable-model-invocation: true and exist to resolve a name, not to advertise
+# a capability the model should route to. See tests/test_skills_catalog.py.
 SKILL_FILES = [
-    "skills/dot-syntax/SKILL.md",
-    "skills/dot-patterns/SKILL.md",
-    "skills/dot-as-analysis/SKILL.md",
-    "skills/dot-quality/SKILL.md",
-    "skills/dot-graph-intelligence/SKILL.md",
+    "skills/dot-authoring/SKILL.md",
+    "skills/dot-analysis/SKILL.md",
 ]
 
 
@@ -96,10 +111,16 @@ def test_bundle_file_exists(rel_path):
 
 
 def test_total_file_count():
-    """Step 6: Total bundle file count is exactly 44 (43 prior + 1 Task 6)."""
+    """Step 6: Total bundle file count is exactly 55.
+
+    44 prior + 11 from the skills-catalog consolidation
+    (model_performance-cb58): 2 hub SKILL.md, 7 L3 reference files, and
+    2 new redirect stubs (parallax-investigation,
+    architecture-overview-diagram) that this list did not previously track.
+    """
     present = [f for f in EXPECTED_FILES if (REPO_ROOT / f).exists()]
-    assert len(present) == 44, (
-        f"Expected 44 bundle files, found {len(present)}. "
+    assert len(present) == 55, (
+        f"Expected 55 bundle files, found {len(present)}. "
         f"Missing: {[f for f in EXPECTED_FILES if f not in present]}"
     )
 

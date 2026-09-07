@@ -30,7 +30,7 @@ You have access to DOT/Graphviz graph authoring, analysis, and intelligence capa
 
 **Agents**: `dot-author` (graph creation and editing), `diagram-reviewer` (quality review)
 **Tools**: `dot_validate`, `dot_render`, `dot_setup`, `dot_analyze`
-**Skills**: `dot-syntax`, `dot-patterns`, `dot-as-analysis`, `dot-quality`, `dot-graph-intelligence`
+**Skills**: `dot-authoring` (syntax, patterns, quality), `dot-analysis` (graph intelligence, reconciliation, parallax, architecture overview)
 
 ## Delegation
 

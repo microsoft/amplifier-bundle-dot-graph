@@ -1,0 +1,4 @@
+bundle:
+  name: zz-ci-red-proof
+  version: 0.0.0
+  description: TEMPORARY malformed behavior: proving the bundle-structure job actually parses

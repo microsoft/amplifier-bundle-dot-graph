@@ -82,9 +82,9 @@ def test_behavior_bundle_name(data):
 
 
 def test_behavior_bundle_version(data):
-    """bundle.version must be '0.2.0'."""
-    assert data["bundle"]["version"] == "0.2.0", (
-        f"bundle.version must be '0.2.0', got: {data['bundle'].get('version')}"
+    """bundle.version must be '0.3.0'."""
+    assert data["bundle"]["version"] == "0.3.0", (
+        f"bundle.version must be '0.3.0', got: {data['bundle'].get('version')}"
     )
 
 

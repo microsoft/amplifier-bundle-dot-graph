@@ -1,0 +1,53 @@
+{
+  "missing_metadata_for": [
+    "amplifier-config",
+    "goal-batch",
+    "goalify",
+    "ten-lane-highway"
+  ],
+  "candidate_roots": 30,
+  "before": {
+    "label": "before",
+    "skills_total": 80,
+    "model_visible_entries": 69,
+    "user_invoked_entries": 11,
+    "rendered_entry_lines": 80,
+    "block_chars": 11658,
+    "block_est_tokens": 2914,
+    "dot_entries_model_visible": [
+      "architecture-overview-diagram",
+      "dot-as-analysis",
+      "dot-graph-intelligence",
+      "dot-patterns",
+      "dot-quality",
+      "dot-syntax",
+      "parallax-investigation"
+    ]
+  },
+  "after_stubs": {
+    "label": "after_stubs",
+    "skills_total": 82,
+    "model_visible_entries": 64,
+    "user_invoked_entries": 18,
+    "rendered_entry_lines": 82,
+    "block_chars": 12188,
+    "block_est_tokens": 3047,
+    "dot_entries_model_visible": [
+      "dot-analysis",
+      "dot-authoring"
+    ]
+  },
+  "after_removed": {
+    "label": "after_removed",
+    "skills_total": 75,
+    "model_visible_entries": 64,
+    "user_invoked_entries": 11,
+    "rendered_entry_lines": 75,
+    "block_chars": 11655,
+    "block_est_tokens": 2913,
+    "dot_entries_model_visible": [
+      "dot-analysis",
+      "dot-authoring"
+    ]
+  }
+}

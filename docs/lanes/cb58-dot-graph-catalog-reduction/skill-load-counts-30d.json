@@ -1,0 +1,59 @@
+{
+  "window_days": 30,
+  "event_files_in_window": 25977,
+  "event_files_after_dedup": 11352,
+  "event_files_with_skill_loaded_marker": 1746,
+  "total_skill_loaded_events": 3350,
+  "distinct_skills_loaded": 85,
+  "dot_graph_bundle": {
+    "dot-syntax": {
+      "loads": 0,
+      "sessions": 0
+    },
+    "dot-patterns": {
+      "loads": 0,
+      "sessions": 0
+    },
+    "dot-quality": {
+      "loads": 0,
+      "sessions": 0
+    },
+    "dot-graph-intelligence": {
+      "loads": 0,
+      "sessions": 0
+    },
+    "dot-as-analysis": {
+      "loads": 0,
+      "sessions": 0
+    },
+    "parallax-investigation": {
+      "loads": 1,
+      "sessions": 1
+    },
+    "architecture-overview-diagram": {
+      "loads": 0,
+      "sessions": 0
+    },
+    "bundle-to-dot": {
+      "loads": 0,
+      "sessions": 0
+    }
+  },
+  "top_15_overall": {
+    "restless-old-brian": 1255,
+    "context-intelligence-graph-query": 198,
+    "intent-keeper": 149,
+    "user-advocate": 145,
+    "cranky-old-sam": 115,
+    "monitor": 112,
+    "crusty-old-engineer": 107,
+    "tester-breaker": 106,
+    "per-repo-conventions": 96,
+    "digital-twin-universe": 87,
+    "council": 76,
+    "human-advocate": 47,
+    "context-tester": 43,
+    "product-council": 43,
+    "bet-sizer": 42
+  }
+}

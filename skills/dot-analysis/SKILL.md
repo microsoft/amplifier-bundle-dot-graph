@@ -1,6 +1,6 @@
 ---
 name: dot-analysis
-description: Use when a diagram is the analysis instrument rather than the output — absorbs dot-graph-intelligence (cycles, reachability, diffs), dot-as-analysis (belief vs reality), parallax-investigation and architecture-overview-diagram.
+description: Use when a diagram is the analysis instrument, not the output — absorbs dot-graph-intelligence, dot-as-analysis, parallax-investigation, architecture-overview-diagram.
 ---
 
 # DOT Analysis

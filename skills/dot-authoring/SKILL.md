@@ -1,6 +1,6 @@
 ---
 name: dot-authoring
-description: Use when writing, fixing or reviewing a DOT/Graphviz diagram — absorbs dot-syntax (syntax lookup), dot-patterns (copy-paste templates) and dot-quality (the title/legend iron law and quality gate).
+description: Use when writing, fixing or reviewing a DOT/Graphviz diagram — absorbs dot-syntax, dot-patterns and dot-quality (syntax lookup, templates, the title/legend law, quality gate).
 ---
 
 # DOT Authoring

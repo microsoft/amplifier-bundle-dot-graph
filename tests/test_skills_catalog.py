@@ -81,6 +81,24 @@ def test_hub_description_names_absorbed_topic(old, expected):
     )
 
 
+# hooks-skills-visibility (amplifier-bundle-skills) truncates every rendered
+# catalog line at DEFAULT_LINE_CHAR_CAP characters. A description longer than
+# that renders with a trailing ellipsis, which silently drops the absorbed-topic
+# names the test above just checked for.
+VISIBILITY_LINE_CHAR_CAP = 180
+
+
+@pytest.mark.parametrize("hub", HUBS)
+def test_hub_description_renders_untruncated(hub):
+    fm = _frontmatter(SKILLS_DIR / hub / "SKILL.md")
+    description = " ".join(fm["description"].split())
+    assert len(description) <= VISIBILITY_LINE_CHAR_CAP, (
+        f"{hub} description is {len(description)} chars; the visibility hook "
+        f"truncates at {VISIBILITY_LINE_CHAR_CAP}, so the absorbed-topic names "
+        f"would not reach the model"
+    )
+
+
 # --- Nothing deleted: every original body survives as an L3 file ---
 
 

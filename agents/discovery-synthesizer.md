@@ -1,8 +1,7 @@
 ---
 meta:
   name: discovery-synthesizer
-  description: "Wave-end reconciler — reads all triplicate artifacts, identifies per-topic consensus, and tracks discrepancies as D-NN IDs without resolving by fiat.\n\nDispatched as the final step after all triplicate waves complete.\n\n**Authoritative on:** wave-end synthesis, discrepancy tracking, D-NN IDs, consensus identification, no-fiat reconciliation\n\n<example>\nContext: All triplicate teams completed artifacts\nuser: 'All agents done. Produce the synthesis.'\nassistant: 'I will use discovery-synthesizer to catalog D-NN discrepancies, identify consensus, and produce synthesis.md.'\n<commentary>Wave-end consolidation — reads ALL output without picking sides between perspectives.</commentary>\n</example>\n\n<example>\nContext: Two agents disagree on a mechanism\nuser: 'Code-tracer says X, behavior-observer says Y.'\nassistant: 'I will use discovery-synthesizer to catalog as D-01 with both claims, marking OPEN if unresolvable.'\n<commentary>No-fiat rule — distinct from structural synthesizers (subsystem, level, overview).</commentary>\n</example>"
-
+  description: "Use as the final step after every triplicate wave completes, when per-topic artifacts must be reconciled into synthesis.md. Reads all triplicate output, identifies per-topic consensus, and catalogs disagreements as D-NN discrepancy IDs with both claims kept — marking one OPEN rather than resolving by fiat. DO NOT USE WHEN the synthesis is structural rather than cross-perspective — use dot-graph:discovery-subsystem-synthesizer, dot-graph:discovery-level-synthesizer or dot-graph:discovery-overview-synthesizer."
 tools:
   - module: tool-dot-graph
 

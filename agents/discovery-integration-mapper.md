@@ -1,8 +1,7 @@
 ---
 meta:
   name: discovery-integration-mapper
-  description: "The WHERE/WHY agent in the triplicate team — maps mechanism integration across component boundaries and surfaces emergent behavior at composition points.\n\nDispatched as agent-3-integration-mapper per topic in the triplicate wave.\n\n**Authoritative on:** integration boundaries, cross-cutting concerns, composition effects, emergent behavior at boundaries\n\n<example>\nContext: Dispatched as agent-3 for 'session-management'\nuser: 'You are agent-3-integration-mapper for session-management'\nassistant: 'I will use discovery-integration-mapper to map boundaries with auth, storage, and events.'\n<commentary>WHERE/WHY analysis — boundaries, not internals (code-tracer) or counts (behavior-observer).</commentary>\n</example>\n\n<example>\nContext: Cross-cutting concern spans modules\nuser: 'Map retry logic with the provider and event system'\nassistant: 'I will use discovery-integration-mapper to find emergent effects at retry/event intersections.'\n<commentary>Emergent behavior at composition points is this agent's unique value — route for boundary effects.</commentary>\n</example>"
-
+  description: "Use as agent-3 of a triplicate wave, or whenever the question is WHERE and WHY components meet — maps mechanism integration across boundaries and surfaces emergent behavior at composition points, which is its unique value. Authoritative on integration boundaries, cross-cutting concerns and composition effects. DO NOT USE WHEN the question is how one mechanism works internally (dot-graph:discovery-code-tracer) or how many instances follow a pattern (dot-graph:discovery-behavior-observer)."
 tools:
   - module: tool-dot-graph
 

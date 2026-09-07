@@ -1,0 +1,11 @@
+<system-reminder source="hooks-skills-visibility">
+Available skills (use load_skill tool):
+
+- **architecture-overview-diagram**: Use when asked to create an architecture diagram, a README diagram or a top-level overview — or for the single diagram that gives a non-technical reader the "I get it" understanding of a repo. Code-first investigation, iterative design and antagonistic review produce a .dot source plus .svg and .png at PASS quality, surface doc/code discrepancies, and optionally add detail diagrams.
+- **dot-as-analysis**: Use when analyzing a system to surface hidden issues — draw what you believe exists, then reconcile against what actually exists
+- **dot-graph-intelligence**: Use when you need programmatic graph structure analysis — reachability, cycles, critical paths, and diffs without spending LLM tokens on structural questions code can answer
+- **dot-patterns**: Use when you need copy-paste DOT templates for common diagram types — start from a working pattern rather than blank canvas
+- **dot-quality**: Use when enforcing quality standards on DOT diagrams — checking completeness, structure, and visual clarity before sharing or committing
+- **dot-syntax**: Use when writing or reading DOT/Graphviz code and needing quick syntax reference — node declarations, edge syntax, attributes, subgraphs, HTML labels, and common gotchas
+- **parallax-investigation**: Use when you need true understanding of a complex system — not a quick answer. Parallax Discovery is a multi-agent, multi-pass investigation methodology that combines three perspectives (code tracing, behavior observation, integration mapping) to produce verified, evidence-backed findings.
+</system-reminder>

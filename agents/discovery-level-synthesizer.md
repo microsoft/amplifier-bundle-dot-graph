@@ -1,8 +1,7 @@
 ---
 meta:
   name: discovery-level-synthesizer
-  description: "Reads child-level agent findings to synthesize cross-child connections and boundary patterns visible only across a directory level.\n\nDispatched once per directory level after all child agents complete.\n\n**Authoritative on:** per-directory-level synthesis, cross-child connections, boundary pattern naming\n\n<example>\nContext: Child agents complete for src/pipeline/\nuser: 'Synthesize level src/pipeline/'\nassistant: 'I will use discovery-level-synthesizer to find cross-child connections and name boundary patterns.'\n<commentary>Directory-level synthesis — cross-child edges only, not single-child internals.</commentary>\n</example>\n\n<example>\nContext: Multiple level synthesizers dispatched in parallel\nuser: 'Synthesize src/core/ with children: engine, parser, registry'\nassistant: 'I will use discovery-level-synthesizer to find connections spanning engine, parser, registry.'\n<commentary>One per directory level — multiple instances run in parallel for independent subtrees.</commentary>\n</example>"
-
+  description: "Use once per directory level, after every child agent under it completes, to find connections visible only across that level — cross-child edges and the boundary patterns they form, which it names. Multiple instances run in parallel for independent subtrees. DO NOT USE WHEN the scope is a single child's internals, one subsystem's seams (dot-graph:discovery-subsystem-synthesizer) or the whole system (dot-graph:discovery-overview-synthesizer)."
 tools:
   - module: tool-dot-graph
 

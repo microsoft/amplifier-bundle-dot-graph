@@ -1,8 +1,7 @@
 ---
 meta:
   name: discovery-behavior-observer
-  description: "The WHAT agent in the triplicate team — catalogs 10+ real mechanism instances to derive behavioral patterns and quantitative statistics.\n\nDispatched as agent-2-behavior-observer per topic in the triplicate wave.\n\n**Authoritative on:** behavioral patterns, instance catalogs, quantitative analysis, pattern frequency, anti-pattern detection\n\n<example>\nContext: Dispatched as agent-2 for 'config-loading'\nuser: 'You are agent-2-behavior-observer for config-loading'\nassistant: 'I will use discovery-behavior-observer to read 10+ instances and quantify every pattern.'\n<commentary>WHAT counts across many instances — 10-instance minimum, not single-file analysis.</commentary>\n</example>\n\n<example>\nContext: Observing error handling patterns\nuser: 'Observe error handling across the service layer'\nassistant: 'I will use discovery-behavior-observer to report counts: \"23 of 27 (85%)\" not \"most files\".'\n<commentary>Quantitative language is the signature — route for prevalence, not HOW one instance works.</commentary>\n</example>"
-
+  description: "Use as agent-2 of a triplicate wave, or whenever the question is how prevalent a pattern is — catalogs 10+ real mechanism instances (10 is the minimum, not single-file analysis) and reports counts like '23 of 27 (85%)' rather than 'most files'. Authoritative on behavioral patterns, instance catalogs, pattern frequency and anti-pattern detection. DO NOT USE WHEN the question is how one instance works (dot-graph:discovery-code-tracer) or where components meet (dot-graph:discovery-integration-mapper)."
 tools:
   - module: tool-dot-graph
 

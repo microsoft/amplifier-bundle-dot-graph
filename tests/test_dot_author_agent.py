@@ -21,6 +21,10 @@ def _parse_frontmatter(content: str) -> tuple[dict, str]:
     return yaml.safe_load(yaml_block), body
 
 
+# Always-on catalog budget for meta.description (chars).
+# See foundation:context/shared/description-authoring-principles.md V3.
+DESCRIPTION_CHAR_BUDGET = 600
+
 # --- File existence and frontmatter ---
 
 
@@ -62,11 +66,29 @@ def test_dot_author_frontmatter_has_description():
     assert frontmatter["meta"]["description"], "meta.description must not be empty"
 
 
-def test_dot_author_description_has_three_examples():
-    """Description must contain 3 <example> blocks."""
+def test_dot_author_description_has_no_examples():
+    """meta.description must carry ZERO <example>/<commentary> blocks, within budget.
+
+    Policy: foundation:context/shared/description-authoring-principles.md V3.
+    Every agent description is concatenated into the delegate tool's own
+    description, which loads on EVERY turn of EVERY session whether or not this
+    agent is ever delegated to. An example block is therefore paid for per turn
+    and teaches the model nothing an explicit WHEN clause cannot state directly.
+    """
     content = DOT_AUTHOR_PATH.read_text()
-    assert content.count("<example>") >= 3, (
-        f"Description must contain at least 3 <example> blocks, found {content.count('<example>')}"
+    frontmatter, _ = _parse_frontmatter(content)
+    description = frontmatter["meta"]["description"]
+    assert description.count("<example>") == 0, (
+        f"meta.description must contain ZERO <example> blocks, "
+        f"found {description.count('<example>')}"
+    )
+    assert description.count("<commentary>") == 0, (
+        f"meta.description must contain ZERO <commentary> tags, "
+        f"found {description.count('<commentary>')}"
+    )
+    assert len(description) <= DESCRIPTION_CHAR_BUDGET, (
+        f"meta.description is {len(description)} chars, over the "
+        f"{DESCRIPTION_CHAR_BUDGET}-char always-on catalog budget"
     )
 
 

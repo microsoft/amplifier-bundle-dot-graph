@@ -97,24 +97,45 @@ def test_behavior_does_not_include_dot_core_directly(data):
     )
 
 
-# --- context section ---
+# --- context: discovery-awareness.md reaches a model via @-mention ---
+#
+# behaviors/dot-discovery.yaml deliberately carries NO `context` key. The
+# discovery-awareness.md content was moved to an @-mention in the
+# discovery agents' shared sink so it is not injected into always-on
+# context for sessions that never run discovery. See the NOTE at the
+# bottom of behaviors/dot-discovery.yaml and BUNDLE_GUIDE.md
+# §"Behavior context.include Policy".
+
+DISCOVERY_AWARENESS_DOC = REPO_ROOT / "context" / "discovery-awareness.md"
+DISCOVERY_AWARENESS_MENTION = "@dot-graph:context/discovery-awareness.md"
 
 
-def test_behavior_has_context_key(data):
-    """behaviors/dot-discovery.yaml must have a 'context' key."""
-    assert "context" in data, "behaviors/dot-discovery.yaml must have 'context' key"
+def test_behavior_carries_no_always_on_context(data):
+    """behaviors/dot-discovery.yaml must NOT declare a top-level 'context' key."""
+    assert "context" not in data, (
+        "behaviors/dot-discovery.yaml must not reintroduce always-on context; "
+        "discovery-awareness.md is @-mentioned from an agent instead"
+    )
 
 
-def test_behavior_context_has_include(data):
-    """context must have an 'include' key."""
-    assert "include" in data["context"], "context must have an 'include' key"
+def test_discovery_awareness_doc_exists():
+    """context/discovery-awareness.md must exist to be @-mentioned."""
+    assert DISCOVERY_AWARENESS_DOC.exists(), (
+        f"discovery-awareness.md not found at {DISCOVERY_AWARENESS_DOC}"
+    )
 
 
-def test_behavior_context_includes_discovery_awareness(data):
-    """context.include must contain 'dot-graph:context/discovery-awareness.md'."""
-    assert "dot-graph:context/discovery-awareness.md" in data["context"]["include"], (
-        f"context.include must contain 'dot-graph:context/discovery-awareness.md', "
-        f"got: {data['context']['include']}"
+def test_discovery_awareness_is_at_mentioned_by_an_agent():
+    """At least one agent must @-mention discovery-awareness.md."""
+    agents_dir = REPO_ROOT / "agents"
+    sinks = [
+        path.name
+        for path in sorted(agents_dir.glob("*.md"))
+        if DISCOVERY_AWARENESS_MENTION in path.read_text(encoding="utf-8")
+    ]
+    assert sinks, (
+        f"no agent in agents/ @-mentions {DISCOVERY_AWARENESS_MENTION}; the "
+        "awareness doc is orphaned and reaches no model"
     )
 
 

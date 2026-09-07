@@ -1,0 +1,195 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Minimal read-only token — no secrets needed or exposed.
+# Safe for Dependabot PRs and external fork contributors.
+permissions:
+  contents: read
+
+# NOTE: there are deliberately NO `paths:` filters anywhere in this file.
+# A path filter that does not match leaves the check *absent* rather than
+# failing, which on a PR page is indistinguishable from a passing check.
+# Likewise: no `continue-on-error`, and no `|| true` on any step.
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────────
+  # Lint — ruff pinned to the version this bundle family locks
+  # (amplifier-bundle-context-intelligence/uv.lock: ruff 0.15.11).
+  #
+  # `--isolated` because this repo declares no [tool.ruff] config; pinning
+  # the tool AND ignoring ambient config means the gate cannot drift red
+  # without an edit to this file. The FULL default rule set is used — no
+  # `--select` narrowing — because it is clean on main at this pin.
+  # ────────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-caching: true
+
+      - name: Lint
+        run: uvx ruff@0.15.11 check --isolated .
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Root bundle test suite — tests/ (pytest testpaths is scoped to it).
+  #
+  # This repo declares no dev dependency group at the root, so the test
+  # dependencies are named here explicitly. `graphviz` is a real dependency
+  # of this suite, not decoration: tests/test_dot_render_sh.py guards five
+  # render assertions behind `shutil.which("dot")` and silently skips them
+  # when the binary is absent.
+  # ────────────────────────────────────────────────────────────────────────
+  test-root:
+    name: Tests — root (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-caching: true
+
+      - name: Install graphviz
+        run: sudo apt-get update && sudo apt-get install -y graphviz
+
+      - name: Create environment
+        run: uv venv --python ${{ matrix.python-version }}
+
+      - name: Install test dependencies
+        # pyyaml     — tests/conftest.py and every behavior/frontmatter test
+        # pydot      — tests/test_final_verification.py imports the tool module
+        # networkx   — same; the tool module's analyze path
+        run: uv pip install pytest pyyaml pydot networkx
+
+      - name: Run tests
+        # Invoked through the venv interpreter directly rather than `uv run`:
+        # the root pyproject.toml declares no build backend (it is a bundle
+        # repo, `packages = []`), so there is no project for uv to build.
+        run: .venv/bin/python -m pytest tests/ -q --tb=short
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Per-module tests — modules/tool-dot-graph owns its own pyproject with a
+  # hatchling backend and a [dependency-groups] dev group, so it installs
+  # and runs on its own terms.
+  # ────────────────────────────────────────────────────────────────────────
+  test-module:
+    name: Tests — ${{ matrix.module }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - tool-dot-graph
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-caching: true
+
+      - name: Install graphviz
+        run: sudo apt-get update && sudo apt-get install -y graphviz
+
+      - name: Install dependencies
+        working-directory: modules/${{ matrix.module }}
+        # No `--frozen`: this repo commits no uv.lock, at the root or in the
+        # module. `uv sync` installs the default `dev` group.
+        run: uv sync
+
+      - name: Run tests
+        working-directory: modules/${{ matrix.module }}
+        run: uv run pytest tests/ -q --tb=short
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Bundle structure — nothing else in CI parses bundle.md's frontmatter or
+  # behaviors/*.yaml, and a malformed one is a runtime failure for every
+  # consumer of this bundle.
+  #
+  # Fails loud when behaviors/*.yaml matches ZERO files: a structure gate
+  # that checks nothing is the same decoration problem this workflow exists
+  # to avoid.
+  # ────────────────────────────────────────────────────────────────────────
+  bundle-structure:
+    name: Bundle structure (YAML)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-caching: true
+
+      - name: Parse bundle.md frontmatter and behaviors/*.yaml
+        run: |
+          uv run --no-project --with pyyaml python - <<'PY'
+          import sys
+          from pathlib import Path
+
+          import yaml
+
+          failures = []
+
+          # --- bundle.md frontmatter ---
+          bundle_md = Path("bundle.md")
+          if not bundle_md.exists():
+              failures.append("bundle.md is missing")
+          else:
+              text = bundle_md.read_text(encoding="utf-8")
+              if not text.startswith("---"):
+                  failures.append("bundle.md does not open with YAML frontmatter (---)")
+              else:
+                  try:
+                      end = text.index("---", 3)
+                  except ValueError:
+                      failures.append("bundle.md frontmatter has no closing ---")
+                  else:
+                      try:
+                          fm = yaml.safe_load(text[3:end])
+                      except yaml.YAMLError as exc:
+                          failures.append(f"bundle.md frontmatter is not valid YAML: {exc}")
+                      else:
+                          if not isinstance(fm, dict):
+                              failures.append("bundle.md frontmatter did not parse to a mapping")
+                          elif "bundle" not in fm:
+                              failures.append("bundle.md frontmatter has no 'bundle' key")
+                          else:
+                              print(f"OK  bundle.md -> bundle.name={fm['bundle'].get('name')!r}")
+
+          # --- behaviors/*.yaml ---
+          behaviors = sorted(Path("behaviors").glob("*.yaml")) if Path("behaviors").is_dir() else []
+          if not behaviors:
+              failures.append("behaviors/*.yaml matched ZERO files — nothing was checked")
+          for path in behaviors:
+              try:
+                  data = yaml.safe_load(path.read_text(encoding="utf-8"))
+              except yaml.YAMLError as exc:
+                  failures.append(f"{path} is not valid YAML: {exc}")
+                  continue
+              if not isinstance(data, dict):
+                  failures.append(f"{path} did not parse to a mapping")
+              elif "bundle" not in data:
+                  failures.append(f"{path} has no top-level 'bundle' key")
+              else:
+                  print(f"OK  {path} -> bundle.name={data['bundle'].get('name')!r}")
+
+          if failures:
+              print("\nFAILED:", file=sys.stderr)
+              for f in failures:
+                  print(f"  - {f}", file=sys.stderr)
+              sys.exit(1)
+
+          print(f"\n{len(behaviors)} behavior file(s) + bundle.md parsed cleanly.")
+          PY

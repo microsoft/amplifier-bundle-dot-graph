@@ -6,7 +6,7 @@ mounted before Phase 2 provides the full implementation.
 """
 
 import inspect
-from unittest.mock import AsyncMock, MagicMock, call
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 

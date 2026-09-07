@@ -66,11 +66,6 @@ def test_behavior_has_agents_key(data):
     assert "agents" in data, "behaviors/dot-core.yaml must have 'agents' key"
 
 
-def test_behavior_has_context_key(data):
-    """behaviors/dot-core.yaml must have a top-level 'context' key."""
-    assert "context" in data, "behaviors/dot-core.yaml must have 'context' key"
-
-
 # --- bundle section ---
 
 
@@ -82,9 +77,9 @@ def test_behavior_bundle_name(data):
 
 
 def test_behavior_bundle_version(data):
-    """bundle.version must be '0.2.0'."""
-    assert data["bundle"]["version"] == "0.2.0", (
-        f"bundle.version must be '0.2.0', got: {data['bundle'].get('version')}"
+    """bundle.version must be '0.3.0'."""
+    assert data["bundle"]["version"] == "0.3.0", (
+        f"bundle.version must be '0.3.0', got: {data['bundle'].get('version')}"
     )
 
 
@@ -170,24 +165,46 @@ def test_behavior_agents_includes_diagram_reviewer(data):
     )
 
 
-# --- context section ---
+# --- context: dot-awareness.md reaches a model via @-mention ---
+#
+# behaviors/dot-core.yaml deliberately carries NO `context` key. The
+# dot-awareness.md content was moved to an @-mention in its primary sink,
+# agents/dot-author.md, so it is not injected into always-on context for
+# sessions that never touch DOT. See the NOTE at the bottom of
+# behaviors/dot-core.yaml and BUNDLE_GUIDE.md
+# §"Behavior context.include Policy".
+#
+# The tests below assert the invariant the old `context.include` tests were
+# protecting -- that the awareness doc still reaches a model -- at its new
+# location, and pin the token-reduction decision so always-on context
+# cannot be reintroduced silently.
+
+AWARENESS_DOC = REPO_ROOT / "context" / "dot-awareness.md"
+AWARENESS_MENTION = "@dot-graph:context/dot-awareness.md"
 
 
-def test_behavior_context_has_include(data):
-    """context must have an 'include' key."""
-    assert "include" in data["context"], "context must have an 'include' key"
-
-
-def test_behavior_context_include_is_list(data):
-    """context.include must be a list."""
-    assert isinstance(data["context"]["include"], list), (
-        "context.include must be a list"
+def test_behavior_carries_no_always_on_context(data):
+    """behaviors/dot-core.yaml must NOT declare a top-level 'context' key."""
+    assert "context" not in data, (
+        "behaviors/dot-core.yaml must not reintroduce always-on context; "
+        "dot-awareness.md is @-mentioned from agents/dot-author.md instead"
     )
 
 
-def test_behavior_context_includes_dot_awareness(data):
-    """context.include must contain 'dot-graph:context/dot-awareness.md'."""
-    assert "dot-graph:context/dot-awareness.md" in data["context"]["include"], (
-        f"context.include must contain 'dot-graph:context/dot-awareness.md', "
-        f"got: {data['context']['include']}"
+def test_dot_awareness_doc_exists():
+    """context/dot-awareness.md must exist to be @-mentioned."""
+    assert AWARENESS_DOC.exists(), f"dot-awareness.md not found at {AWARENESS_DOC}"
+
+
+def test_dot_awareness_is_at_mentioned_by_an_agent():
+    """At least one agent must @-mention dot-awareness.md."""
+    agents_dir = REPO_ROOT / "agents"
+    sinks = [
+        path.name
+        for path in sorted(agents_dir.glob("*.md"))
+        if AWARENESS_MENTION in path.read_text(encoding="utf-8")
+    ]
+    assert sinks, (
+        f"no agent in agents/ @-mentions {AWARENESS_MENTION}; the awareness "
+        "doc is orphaned and reaches no model"
     )

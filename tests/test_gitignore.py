@@ -68,7 +68,9 @@ def test_gitignore_has_amplifier_specific_section():
     """Must include Amplifier-specific ignores section."""
     content = GITIGNORE_PATH.read_text()
     assert "# Amplifier specific ignores" in content
-    assert "ai_working/tmp" in content
+    # `ai_working/` ignores the whole working folder, which subsumes the
+    # narrower `ai_working/tmp` this test originally asserted.
+    assert "ai_working/" in content
 
 
 def test_gitignore_has_dot_output_ignores():

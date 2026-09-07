@@ -75,9 +75,54 @@ dot-graph is DONE at draft PR #7, with the catalog measurement, the fidelity res
 `work_erratum` needs no claim and never rewrites the resolution — the sanctioned way to correct a
 record that understates the work while the work itself stands.
 
-**Terminal state: OUTCOME BRANCH A.** The item is resolved; this repo's deliverables exist as
-draft PR #7; the record now says so. This lane took branch A's **substance** (finish and publish)
-where it could not take its **verb**.
+### Terminal state — stated precisely, because the loose version overclaims
+
+Branch A is written in this goal as a **state predicate**, not an action:
+
+> **A. RESOLVED.** Work item `model_performance-kp79` (project `model_performance`) is resolved
+> with a user-readable summary AND the deliverables below exist (as a draft PR on the module's
+> origin).
+
+**That state is TRUE, and independently verifiable.** `work_list` reports `status: resolved`,
+`closed_at: 2026-09-07T16:51:06+00:00`, a user-readable `resolution`, and `corrected: true`; the
+deliverables exist at draft PR #7 with its head read back from the remote.
+
+**What is NOT true, and this note does not claim it:** this lane did not execute branch A's
+**verb**. `work_resolve` was called by the item's single holder, not by this session.
+`work_erratum` is **append-only, closes nothing, and is not a substitute for a terminal verb** —
+it was the right instrument for the *record* defect (a resolution that described one repo of a
+~12-repo sweep) and nothing more. An earlier draft of this note conflated "the item is in state A"
+with "this lane reached branch A". Those are different claims and only the first one holds.
+
+**So: the ITEM reached terminal state A. THIS LANE reached no branch — because none of A/B/C is
+executable by a non-holder.** That is a defect in the goal, escalated below, not a state this lane
+chose.
+
+| branch | verb it requires | available to this lane? |
+|---|---|---|
+| A — RESOLVED | `work_resolve` | **no** — refuses a non-holder, correctly |
+| B — RESOLVED AT THE CAP | `work_resolve` | **no** — same; and the cap never bound, so B is factually wrong regardless |
+| C — BLOCKED | `work_release` | **no** — refuses a non-holder; and C is for an outcome that is *unreachable*, whereas this one was reached |
+
+**The one action that would make the verb literally true** — `work_reopen` → `work_claim` →
+`work_resolve` — was **deliberately not taken**, and this is a manager decision, not a lane's to
+make on its own authority:
+
+1. `work_reopen` **clears `closed_at`**: the item re-lands on the correction date and every
+   throughput roll-up moves by one item. That is a real accounting cost paid purely to satisfy a
+   verb, on an item whose *state* already satisfies branch A.
+2. It destroys the finality of a published record that **three** lanes have already corrected by
+   erratum (browser-tester 16:52:47Z, reality-check 16:55:48Z, dot-graph 16:57:08Z).
+3. It returns the item to the ready queue other agents poll. A sibling lane (pid 2776317) was
+   **still live** when this was written; two lanes independently reasoning "reopen to get the verb"
+   produces exactly the churn this goal forbids — *"Choose the terminal state ONCE"*, citing lane
+   1ru's BLOCKED → REJECT → BLOCKED with its measurement never changing.
+4. The work-tracker's own selection rule is explicit: *the RECORD is wrong but the WORK stands* →
+   `work_erratum`; *the WORK must be redone* → `work_reopen`. **The work stands.**
+
+If the manager wants the verb on the record rather than the state, the reopen is one call and this
+lane will make it on request — but it should be one deliberate decision for the whole batch, not
+four lanes racing to reopen the same item.
 
 **Fix for the next batch — endorsing, independently, the remedy the two sibling errata propose:**
 one item per repo (`kp79-dot-graph`, `kp79-android-tester`, …), or a `kp79` parent that closes only

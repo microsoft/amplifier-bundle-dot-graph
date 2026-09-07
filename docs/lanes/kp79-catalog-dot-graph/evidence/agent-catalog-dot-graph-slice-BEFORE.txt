@@ -1,0 +1,216 @@
+# dot-graph slice of the rendered delegate agent catalog
+# Source: amplifier tool info delegate -b kp79-scratch --format json
+# Entry format: '  - <namespace>:<name>: <description>' (tool-delegate/__init__.py:936-941)
+# 13 entries, 15221 bytes
+
+  - dot-graph:diagram-reviewer: Independent quality reviewer for DOT/Graphviz diagrams. MUST be used AFTER any DOT authoring or editing work to provide an objective PASS/WARN/FAIL verdict. ALWAYS delegate diagram quality checks here — evaluates diagrams against syntax, structural, quality, style, and reconciliation standards, producing structured PASS/WARN/FAIL verdicts. Use AFTER dot-author or any DOT authoring work to get an objective assessment of diagram quality and investigative value.\n\n<example>\nContext: Diagram just authored and needs quality verification\nuser: 'Review the architecture diagram I just created'\nassistant: 'I will delegate to dot-graph:diagram-reviewer to evaluate the diagram against all 5 review levels and return a structured verdict.'\n<commentary>\nPost-authoring review is diagram-reviewer's primary use case — it applies checklists and returns PASS/WARN/FAIL with specific evidence.\n</commentary>\n</example>\n\n<example>\nContext: DOT quality evaluation before saving or publishing\nuser: 'Is this DOT file production-ready?'\nassistant: 'I will use dot-graph:diagram-reviewer to check the DOT against quality standards and confirm readiness.'\n<commentary>\nQuality evaluation before publishing catches missing legends, orphan nodes, and convention violations with actionable feedback.\n</commentary>\n</example>\n\n<example>\nContext: Checking if a diagram is useful for investigation reconciliation\nuser: 'Does this Parallax investigation diagram add value for reconciliation?'\nassistant: 'I will use dot-graph:diagram-reviewer to evaluate the reconciliation level and flag structural patterns that signal system problems.'\n<commentary>\nReconciliation check is a specialized review mode — it looks for the structural patterns that carry investigative insight.\n</commentary>\n</example>
+  - dot-graph:discovery-architecture-writer: Reads per-module findings to produce overview.md — the human-readable entry point to discovery results.
+
+Final writing step — dispatched after all module synthesis artifacts exist.
+
+**Authoritative on:** overview.md production, executive summary writing, per-module summaries, relative link construction
+
+<example>
+Context: All module findings.md files written
+user: 'Module findings ready. Produce overview.md.'
+assistant: 'I will use discovery-architecture-writer to synthesize findings into overview.md with relative links.'
+<commentary>Evidence-only writing — never invents findings or assumes from repo names.</commentary>
+</example>
+
+<example>
+Context: Module with sparse findings
+user: 'Telemetry findings are thin. Extrapolate?'
+assistant: 'I will use discovery-architecture-writer — writes only what artifacts support, flags gaps.'
+<commentary>No-invention constraint distinguishes this from a general doc agent — route for discovery output.</commentary>
+</example>
+  - dot-graph:discovery-behavior-observer: The WHAT agent in the triplicate team — catalogs 10+ real mechanism instances to derive behavioral patterns and quantitative statistics.
+
+Dispatched as agent-2-behavior-observer per topic in the triplicate wave.
+
+**Authoritative on:** behavioral patterns, instance catalogs, quantitative analysis, pattern frequency, anti-pattern detection
+
+<example>
+Context: Dispatched as agent-2 for 'config-loading'
+user: 'You are agent-2-behavior-observer for config-loading'
+assistant: 'I will use discovery-behavior-observer to read 10+ instances and quantify every pattern.'
+<commentary>WHAT counts across many instances — 10-instance minimum, not single-file analysis.</commentary>
+</example>
+
+<example>
+Context: Observing error handling patterns
+user: 'Observe error handling across the service layer'
+assistant: 'I will use discovery-behavior-observer to report counts: "23 of 27 (85%)" not "most files".'
+<commentary>Quantitative language is the signature — route for prevalence, not HOW one instance works.</commentary>
+</example>
+  - dot-graph:discovery-code-tracer: The HOW agent in the triplicate team — traces code execution paths using LSP, producing file:line evidence for every significant finding.
+
+Dispatched as agent-1-code-tracer per topic in the triplicate wave.
+
+**Authoritative on:** code tracing, execution path analysis, LSP navigation (goToDefinition, incomingCalls, outgoingCalls), file:line evidence
+
+<example>
+Context: Dispatched as agent-1 for 'auth-layer'
+user: 'You are agent-1-code-tracer for the auth-layer topic'
+assistant: 'I will use discovery-code-tracer to trace execution paths with file:line LSP evidence.'
+<commentary>HOW agent — code-level tracing, not instance counts (behavior-observer) or boundaries (integration-mapper).</commentary>
+</example>
+
+<example>
+Context: Discrepancy about how a function works
+user: 'Does authenticate() validate inline or delegate?'
+assistant: 'I will use discovery-code-tracer with LSP goToDefinition and outgoingCalls for file:line evidence.'
+<commentary>LSP-first navigation — route for code-level discrepancy resolution.</commentary>
+</example>
+  - dot-graph:discovery-combiner: Classifies top-down and bottom-up findings into four categories — Convergence, Top-down only, Bottom-up only, Divergence — without reconciling divergences.
+
+Dispatched as the combiner step after both streams complete.
+
+**Authoritative on:** convergence analysis, divergence tracking, D-NN divergence IDs, combined.md
+
+<example>
+Context: Both streams complete for 'auth-layer'
+user: 'Both streams done. Produce the combined analysis.'
+assistant: 'I will use discovery-combiner to classify all findings and assign D-NN IDs to divergences.'
+<commentary>Reads top-down first — establishes design intent before bottom-up reveals reality.</commentary>
+</example>
+
+<example>
+Context: Streams disagree on a component
+user: 'Top-down says centralized config; bottom-up says per-module.'
+assistant: 'I will use discovery-combiner to record as a divergence, tracking both claims.'
+<commentary>Anti-rationalization: both claims preserved without picking a side.</commentary>
+</example>
+  - dot-graph:discovery-integration-mapper: The WHERE/WHY agent in the triplicate team — maps mechanism integration across component boundaries and surfaces emergent behavior at composition points.
+
+Dispatched as agent-3-integration-mapper per topic in the triplicate wave.
+
+**Authoritative on:** integration boundaries, cross-cutting concerns, composition effects, emergent behavior at boundaries
+
+<example>
+Context: Dispatched as agent-3 for 'session-management'
+user: 'You are agent-3-integration-mapper for session-management'
+assistant: 'I will use discovery-integration-mapper to map boundaries with auth, storage, and events.'
+<commentary>WHERE/WHY analysis — boundaries, not internals (code-tracer) or counts (behavior-observer).</commentary>
+</example>
+
+<example>
+Context: Cross-cutting concern spans modules
+user: 'Map retry logic with the provider and event system'
+assistant: 'I will use discovery-integration-mapper to find emergent effects at retry/event intersections.'
+<commentary>Emergent behavior at composition points is this agent's unique value — route for boundary effects.</commentary>
+</example>
+  - dot-graph:discovery-level-synthesizer: Reads child-level agent findings to synthesize cross-child connections and boundary patterns visible only across a directory level.
+
+Dispatched once per directory level after all child agents complete.
+
+**Authoritative on:** per-directory-level synthesis, cross-child connections, boundary pattern naming
+
+<example>
+Context: Child agents complete for src/pipeline/
+user: 'Synthesize level src/pipeline/'
+assistant: 'I will use discovery-level-synthesizer to find cross-child connections and name boundary patterns.'
+<commentary>Directory-level synthesis — cross-child edges only, not single-child internals.</commentary>
+</example>
+
+<example>
+Context: Multiple level synthesizers dispatched in parallel
+user: 'Synthesize src/core/ with children: engine, parser, registry'
+assistant: 'I will use discovery-level-synthesizer to find connections spanning engine, parser, registry.'
+<commentary>One per directory level — multiple instances run in parallel for independent subtrees.</commentary>
+</example>
+  - dot-graph:discovery-orchestrator: Natural language entry point — routes codebase investigation requests to the correct parallax-discovery pipeline recipe.
+
+Use PROACTIVELY when the user says 'investigate this codebase', 'map the architecture', 'run discovery', 'understand this repo', or 'give me an overview' of a codebase.
+
+**Authoritative on:** discovery routing, pipeline selection, fidelity signal detection, quick vs deep dispatch
+
+<example>
+Context: User wants to investigate a codebase
+user: 'Investigate this codebase and give me an architecture overview'
+assistant: 'I will delegate to dot-graph:discovery-orchestrator to resolve repo_path and invoke the correct pipeline.'
+<commentary>Natural language entry point — route here for any investigation kick-off.</commentary>
+</example>
+
+<example>
+Context: User requests a deep run
+user: 'Run a deep, thorough discovery on this repository'
+assistant: 'I will use dot-graph:discovery-orchestrator — reads fidelity signals and invokes the deep pipeline.'
+<commentary>Reads fidelity signals (deep, thorough, comprehensive) and routes accordingly.</commentary>
+</example>
+  - dot-graph:discovery-overview-synthesizer: Synthesizes subsystem findings into the full-system architectural view — cross-subsystem dependencies, spine, and dominant pattern.
+
+Dispatched by the multi-level discovery recipe after all subsystem agents complete.
+
+**Authoritative on:** system-level synthesis, cross-subsystem dependencies, architectural spine, dominant-pattern naming
+
+<example>
+Context: Multi-level recipe dispatches after all subsystem agents
+user: 'Synthesize the system overview'
+assistant: 'I will use discovery-overview-synthesizer to map dependencies and name the dominant pattern.'
+<commentary>Full-system synthesis — each node is a subsystem, not a module.</commentary>
+</example>
+
+<example>
+Context: Overview diagram exceeds 80 nodes
+user: 'Apply the 80-node quality gate'
+assistant: 'I will use discovery-overview-synthesizer to enforce the ≤80-node hard limit.'
+<commentary>Quality gate enforcement is exclusive to this agent — route for collapse.</commentary>
+</example>
+  - dot-graph:discovery-prescan: Reads a structural inventory and selects 3–7 high-value investigation topics, scoping the run before any triplicate teams are dispatched.
+
+Dispatched by the parallax-discovery recipe as the first step, before any triplicate wave.
+
+**Authoritative on:** topic selection, structural inventory interpretation, fidelity tier guidance (standard: 3–5, deep: 5–7), investigation scoping
+
+<example>
+Context: Starting a discovery run on an unfamiliar repo
+user: 'Run discovery on the payments service repository'
+assistant: 'I will dispatch discovery-prescan to select 3–5 high-value topics from the structural inventory.'
+<commentary>Always step one — scopes the run and prevents work on low-signal areas.</commentary>
+</example>
+
+<example>
+Context: Deep fidelity investigation requested
+user: 'Run a deep discovery on the auth module'
+assistant: 'I will use discovery-prescan with fidelity=deep to select 5–7 topics for deep investigation.'
+<commentary>Fidelity tier changes the topic count — route here for any investigation-scoping step.</commentary>
+</example>
+  - dot-graph:discovery-subsystem-synthesizer: Reads module-level findings to synthesize cross-module flows, shared interfaces, and coupling patterns within a subsystem.
+
+Dispatched once per subsystem after all module-level agents complete.
+
+**Authoritative on:** subsystem seam synthesis, cross-module data flow, shared interface mapping, coupling classification
+
+<example>
+Context: Module agents complete for src/ingestion/
+user: 'Synthesize the ingestion subsystem'
+assistant: 'I will use discovery-subsystem-synthesizer to find cross-module flows and classify coupling.'
+<commentary>Inter-module coupling within a subsystem — not single-module internals.</commentary>
+</example>
+
+<example>
+Context: Two modules share a config registry
+user: 'Synthesize src/pipeline/ — modules share a registry'
+assistant: 'I will use discovery-subsystem-synthesizer to flag the registry as tight coupling with red edges.'
+<commentary>Tight coupling with red edges differentiates this from a module summary — route per subsystem.</commentary>
+</example>
+  - dot-graph:discovery-synthesizer: Wave-end reconciler — reads all triplicate artifacts, identifies per-topic consensus, and tracks discrepancies as D-NN IDs without resolving by fiat.
+
+Dispatched as the final step after all triplicate waves complete.
+
+**Authoritative on:** wave-end synthesis, discrepancy tracking, D-NN IDs, consensus identification, no-fiat reconciliation
+
+<example>
+Context: All triplicate teams completed artifacts
+user: 'All agents done. Produce the synthesis.'
+assistant: 'I will use discovery-synthesizer to catalog D-NN discrepancies, identify consensus, and produce synthesis.md.'
+<commentary>Wave-end consolidation — reads ALL output without picking sides between perspectives.</commentary>
+</example>
+
+<example>
+Context: Two agents disagree on a mechanism
+user: 'Code-tracer says X, behavior-observer says Y.'
+assistant: 'I will use discovery-synthesizer to catalog as D-01 with both claims, marking OPEN if unresolvable.'
+<commentary>No-fiat rule — distinct from structural synthesizers (subsystem, level, overview).</commentary>
+</example>
+  - dot-graph:dot-author: Expert DOT/Graphviz author for creating and refining graph diagrams. MUST be used for ALL DOT creation, editing, and refinement work. ALWAYS delegate DOT authoring here — generating diagrams from scratch, converting descriptions to DOT, improving existing DOT files, and explaining DOT structures. Carries full DOT syntax knowledge, pattern libraries, quality standards, and shape vocabularies. Examples:\n\n<example>\nContext: User needs a system architecture diagram\nuser: 'Create an architecture diagram for our microservices system'\nassistant: 'I'll delegate to dot-graph:dot-author to create a DOT diagram with proper component shapes, cluster groupings, and data flow edges.'\n<commentary>\nArchitecture diagrams are dot-author's core capability — it knows shape vocabularies, layout patterns, and quality standards.\n</commentary>\n</example>\n\n<example>\nContext: User has an existing DOT file to improve\nuser: 'This diagram is hard to read, can you clean it up?'\nassistant: 'I'll use dot-graph:dot-author to restructure the DOT with proper clusters, consistent styling, and a legend.'\n<commentary>\nRefining existing DOT leverages the agent's knowledge of quality standards and anti-patterns.\n</commentary>\n</example>\n\n<example>\nContext: User wants to visualize a workflow\nuser: 'Show me our deployment pipeline as a graph'\nassistant: 'I'll delegate to dot-graph:dot-author to create a DOT flowchart with appropriate shapes for each step type.'\n<commentary>\nWorkflow visualization uses the DAG/flowchart pattern from the pattern library.\n</commentary>\n</example>

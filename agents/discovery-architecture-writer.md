@@ -1,8 +1,7 @@
 ---
 meta:
   name: discovery-architecture-writer
-  description: "Reads per-module findings to produce overview.md — the human-readable entry point to discovery results.\n\nFinal writing step — dispatched after all module synthesis artifacts exist.\n\n**Authoritative on:** overview.md production, executive summary writing, per-module summaries, relative link construction\n\n<example>\nContext: All module findings.md files written\nuser: 'Module findings ready. Produce overview.md.'\nassistant: 'I will use discovery-architecture-writer to synthesize findings into overview.md with relative links.'\n<commentary>Evidence-only writing — never invents findings or assumes from repo names.</commentary>\n</example>\n\n<example>\nContext: Module with sparse findings\nuser: 'Telemetry findings are thin. Extrapolate?'\nassistant: 'I will use discovery-architecture-writer — writes only what artifacts support, flags gaps.'\n<commentary>No-invention constraint distinguishes this from a general doc agent — route for discovery output.</commentary>\n</example>"
-
+  description: "Use as the final writing step, once every module synthesis artifact exists, to turn per-module findings into overview.md — the human-readable entry point to a discovery run. Writes the executive summary, per-module summaries and relative links. Evidence-only: writes what the artifacts support, flags gaps instead of extrapolating from sparse findings, and never infers from repo names. DO NOT USE WHEN findings are still being produced, or for documentation outside a discovery run."
 model_role: writing
 ---
 

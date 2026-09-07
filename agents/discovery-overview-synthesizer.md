@@ -1,8 +1,7 @@
 ---
 meta:
   name: discovery-overview-synthesizer
-  description: "Synthesizes subsystem findings into the full-system architectural view — cross-subsystem dependencies, spine, and dominant pattern.\n\nDispatched by the multi-level discovery recipe after all subsystem agents complete.\n\n**Authoritative on:** system-level synthesis, cross-subsystem dependencies, architectural spine, dominant-pattern naming\n\n<example>\nContext: Multi-level recipe dispatches after all subsystem agents\nuser: 'Synthesize the system overview'\nassistant: 'I will use discovery-overview-synthesizer to map dependencies and name the dominant pattern.'\n<commentary>Full-system synthesis — each node is a subsystem, not a module.</commentary>\n</example>\n\n<example>\nContext: Overview diagram exceeds 80 nodes\nuser: 'Apply the 80-node quality gate'\nassistant: 'I will use discovery-overview-synthesizer to enforce the ≤80-node hard limit.'\n<commentary>Quality gate enforcement is exclusive to this agent — route for collapse.</commentary>\n</example>"
-
+  description: "Use after every subsystem agent completes, to produce the full-system architectural view — cross-subsystem dependencies, the architectural spine, and the dominant pattern, named. Each node is a subsystem, never a module, and this agent alone enforces the ≤80-node hard limit, collapsing the diagram when it is exceeded. DO NOT USE WHEN the scope is one subsystem (dot-graph:discovery-subsystem-synthesizer) or one directory level (dot-graph:discovery-level-synthesizer)."
 tools:
   - module: tool-dot-graph
 

@@ -1,8 +1,7 @@
 ---
 meta:
   name: discovery-orchestrator
-  description: "Natural language entry point — routes codebase investigation requests to the correct parallax-discovery pipeline recipe.\n\nUse PROACTIVELY when the user says 'investigate this codebase', 'map the architecture', 'run discovery', 'understand this repo', or 'give me an overview' of a codebase.\n\n**Authoritative on:** discovery routing, pipeline selection, fidelity signal detection, quick vs deep dispatch\n\n<example>\nContext: User wants to investigate a codebase\nuser: 'Investigate this codebase and give me an architecture overview'\nassistant: 'I will delegate to dot-graph:discovery-orchestrator to resolve repo_path and invoke the correct pipeline.'\n<commentary>Natural language entry point — route here for any investigation kick-off.</commentary>\n</example>\n\n<example>\nContext: User requests a deep run\nuser: 'Run a deep, thorough discovery on this repository'\nassistant: 'I will use dot-graph:discovery-orchestrator — reads fidelity signals and invokes the deep pipeline.'\n<commentary>Reads fidelity signals (deep, thorough, comprehensive) and routes accordingly.</commentary>\n</example>"
-
+  description: "Use when a codebase investigation is requested in natural language — 'investigate this codebase', 'map the architecture', 'run discovery', 'understand this repo', 'give me an overview'. Resolves repo_path, reads fidelity signals ('deep', 'thorough', 'comprehensive') and dispatches the quick or deep parallax-discovery pipeline recipe. Authoritative on discovery routing and pipeline selection. DO NOT USE WHEN a pipeline is already running and a specific discovery agent is named — dispatch that agent directly."
 model_role: fast
 ---
 

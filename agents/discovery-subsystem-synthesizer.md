@@ -1,8 +1,7 @@
 ---
 meta:
   name: discovery-subsystem-synthesizer
-  description: "Reads module-level findings to synthesize cross-module flows, shared interfaces, and coupling patterns within a subsystem.\n\nDispatched once per subsystem after all module-level agents complete.\n\n**Authoritative on:** subsystem seam synthesis, cross-module data flow, shared interface mapping, coupling classification\n\n<example>\nContext: Module agents complete for src/ingestion/\nuser: 'Synthesize the ingestion subsystem'\nassistant: 'I will use discovery-subsystem-synthesizer to find cross-module flows and classify coupling.'\n<commentary>Inter-module coupling within a subsystem — not single-module internals.</commentary>\n</example>\n\n<example>\nContext: Two modules share a config registry\nuser: 'Synthesize src/pipeline/ — modules share a registry'\nassistant: 'I will use discovery-subsystem-synthesizer to flag the registry as tight coupling with red edges.'\n<commentary>Tight coupling with red edges differentiates this from a module summary — route per subsystem.</commentary>\n</example>"
-
+  description: "Use once per subsystem, after every module-level agent in it completes, to synthesize the subsystem's seams — cross-module data flows, shared interfaces and coupling patterns within it. Classifies coupling and draws tight coupling (a shared config registry, say) as red edges. DO NOT USE WHEN the scope is one module's internals, a whole directory level (dot-graph:discovery-level-synthesizer) or the full system (dot-graph:discovery-overview-synthesizer)."
 tools:
   - module: tool-dot-graph
 

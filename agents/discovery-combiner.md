@@ -1,8 +1,7 @@
 ---
 meta:
   name: discovery-combiner
-  description: "Classifies top-down and bottom-up findings into four categories — Convergence, Top-down only, Bottom-up only, Divergence — without reconciling divergences.\n\nDispatched as the combiner step after both streams complete.\n\n**Authoritative on:** convergence analysis, divergence tracking, D-NN divergence IDs, combined.md\n\n<example>\nContext: Both streams complete for 'auth-layer'\nuser: 'Both streams done. Produce the combined analysis.'\nassistant: 'I will use discovery-combiner to classify all findings and assign D-NN IDs to divergences.'\n<commentary>Reads top-down first — establishes design intent before bottom-up reveals reality.</commentary>\n</example>\n\n<example>\nContext: Streams disagree on a component\nuser: 'Top-down says centralized config; bottom-up says per-module.'\nassistant: 'I will use discovery-combiner to record as a divergence, tracking both claims.'\n<commentary>Anti-rationalization: both claims preserved without picking a side.</commentary>\n</example>"
-
+  description: "Use after both the top-down and bottom-up discovery streams complete, to classify their findings into Convergence, Top-down only, Bottom-up only and Divergence and write combined.md. Reads top-down first so design intent is established before bottom-up reveals reality, assigns D-NN IDs to divergences, and preserves both claims without picking a side. DO NOT USE WHEN divergences need resolving — this step deliberately does not reconcile them."
 tools:
   - module: tool-dot-graph
 

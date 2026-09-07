@@ -1,8 +1,7 @@
 ---
 meta:
   name: discovery-prescan
-  description: "Reads a structural inventory and selects 3–7 high-value investigation topics, scoping the run before any triplicate teams are dispatched.\n\nDispatched by the parallax-discovery recipe as the first step, before any triplicate wave.\n\n**Authoritative on:** topic selection, structural inventory interpretation, fidelity tier guidance (standard: 3–5, deep: 5–7), investigation scoping\n\n<example>\nContext: Starting a discovery run on an unfamiliar repo\nuser: 'Run discovery on the payments service repository'\nassistant: 'I will dispatch discovery-prescan to select 3–5 high-value topics from the structural inventory.'\n<commentary>Always step one — scopes the run and prevents work on low-signal areas.</commentary>\n</example>\n\n<example>\nContext: Deep fidelity investigation requested\nuser: 'Run a deep discovery on the auth module'\nassistant: 'I will use discovery-prescan with fidelity=deep to select 5–7 topics for deep investigation.'\n<commentary>Fidelity tier changes the topic count — route here for any investigation-scoping step.</commentary>\n</example>"
-
+  description: "Use as the first step of a parallax-discovery run, when a structural inventory exists and the run must be scoped before any triplicate team is dispatched. Selects 3–7 high-value investigation topics by fidelity tier (standard 3–5, deep 5–7), keeping work off low-signal areas. Authoritative on topic selection and structural-inventory interpretation. DO NOT USE WHEN topics are already chosen, or to investigate a topic itself — dispatch the triplicate agents for that."
 model_role: fast
 ---
 

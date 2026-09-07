@@ -1,13 +1,6 @@
 ---
 name: architecture-overview-diagram
-description: >
-  Generate a README-level architecture overview DOT diagram for a repository
-  through code-first investigation, iterative design, and antagonistic review.
-  Use when the user says "create an architecture diagram", "make a README
-  diagram", "top-level overview diagram", or wants a single diagram that
-  gives a non-technical reader the "I get it" understanding of a system.
-  Produces a .dot source, .svg, and .png — reviewed to PASS quality.
-  Also surfaces doc/code discrepancies and optionally generates detail diagrams.
+description: "Use when asked to create an architecture diagram, a README diagram or a top-level overview — or for the single diagram that gives a non-technical reader the \"I get it\" understanding of a repo. Code-first investigation, iterative design and antagonistic review produce a .dot source plus .svg and .png at PASS quality, surface doc/code discrepancies, and optionally add detail diagrams."
 user-invocable: true
 allowed-tools:
   - read_file

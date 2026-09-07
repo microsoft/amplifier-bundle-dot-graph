@@ -1,0 +1,133 @@
+{
+  "method": "scratch bundle including this worktree's bundle.md + tool-delegate; `amplifier tool info delegate -b kp79-scratch --format json`; catalog = the 'Available agents:' block of the delegate tool's own description (tool-delegate/__init__.py:936-941). Deterministic, no LLM call, $0.",
+  "delegate_tool_description_bytes": {
+    "before": 73739,
+    "after": 65562,
+    "delta": -8177
+  },
+  "full_agent_catalog_bytes": {
+    "before": 72529,
+    "after": 64352,
+    "delta": -8177,
+    "entries": 59,
+    "note": "59 entries across every bundle composed into the scratch session; only dot-graph's 13 changed."
+  },
+  "dot_graph_slice_bytes": {
+    "before": 15221,
+    "after": 7044,
+    "delta": -8177,
+    "pct": -53.7,
+    "entries": 13
+  },
+  "per_entry": {
+    "dot-graph:diagram-reviewer": {
+      "before": 1843,
+      "after": 621,
+      "delta": -1222
+    },
+    "dot-graph:discovery-architecture-writer": {
+      "before": 1030,
+      "after": 531,
+      "delta": -499
+    },
+    "dot-graph:discovery-behavior-observer": {
+      "before": 1076,
+      "after": 549,
+      "delta": -527
+    },
+    "dot-graph:discovery-code-tracer": {
+      "before": 1090,
+      "after": 578,
+      "delta": -512
+    },
+    "dot-graph:discovery-combiner": {
+      "before": 1014,
+      "after": 482,
+      "delta": -532
+    },
+    "dot-graph:discovery-integration-mapper": {
+      "before": 1126,
+      "after": 539,
+      "delta": -587
+    },
+    "dot-graph:discovery-level-synthesizer": {
+      "before": 1049,
+      "after": 491,
+      "delta": -558
+    },
+    "dot-graph:discovery-orchestrator": {
+      "before": 1135,
+      "after": 555,
+      "delta": -580
+    },
+    "dot-graph:discovery-overview-synthesizer": {
+      "before": 1009,
+      "after": 521,
+      "delta": -488
+    },
+    "dot-graph:discovery-prescan": {
+      "before": 1104,
+      "after": 511,
+      "delta": -593
+    },
+    "dot-graph:discovery-subsystem-synthesizer": {
+      "before": 1047,
+      "after": 506,
+      "delta": -541
+    },
+    "dot-graph:discovery-synthesizer": {
+      "before": 1079,
+      "after": 555,
+      "delta": -524
+    },
+    "dot-graph:dot-author": {
+      "before": 1619,
+      "after": 605,
+      "delta": -1014
+    }
+  },
+  "skills_visibility_block_bytes": {
+    "before": 1839,
+    "after": 1712,
+    "delta": -127
+  },
+  "combined_always_on_delta_bytes": -8304,
+  "tokens_per_turn_saved_at_4_59_chars_per_token": 1809,
+  "description_field_chars": {
+    "agents": {
+      "before": 14615,
+      "after": 6484,
+      "delta": -8131
+    },
+    "skills": {
+      "before": 1531,
+      "after": 1404,
+      "delta": -127
+    },
+    "repo_total": {
+      "before": 16146,
+      "after": 7888,
+      "delta": -8258
+    }
+  },
+  "validate_agents": {
+    "recipe_version": "1.7.0",
+    "run_id": "run-37898eb9d8a9",
+    "foundation": "git+https://github.com/microsoft/amplifier-foundation@v2.1.2 (a27d5824517d078097b60d84779dd3eae80202cd)",
+    "verdict": "PASS WITH WARNINGS",
+    "agents_discovered": 13,
+    "errors": 0,
+    "warnings": 3,
+    "warning_code": "NO_TOOLS_SECTION",
+    "warnings_pre_exist_on_origin_main": true,
+    "example_blocks_repo_wide": 0,
+    "commentary_tags_repo_wide": 0
+  },
+  "tests": {
+    "baseline_origin_main": "11 failed, 1300 passed",
+    "branch": "11 failed, 1340 passed",
+    "failing_set": "identical (all pre-existing)",
+    "fail_before_new_guards": "39 failed + 11 failed = 50 assertions",
+    "ci": "none \u2014 repo has no .github/workflows"
+  }
+}

@@ -1,8 +1,7 @@
 ---
 meta:
   name: discovery-code-tracer
-  description: "The HOW agent in the triplicate team — traces code execution paths using LSP, producing file:line evidence for every significant finding.\n\nDispatched as agent-1-code-tracer per topic in the triplicate wave.\n\n**Authoritative on:** code tracing, execution path analysis, LSP navigation (goToDefinition, incomingCalls, outgoingCalls), file:line evidence\n\n<example>\nContext: Dispatched as agent-1 for 'auth-layer'\nuser: 'You are agent-1-code-tracer for the auth-layer topic'\nassistant: 'I will use discovery-code-tracer to trace execution paths with file:line LSP evidence.'\n<commentary>HOW agent — code-level tracing, not instance counts (behavior-observer) or boundaries (integration-mapper).</commentary>\n</example>\n\n<example>\nContext: Discrepancy about how a function works\nuser: 'Does authenticate() validate inline or delegate?'\nassistant: 'I will use discovery-code-tracer with LSP goToDefinition and outgoingCalls for file:line evidence.'\n<commentary>LSP-first navigation — route for code-level discrepancy resolution.</commentary>\n</example>"
-
+  description: "Use as agent-1 of a triplicate wave, or whenever a HOW question needs code-level proof — how a path executes, whether a function validates inline or delegates. Traces execution paths via LSP (goToDefinition, incomingCalls, outgoingCalls) and attaches file:line evidence to every significant finding, which makes it the route for code-level discrepancy resolution. DO NOT USE WHEN the question is how many instances follow a pattern (dot-graph:discovery-behavior-observer) or where components meet (dot-graph:discovery-integration-mapper)."
 tools:
   - module: tool-dot-graph
 

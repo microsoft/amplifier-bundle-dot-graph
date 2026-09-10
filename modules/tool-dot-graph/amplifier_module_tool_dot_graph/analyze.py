@@ -4,7 +4,7 @@ Provides analyze_dot() which validates options, parses DOT via pydot,
 converts to NetworkX, and dispatches to operation handlers.
 
 Operations: stats, reachability, unreachable, cycles, paths,
-            critical_path, subgraph_extract, diff.
+            critical_path, subgraph_extract, diff, producer_consumer.
 """
 
 from __future__ import annotations
@@ -35,6 +35,7 @@ _KNOWN_ANALYSES: frozenset[str] = frozenset(
         "critical_path",
         "subgraph_extract",
         "diff",
+        "producer_consumer",
     }
 )
 
@@ -104,6 +105,8 @@ def analyze_dot(dot_content: str, options: dict | None = None) -> dict:
         return _paths(G, options)
     if analysis == "critical_path":
         return _critical_path(G)
+    if analysis == "producer_consumer":
+        return _producer_consumer(G, dot_content)
 
     # Should be unreachable: all _KNOWN_ANALYSES operations are dispatched above.
     raise AssertionError(f"Unhandled analysis type in dispatcher: {analysis!r}")
@@ -809,4 +812,201 @@ def _diff(dot_content_a: str, options: dict) -> dict:
         "added_edges": added_edges,
         "removed_edges": removed_edges,
         "summary": summary,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Producer/consumer operation
+# ---------------------------------------------------------------------------
+
+
+def _parse_condition_key(condition: str) -> str:
+    """Extract the context key from a DOT condition attribute value.
+
+    Handles all three attractor condition formats (quotes already stripped
+    by the caller):
+
+        key=value    ->  'key'
+        key!=value   ->  'key'
+        key=         ->  'key'   (empty-value / missing-key check)
+
+    Args:
+        condition: Stripped condition string with surrounding quotes removed.
+
+    Returns:
+        The key portion of the condition string.
+    """
+    if "!=" in condition:
+        return condition.split("!=")[0].strip()
+    if "=" in condition:
+        return condition.split("=")[0].strip()
+    return condition.strip()
+
+
+def _producer_consumer(G: nx.Graph, dot_content: str) -> dict:
+    """Detect condition keys on edges that have no upstream producer node.
+
+    Performs static analysis of DOT pipeline graphs.  In the attractor
+    pipeline engine a condition like ``condition="verdict=approved"`` on an
+    edge checks a context key called ``verdict``.  If no upstream node
+    declares that it produces ``verdict`` (via ``tool_outputs="verdict,..."``),
+    the pipeline will silently route incorrectly.  This analyser catches that
+    at authoring time.
+
+    Nodes declare produced context keys via the ``tool_outputs`` attribute::
+
+        Eval [shape=parallelogram tool_outputs="verdict,confidence" parse_json=true]
+
+    Args:
+        G: NetworkX graph (MultiDiGraph expected — directed graphs only).
+        dot_content: Original DOT source, used to access node/edge attributes
+                     via pydot and to produce annotated output.
+
+    Returns:
+        {
+            success: True,
+            operation: "producer_consumer",
+            total_condition_edges: int,    # edges carrying condition= attributes
+            total_condition_keys: int,     # unique keys referenced by conditions
+            total_producers: int,          # nodes with tool_outputs declared
+            matched_keys: list[dict],      # keys satisfied by an upstream producer
+            unmatched_keys: list[dict],    # THE ERRORS — keys with no upstream producer
+            producers: dict,               # node -> [key, ...] map
+            annotated_dot: str,            # unmatched edges highlighted red
+        }
+        or {success: False, error: str} if the graph is undirected.
+    """
+    if not G.is_directed():
+        return _parse_error("producer_consumer requires a directed graph")
+
+    DG = cast(nx.DiGraph, G)
+
+    # Re-parse DOT to access node/edge attributes.  The NetworkX graph carries
+    # topology only; pydot is the authoritative source for custom attributes.
+    pydot_graph = _parse_dot(dot_content)
+    if pydot_graph is None:
+        return _parse_error("Failed to parse DOT content (syntax error or empty input)")
+
+    # Recursively collect nodes and edges (handles subgraph cluster nesting).
+    all_nodes, all_edges = _collect_all_nodes_and_edges(pydot_graph)
+
+    # ------------------------------------------------------------------
+    # 1. Build producers map: clean_node_name -> [key, ...]
+    #    Nodes declare what context keys they produce via
+    #    tool_outputs="k1,k2,...".
+    # ------------------------------------------------------------------
+    producers: dict[str, list[str]] = {}
+    for node in all_nodes:
+        raw_name = node.get_name()
+        clean_name = str(raw_name).strip('"')
+        if clean_name in _PSEUDO_NODES:
+            continue
+        attrs = node.get_attributes() or {}
+        if "tool_outputs" in attrs:
+            raw_val = str(attrs["tool_outputs"]).strip('"')
+            keys = [k.strip() for k in raw_val.split(",") if k.strip()]
+            if keys:
+                producers[clean_name] = keys
+
+    # ------------------------------------------------------------------
+    # 2. Reverse map: context_key -> [producer_node_names]
+    # ------------------------------------------------------------------
+    key_to_producers: dict[str, list[str]] = {}
+    for node_name, keys in producers.items():
+        for key in keys:
+            key_to_producers.setdefault(key, []).append(node_name)
+
+    # ------------------------------------------------------------------
+    # 3. Collect condition edges: (raw_src, raw_dst, condition_str)
+    #    Skips pseudo-nodes and edges without a condition= attribute.
+    # ------------------------------------------------------------------
+    condition_edges: list[tuple[str, str, str]] = []
+    for edge in all_edges:
+        src = edge.get_source()
+        dst = edge.get_destination()
+        if str(src).strip('"') in _PSEUDO_NODES or str(dst).strip('"') in _PSEUDO_NODES:
+            continue
+        attrs = edge.get_attributes() or {}
+        if "condition" in attrs:
+            cond_str = str(attrs["condition"]).strip('"')
+            condition_edges.append((src, dst, cond_str))
+
+    # ------------------------------------------------------------------
+    # 4. Classify each condition edge as matched or unmatched.
+    #    A key is matched for an edge when at least one node in the
+    #    upstream set (nx.ancestors(DG, src) ∪ {src}) declares that key
+    #    in its tool_outputs.
+    # ------------------------------------------------------------------
+    matched: dict[str, dict] = {}  # key -> {key, producers, consumers}
+    unmatched: dict[str, dict] = {}  # key -> {key, consumers, reachable_producers}
+
+    for src, dst, cond_str in condition_edges:
+        key = _parse_condition_key(cond_str)
+        src_clean = str(src).strip('"')
+        dst_clean = str(dst).strip('"')
+        edge_info = {"from": src_clean, "to": dst_clean, "condition": cond_str}
+
+        # Resolve the edge source to the node name actually stored in DG.
+        # pydot may return quoted names; try raw first, then stripped.
+        src_in_dg: str = src if src in DG else src_clean
+
+        # Build upstream set: all ancestors of the edge source + source itself.
+        if src_in_dg in DG:
+            ancestor_nodes = nx.ancestors(DG, src_in_dg)
+            upstream: set[str] = {str(n).strip('"') for n in ancestor_nodes} | {
+                src_clean
+            }
+        else:
+            upstream = {src_clean}
+
+        # Producers of this key that are upstream of the current edge.
+        all_producers_for_key = key_to_producers.get(key, [])
+        reachable = [p for p in all_producers_for_key if p in upstream]
+
+        if reachable:
+            if key not in matched:
+                matched[key] = {
+                    "key": key,
+                    "producers": all_producers_for_key,
+                    "consumers": [],
+                }
+            matched[key]["consumers"].append(edge_info)
+        else:
+            if key not in unmatched:
+                unmatched[key] = {
+                    "key": key,
+                    "consumers": [],
+                    "reachable_producers": [],
+                }
+            unmatched[key]["consumers"].append(edge_info)
+
+    # ------------------------------------------------------------------
+    # 5. Annotate unmatched edges in the DOT source (red highlight).
+    # ------------------------------------------------------------------
+    unmatched_pairs: list[tuple[str, str]] = list(
+        {
+            (str(src).strip('"'), str(dst).strip('"'))
+            for src, dst, cond_str in condition_edges
+            if _parse_condition_key(cond_str) in unmatched
+        }
+    )
+    annotated = _annotate_edges(dot_content, unmatched_pairs, "red", "bold")
+
+    # ------------------------------------------------------------------
+    # 6. Summary counts.
+    # ------------------------------------------------------------------
+    all_condition_keys: set[str] = {
+        _parse_condition_key(c) for _, _, c in condition_edges
+    }
+
+    return {
+        "success": True,
+        "operation": "producer_consumer",
+        "total_condition_edges": len(condition_edges),
+        "total_condition_keys": len(all_condition_keys),
+        "total_producers": len(producers),
+        "matched_keys": list(matched.values()),
+        "unmatched_keys": list(unmatched.values()),
+        "producers": producers,
+        "annotated_dot": annotated,
     }

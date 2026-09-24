@@ -4,7 +4,11 @@ description: >
   mode. Auto-mode counts repository files and routes to quick (< 50 files) or
   deep (>= 50 files). Thin routing recipe that delegates to the appropriate
   pipeline sub-recipe based on repository size or explicit mode selection.
-version: "1.0.0"
+version: "1.1.0"
+# Changelog:
+#   1.1.0 - Serialize context values before Python parsing and reject unknown
+#           modes or repository scan failures instead of silently routing.
+#   1.0.0 - Initial release.
 author: "DOT Graph Bundle"
 tags: ["discovery", "pipeline", "entry-point", "routing"]
 
@@ -33,12 +37,15 @@ steps:
       python3 - <<'PYEOF'
       import json, os, sys
 
-      mode = "{{mode}}"
-      repo_path = "{{repo_path}}"
+      mode = json.loads({{ mode | tojson | tojson }})
+      repo_path = json.loads({{ repo_path | tojson | tojson }})
 
       # Validate repo_path
-      if not repo_path or "{{" in repo_path:
+      if not isinstance(repo_path, str) or not repo_path:
           print(json.dumps({"error": "repo_path is required and must not be empty"}), file=sys.stderr)
+          sys.exit(1)
+      if mode not in {"auto", "quick", "deep"}:
+          print(json.dumps({"error": "mode must be one of: auto, quick, deep"}), file=sys.stderr)
           sys.exit(1)
 
       # Resolve pipeline based on mode
@@ -62,14 +69,9 @@ steps:
               else:
                   recipe_path = "@dot-graph:recipes/deep/discovery-pipeline.yaml"
                   resolved_mode = "deep"
-          except Exception as e:
-              # Default to deep on error
-              recipe_path = "@dot-graph:recipes/deep/discovery-pipeline.yaml"
-              resolved_mode = "deep"
-      else:
-          # Unknown mode — default to deep
-          recipe_path = "@dot-graph:recipes/deep/discovery-pipeline.yaml"
-          resolved_mode = "deep"
+          except OSError as exc:
+              print(json.dumps({"error": f"failed to scan repo_path: {exc}"}), file=sys.stderr)
+              sys.exit(1)
 
       print(json.dumps({
           "recipe_path": recipe_path,

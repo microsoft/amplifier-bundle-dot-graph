@@ -18,12 +18,19 @@ Validates:
 Total: 21+ tests covering all spec requirements
 """
 
+import json
+import re
+import subprocess
+import sys
 from pathlib import Path
 
 import yaml
 
 REPO_ROOT = Path(__file__).parent.parent
 RECIPE_PATH = REPO_ROOT / "recipes" / "discover.yaml"
+_JSON_BOUNDARY = re.compile(
+    r"\{\{\s*([^|{}]+?)\s*\|\s*tojson\s*\|\s*tojson\s*\}\}"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -49,6 +56,20 @@ def _get_step_by_id(data: dict, step_id: str) -> dict | None:
     return None
 
 
+def _render_python_command(command: str, values: dict[str, object]) -> str:
+    """Render only the audited JSON boundaries and return the heredoc body."""
+
+    def replace(match: re.Match[str]) -> str:
+        key = match.group(1).strip()
+        return json.dumps(json.dumps(values[key]))
+
+    rendered = _JSON_BOUNDARY.sub(replace, command)
+    lines = rendered.splitlines()
+    assert lines[0].startswith("python3 - <<")
+    assert lines[-1] == "PYEOF"
+    return "\n".join(lines[1:-1])
+
+
 # ---------------------------------------------------------------------------
 # File existence and parse (2 tests)
 # ---------------------------------------------------------------------------
@@ -64,6 +85,11 @@ def test_discover_recipe_parses_as_valid_yaml():
     content = RECIPE_PATH.read_text()
     data = yaml.safe_load(content)
     assert isinstance(data, dict), f"Expected YAML dict, got {type(data).__name__}"
+
+
+def test_discover_recipe_version():
+    """Security boundary hardening is published as recipe version 1.1.0."""
+    assert _load_recipe().get("version") == "1.1.0"
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +241,42 @@ def test_resolve_mode_handles_deep_mode_explicitly():
     assert "deep" in command, (
         "resolve-mode command must handle explicit 'deep' mode routing"
     )
+
+
+def test_resolve_mode_serializes_untrusted_values_before_python():
+    """Mode and repository path must enter Python as JSON data, not source text."""
+    command = _get_step_by_id(_load_recipe(), "resolve-mode")["command"]
+    assert 'mode = "{{mode}}"' not in command
+    assert 'repo_path = "{{repo_path}}"' not in command
+    assert "json.loads({{ mode | tojson | tojson }})" in command
+    assert "json.loads({{ repo_path | tojson | tojson }})" in command
+    assert 'mode not in {"auto", "quick", "deep"}' in command
+
+
+def test_resolve_mode_quote_and_newline_payload_remains_data(tmp_path):
+    """A repository path payload cannot break out of the generated Python."""
+    command = _get_step_by_id(_load_recipe(), "resolve-mode")["command"]
+    sentinel = tmp_path / "executed.txt"
+    payload = (
+        'repo"; __import__("pathlib").Path('
+        + repr(str(sentinel))
+        + ').write_text("bad")\n#'
+    )
+    body = _render_python_command(
+        command,
+        {"mode": "quick", "repo_path": payload},
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", body],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert not sentinel.exists()
+    assert json.loads(result.stdout)["repo_path"] == payload
 
 
 # ---------------------------------------------------------------------------

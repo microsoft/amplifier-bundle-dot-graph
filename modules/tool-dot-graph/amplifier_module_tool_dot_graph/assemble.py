@@ -119,7 +119,15 @@ def assemble_hierarchy(
             png_path = dot_path.replace(".dot", ".png")
             try:
                 dot_content = Path(dot_path).read_text(encoding="utf-8")
-                render_result = _render.render_dot(dot_content, "png", "dot", png_path)
+                render_result = _render.render_dot(
+                    dot_content,
+                    "png",
+                    "dot",
+                    png_path,
+                    output_root=out_path,
+                    allow_absolute_output_path=True,
+                    allow_overwrite=True,
+                )
                 if not render_result.get("success"):
                     warnings.append(
                         f"PNG render failed for '{dot_path}': "

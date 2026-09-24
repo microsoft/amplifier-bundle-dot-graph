@@ -3,14 +3,14 @@
 24 tests covering:
 - Operation routing: validate, render, setup, analyze (stats, cycles, error cases), unknown (8 tests)
 - Input schema: setup operation in enum, options sub-properties, analyze options (3 tests)
-- Mount contract: real tool version 0.4.0, tool can actually validate (3 tests)
+- Mount contract: real tool version 0.5.0, tool can actually validate (3 tests)
 - Error handling: invalid layer name returns structured error, not exception (1 test)
 - Layer selection: syntax-only, structural-only layers (1 test)
 - Render: mocked render operation (1 test)
 - Prescan routing: prescan routes correctly, missing repo_path error (2 tests)
 - Assemble routing: assemble routes correctly, missing manifest error (2 tests)
 - Input schema: prescan/assemble in enum and options (2 tests)
-- Mount contract: version 0.4.0 assertion (1 test)
+- Mount contract: version 0.5.0 assertion (1 test)
 
 These tests verify that __init__.py routes operations to the real
 validate, render, setup_helper, analyze, prescan, and assemble modules.
@@ -351,7 +351,7 @@ def test_input_schema_documents_analyze_options():
 
 @pytest.mark.asyncio
 async def test_mount_registers_real_tool():
-    """mount() returns version 0.4.0, indicating the real implementation with prescan/assemble routing."""
+    """mount() returns version 0.5.0 with confined render destinations."""
     from amplifier_module_tool_dot_graph import mount
 
     coordinator = MagicMock()
@@ -359,8 +359,8 @@ async def test_mount_registers_real_tool():
 
     result = await mount(coordinator)
 
-    assert result["version"] == "0.4.0", (
-        f"Expected version 0.4.0 (prescan/assemble routing complete), got: {result['version']!r}"
+    assert result["version"] == "0.5.0", (
+        f"Expected version 0.5.0 (render path confinement), got: {result['version']!r}"
     )
     assert result["name"] == "tool-dot-graph", (
         f"Expected name 'tool-dot-graph', got: {result['name']!r}"
@@ -550,13 +550,13 @@ def test_input_schema_includes_prescan_assemble():
 
 
 # ---------------------------------------------------------------------------
-# Mount version 0.4.0 test (1 new test) — RED phase
+# Mount version 0.5.0 test
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_mount_returns_version_040():
-    """mount() metadata version is 0.4.0 (prescan/assemble routing added)."""
+async def test_mount_returns_version_050():
+    """mount() metadata version is 0.5.0 (render path confinement added)."""
     from amplifier_module_tool_dot_graph import mount
 
     coordinator = MagicMock()
@@ -564,6 +564,6 @@ async def test_mount_returns_version_040():
 
     result = await mount(coordinator)
 
-    assert result["version"] == "0.4.0", (
-        f"Expected version 0.4.0 (prescan/assemble routing complete), got: {result['version']!r}"
+    assert result["version"] == "0.5.0", (
+        f"Expected version 0.5.0 (render path confinement), got: {result['version']!r}"
     )

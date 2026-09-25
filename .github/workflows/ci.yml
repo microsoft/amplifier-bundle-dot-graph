@@ -72,7 +72,11 @@ jobs:
         # pyyaml     — tests/conftest.py and every behavior/frontmatter test
         # pydot      — tests/test_final_verification.py imports the tool module
         # networkx   — same; the tool module's analyze path
-        run: uv pip install pytest pyyaml pydot networkx
+        # recipe runner — security tests exercise the actual schema-v2 substitution
+        # engine, pinned so their behavior does not drift between CI runs.
+        run: |
+          uv pip install pytest pytest-asyncio pyyaml pydot networkx
+          uv pip install 'git+https://github.com/microsoft/amplifier-bundle-recipes@f8ec2ec8190ec55309cae784a98a1f7bfcdd1d63'
 
       - name: Run tests
         # Invoked through the venv interpreter directly rather than `uv run`:

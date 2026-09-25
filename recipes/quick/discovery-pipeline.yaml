@@ -84,6 +84,9 @@ stages:
         output: "change_result"
         parse_json: true
         timeout: 30
+        env:
+          DISCOVERY_REPO_PATH: "{{repo_path}}"
+          DISCOVERY_OUTPUT_DIR: "{{output_dir}}"
         command: |
           python3 - <<'EOF'
           import json
@@ -91,12 +94,15 @@ stages:
           import subprocess
           from pathlib import Path
 
-          repo_path = json.loads({{ repo_path | tojson | tojson }})
-          output_dir = json.loads({{ output_dir | tojson | tojson }})
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
+          unresolved_marker = chr(123) * 2
 
           # Resolve default output_dir — avoids nested template expansion issues
-          if not output_dir or "{{" in output_dir:
+          if not output_dir or unresolved_marker in output_dir:
               output_dir = os.path.join(repo_path, ".discovery")
+          if not os.path.isdir(repo_path):
+              raise ValueError("repo_path must name an existing directory")
 
           result = {
               "repo_path": repo_path,
@@ -159,18 +165,17 @@ stages:
         output: "scan_result"
         parse_json: true
         timeout: 60
+        env:
+          DISCOVERY_REPO_PATH: "{{change_result.repo_path}}"
+          DISCOVERY_OUTPUT_DIR: "{{change_result.output_dir}}"
         command: |
           python3 - <<'EOF'
           import json
           import os
           from pathlib import Path
 
-          repo_path = json.loads(
-              {{ change_result.repo_path | tojson | tojson }}
-          )
-          output_dir = json.loads(
-              {{ change_result.output_dir | tojson | tojson }}
-          )
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
 
           result = {
               "repo_path": repo_path,
@@ -249,7 +254,7 @@ stages:
             ...
           ]
 
-    approval_gate:
+    approval:
       required: true
       prompt: |
         Quick Discovery Pipeline — Scan Complete
@@ -258,11 +263,8 @@ stages:
         Fidelity:    {{fidelity}}
         Output dir:  {{change_result.output_dir}}
 
-        Selected investigation topics ({{topics | length}} topics):
-        {% for topic in topics %}
-          • {{topic.name}} ({{topic.slug}})
-            {{topic.description}}
-        {% endfor %}
+        Selected investigation topics (validated JSON):
+        {{topics}}
 
         Type APPROVE to proceed with investigation, or DENY to cancel.
 
@@ -283,14 +285,16 @@ stages:
         output: "prep_result"
         parse_json: true
         timeout: 15
+        env:
+          DISCOVERY_OUTPUT_DIR: "{{change_result.output_dir}}"
+          DISCOVERY_TOPICS_JSON: "{{topics}}"
         command: |
           python3 - <<'EOF'
-          import json
+          import json, os
           from pathlib import Path
 
-          output_dir = json.loads({{ change_result.output_dir | tojson | tojson }})
-
-          topics_raw = json.loads({{ topics | tojson | tojson }})
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
+          topics_raw = json.loads(os.environ["DISCOVERY_TOPICS_JSON"])
           if isinstance(topics_raw, str):
               topics_raw = json.loads(topics_raw)
           if not isinstance(topics_raw, list) or not 1 <= len(topics_raw) <= 7:
@@ -419,14 +423,15 @@ stages:
         output: "assemble_result"
         parse_json: true
         timeout: 120
+        env:
+          DISCOVERY_OUTPUT_DIR: "{{change_result.output_dir}}"
         command: |
           python3 - <<'EOF'
           import json
+          import os
           from pathlib import Path
 
-          output_dir = json.loads(
-              {{ change_result.output_dir | tojson | tojson }}
-          )
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
 
           # Read topics from file to avoid template injection issues
           topics_path = Path(output_dir) / "topics.json"
@@ -504,14 +509,15 @@ stages:
         output: "validation_result"
         parse_json: true
         timeout: 60
+        env:
+          DISCOVERY_OUTPUT_DIR: "{{change_result.output_dir}}"
         command: |
           python3 - <<'EOF'
           import json
+          import os
           from pathlib import Path
 
-          output_dir = json.loads(
-              {{ change_result.output_dir | tojson | tojson }}
-          )
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
 
           result = {
               "valid_count": 0,
@@ -628,6 +634,10 @@ stages:
         on_error: continue
         parse_json: true
         timeout: 30
+        env:
+          DISCOVERY_OUTPUT_DIR: "{{change_result.output_dir}}"
+          DISCOVERY_REPO_PATH: "{{change_result.repo_path}}"
+          DISCOVERY_AGENT_RESULT: "{{overview_dot_result}}"
         command: |
           python3 - <<'PYEOF'
           import json
@@ -635,10 +645,8 @@ stages:
           import re
           from pathlib import Path
 
-          output_dir = json.loads(
-              {{ change_result.output_dir | tojson | tojson }}
-          )
-          repo_path = json.loads({{ change_result.repo_path | tojson | tojson }})
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
           if not output_dir:
               output_dir = os.path.join(repo_path, ".discovery")
 
@@ -654,9 +662,7 @@ stages:
               }))
           else:
               # Agent did not write the file — try to extract DOT from response data
-              agent_result = json.loads(
-                  {{ overview_dot_result | tojson | tojson }}
-              )
+              agent_result = json.loads(os.environ["DISCOVERY_AGENT_RESULT"])
               if not isinstance(agent_result, str):
                   agent_result = json.dumps(agent_result)
               # Find a digraph or strict digraph block (may be inside a code fence)
@@ -706,6 +712,13 @@ stages:
         output: "metadata_result"
         parse_json: true
         timeout: 10
+        env:
+          DISCOVERY_REPO_PATH: "{{change_result.repo_path}}"
+          DISCOVERY_OUTPUT_DIR: "{{change_result.output_dir}}"
+          DISCOVERY_COMMIT: "{{change_result.current_commit}}"
+          DISCOVERY_FIDELITY: "{{fidelity}}"
+          DISCOVERY_VALID_COUNT: "{{validation_result.valid_count}}"
+          DISCOVERY_ERROR_COUNT: "{{validation_result.error_count}}"
         command: |
           python3 - <<'EOF'
           import json
@@ -713,27 +726,18 @@ stages:
           from datetime import datetime, timezone
           from pathlib import Path
 
-          repo_path = json.loads(
-              {{ change_result.repo_path | tojson | tojson }}
-          )
-          output_dir = json.loads(
-              {{ change_result.output_dir | tojson | tojson }}
-          )
-          commit_hash = json.loads(
-              {{ change_result.current_commit | tojson | tojson }}
-          )
-          fidelity = json.loads({{ fidelity | tojson | tojson }})
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
+          unresolved_marker = chr(123) * 2
+          commit_hash = os.environ["DISCOVERY_COMMIT"]
+          fidelity = os.environ["DISCOVERY_FIDELITY"]
 
           # Ensure output_dir is resolved using os.path.join as a safe fallback
-          if not output_dir or "{{" in output_dir:
+          if not output_dir or unresolved_marker in output_dir:
               output_dir = os.path.join(repo_path, ".discovery")
 
-          valid_count = json.loads(
-              {{ validation_result.valid_count | tojson | tojson }}
-          )
-          error_count = json.loads(
-              {{ validation_result.error_count | tojson | tojson }}
-          )
+          valid_count = int(os.environ["DISCOVERY_VALID_COUNT"])
+          error_count = int(os.environ["DISCOVERY_ERROR_COUNT"])
 
           metadata = {
               "commit_hash": commit_hash,

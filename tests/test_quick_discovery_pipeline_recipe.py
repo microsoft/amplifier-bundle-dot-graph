@@ -23,18 +23,15 @@ Total: 39 tests
 """
 
 import json
-import re
+import os
 import subprocess
-import sys
 from pathlib import Path
 
 import yaml
+from amplifier_recipe_runner.engine import substitute_variables
 
 REPO_ROOT = Path(__file__).parent.parent
 RECIPE_PATH = REPO_ROOT / "recipes" / "quick" / "discovery-pipeline.yaml"
-_JSON_BOUNDARY = re.compile(
-    r"\{\{\s*([^|{}]+?)\s*\|\s*tojson\s*\|\s*tojson\s*\}\}"
-)
 
 
 # ---------------------------------------------------------------------------
@@ -72,18 +69,31 @@ def _get_stage_step_by_id(data: dict, stage_name: str, step_id: str) -> dict | N
     return None
 
 
-def _render_python_command(command: str, values: dict[str, object]) -> str:
-    """Render only the audited JSON boundaries and return the heredoc body."""
+def _render_bash_step(
+    step: dict, values: dict[str, object]
+) -> tuple[str, dict[str, str]]:
+    """Render command/env with the actual runner's simple-variable interpolator."""
+    command = substitute_variables(step["command"], values)
+    env = os.environ.copy()
+    env.update(
+        {
+            name: substitute_variables(value, values)
+            for name, value in step.get("env", {}).items()
+        }
+    )
+    return command, env
 
-    def replace(match: re.Match[str]) -> str:
-        key = match.group(1).strip()
-        return json.dumps(json.dumps(values[key]))
 
-    rendered = _JSON_BOUNDARY.sub(replace, command)
-    lines = rendered.splitlines()
-    assert lines[0].startswith("python3 - <<")
-    assert lines[-1] in {"EOF", "PYEOF"}
-    return "\n".join(lines[1:-1])
+def _run_bash_step(step: dict, values: dict[str, object]) -> subprocess.CompletedProcess:
+    command, env = _render_bash_step(step, values)
+    return subprocess.run(
+        command,
+        shell=True,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -302,15 +312,15 @@ def test_scan_topic_select_uses_discovery_prescan_agent():
     )
 
 
-def test_scan_stage_has_approval_gate_required():
-    """Scan stage must have an approval_gate with required=true."""
+def test_scan_stage_has_required_approval():
+    """Scan stage must have a schema-supported approval with required=true."""
     data = _load_recipe()
     stage = _get_stage_by_name(data, "scan")
     assert stage is not None
-    assert "approval_gate" in stage, "Scan stage must have an 'approval_gate' field"
-    gate = stage["approval_gate"]
+    assert "approval" in stage, "Scan stage must have an 'approval' field"
+    gate = stage["approval"]
     assert gate.get("required") is True, (
-        f"approval_gate.required must be true, got: {gate.get('required')!r}"
+        f"approval.required must be true, got: {gate.get('required')!r}"
     )
 
 
@@ -336,7 +346,12 @@ def test_prepare_topics_treats_model_output_as_validated_json_data():
     command = step["command"]
     assert "topics_ctx = {{topics}}" not in command
     assert "ast.literal_eval" not in command
-    assert "json.loads({{ topics | tojson | tojson }})" in command
+    assert "tojson" not in command
+    assert 'topics_raw = json.loads(os.environ["DISCOVERY_TOPICS_JSON"])' in command
+    assert step["env"] == {
+        "DISCOVERY_OUTPUT_DIR": "{{change_result.output_dir}}",
+        "DISCOVERY_TOPICS_JSON": "{{topics}}",
+    }
     assert r're.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug)' in command
     assert "duplicate topic slug" in command
     assert "relative_to(output_root)" in command
@@ -355,20 +370,12 @@ def test_prepare_topics_quote_payload_remains_data(tmp_path):
             "description": payload,
         }
     ]
-    body = _render_python_command(
-        step["command"],
+    result = _run_bash_step(
+        step,
         {
-            "change_result.output_dir": str(tmp_path / "discovery"),
+            "change_result": {"output_dir": str(tmp_path / "discovery")},
             "topics": topics,
         },
-    )
-
-    result = subprocess.run(
-        [sys.executable, "-c", body],
-        capture_output=True,
-        text=True,
-        check=False,
-        cwd=tmp_path,
     )
 
     assert result.returncode == 0, result.stderr
@@ -383,10 +390,10 @@ def test_prepare_topics_rejects_path_like_slug(tmp_path):
     """A model-produced traversal slug cannot create directories outside the root."""
     step = _get_stage_step_by_id(_load_recipe(), "investigate", "prepare-topics")
     assert step is not None
-    body = _render_python_command(
-        step["command"],
+    result = _run_bash_step(
+        step,
         {
-            "change_result.output_dir": str(tmp_path / "discovery"),
+            "change_result": {"output_dir": str(tmp_path / "discovery")},
             "topics": [
                 {
                     "name": "Escape",
@@ -397,34 +404,25 @@ def test_prepare_topics_rejects_path_like_slug(tmp_path):
         },
     )
 
-    result = subprocess.run(
-        [sys.executable, "-c", body],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
     assert result.returncode != 0
-    assert "slug must contain" in result.stderr
+    assert "slug must contain lowercase letters" in result.stderr
     assert not (tmp_path / "escape").exists()
 
 
-def test_all_quick_pipeline_bash_values_use_json_boundaries():
-    """No dynamic recipe value may be quoted or compiled directly in Python."""
-    unsafe_quoted = re.compile(r"""=\s*["']\{\{[^}]+\}\}["']""")
-    unsafe_raw = re.compile(r"=\s*\{\{(?![^}]*\|\s*tojson\s*\|\s*tojson)")
-
+def test_all_quick_pipeline_bash_steps_keep_recipe_values_out_of_source():
+    """Bash recipe values are rendered only in ``env``, never as Python source."""
     for stage in _get_stages(_load_recipe()):
         for step in stage.get("steps", []):
             if step.get("type") != "bash":
                 continue
             command = step.get("command", "")
-            assert not unsafe_quoted.search(command), (
-                f"{step.get('id')} embeds a template value in a Python string"
+            assert "tojson" not in command, (
+                f"{step.get('id')} relies on unsupported Jinja filters"
             )
-            assert not unsafe_raw.search(command), (
-                f"{step.get('id')} embeds a template value as Python source"
-            )
+            assert not any(
+                "{{" in line and not ('"{{"' in line or "'{{'" in line)
+                for line in command.splitlines()
+            ), f"{step.get('id')} embeds a template value in executable source"
 
 
 def test_topic_and_dot_prompts_mark_repository_artifacts_untrusted():
@@ -798,6 +796,8 @@ def test_verify_overview_dot_treats_agent_response_as_data_and_validates_dot():
     assert step is not None
     command = step["command"]
     assert "agent_result = '''{{overview_dot_result}}'''" not in command
-    assert "overview_dot_result | tojson | tojson" in command
+    assert "tojson" not in command
+    assert 'agent_result = json.loads(os.environ["DISCOVERY_AGENT_RESULT"])' in command
+    assert step["env"]["DISCOVERY_AGENT_RESULT"] == "{{overview_dot_result}}"
     assert "pydot.graph_from_dot_data(dot_content)" in command
     assert "overview_path.relative_to(output_root)" in command

@@ -255,30 +255,30 @@ def test_stages_are_in_correct_order():
 # ---------------------------------------------------------------------------
 
 
-def test_bottomup_stage_has_approval_gate():
-    """bottomup stage must have an approval_gate (human review before top-down)."""
+def test_bottomup_stage_has_approval():
+    """bottomup stage must have an approval (human review before top-down)."""
     data = _load_recipe()
     stage = _get_stage_by_name(data, "bottomup")
     assert stage is not None
-    assert "approval_gate" in stage, (
-        "bottomup stage must have an 'approval_gate' — human reviews bottom-up "
+    assert "approval" in stage, (
+        "bottomup stage must have an 'approval' — human reviews bottom-up "
         "results before top-down investigation begins"
     )
-    gate = stage["approval_gate"]
+    gate = stage["approval"]
     assert gate.get("required") is True, (
-        f"approval_gate must have required=true to block execution until approved, "
+        f"approval must have required=true to block execution until approved, "
         f"got: {gate.get('required')!r}"
     )
 
 
-def test_topdown_and_combine_stages_have_no_approval_gate():
+def test_topdown_and_combine_stages_have_no_approval():
     """topdown and combine stages must NOT have approval gates."""
     data = _load_recipe()
     for stage_name in ["topdown", "combine"]:
         stage = _get_stage_by_name(data, stage_name)
         assert stage is not None, f"Stage '{stage_name}' not found"
-        assert "approval_gate" not in stage, (
-            f"Stage '{stage_name}' must NOT have an 'approval_gate' — "
+        assert "approval" not in stage, (
+            f"Stage '{stage_name}' must NOT have an 'approval' — "
             "only bottomup stage has an approval gate"
         )
 

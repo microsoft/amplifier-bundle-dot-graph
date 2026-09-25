@@ -43,7 +43,7 @@ stages:
         output: "bottomup_result"
         timeout: 14400
 
-    approval_gate:
+    approval:
       required: true
       prompt: |
         Bottom-up investigation complete. Review {{output_dir}}/investigation/bottomup

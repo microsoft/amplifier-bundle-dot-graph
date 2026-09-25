@@ -62,29 +62,34 @@ steps:
     output: "ctx"
     parse_json: true
     timeout: 10
+    env:
+      DISCOVERY_REPO_PATH: "{{repo_path}}"
+      DISCOVERY_TOPDOWN_DIR: "{{topdown_dir}}"
+      DISCOVERY_BOTTOMUP_DIR: "{{bottomup_dir}}"
+      DISCOVERY_OUTPUT_DIR: "{{output_dir}}"
     command: |
       python3 - <<'EOF'
       import json
       import os
 
-      repo_path = "{{repo_path}}"
-      topdown_dir = "{{topdown_dir}}"
-      bottomup_dir = "{{bottomup_dir}}"
-      output_dir = "{{output_dir}}"
+      unresolved_marker = chr(123) * 2
+      repo_path = os.environ["DISCOVERY_REPO_PATH"]
+      topdown_dir = os.environ["DISCOVERY_TOPDOWN_DIR"]
+      bottomup_dir = os.environ["DISCOVERY_BOTTOMUP_DIR"]
+      output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
+      if not os.path.isdir(repo_path):
+          raise ValueError("repo_path must name an existing directory")
 
-      # Unresolved template guard: if topdown_dir is empty or still contains
-      # a '{{' placeholder, resolve it from repo_path at runtime.
-      if not topdown_dir or '{{' in topdown_dir:
+      # Resolve an empty or unresolved topdown path from repo_path at runtime.
+      if not topdown_dir or unresolved_marker in topdown_dir:
           topdown_dir = os.path.join(repo_path, '.discovery', 'investigation', 'topdown')
 
-      # Unresolved template guard: if bottomup_dir is empty or still contains
-      # a '{{' placeholder, resolve it from repo_path at runtime.
-      if not bottomup_dir or '{{' in bottomup_dir:
+      # Resolve an empty or unresolved bottomup path from repo_path at runtime.
+      if not bottomup_dir or unresolved_marker in bottomup_dir:
           bottomup_dir = os.path.join(repo_path, '.discovery', 'investigation', 'bottomup')
 
-      # Unresolved template guard: if output_dir is empty or still contains
-      # a '{{' placeholder, resolve it from repo_path at runtime.
-      if not output_dir or '{{' in output_dir:
+      # Resolve an empty or unresolved output path from repo_path at runtime.
+      if not output_dir or unresolved_marker in output_dir:
           output_dir = os.path.join(repo_path, '.discovery/output')
 
       print(json.dumps({
@@ -104,12 +109,16 @@ steps:
   - id: "check-inputs"
     type: "bash"
     timeout: 15
+    env:
+      DISCOVERY_TOPDOWN_DIR: "{{ctx.topdown_dir}}"
+      DISCOVERY_BOTTOMUP_DIR: "{{ctx.bottomup_dir}}"
+      DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
     command: |
       echo "=== discovery-combine: checking strategy output directories ==="
 
-      topdown_dir="{{ctx.topdown_dir}}"
-      bottomup_dir="{{ctx.bottomup_dir}}"
-      output_dir="{{ctx.output_dir}}"
+      topdown_dir="$DISCOVERY_TOPDOWN_DIR"
+      bottomup_dir="$DISCOVERY_BOTTOMUP_DIR"
+      output_dir="$DISCOVERY_OUTPUT_DIR"
 
       # Check top-down directory
       if test -d "$topdown_dir"; then
@@ -195,22 +204,25 @@ steps:
   - id: "validate"
     type: "bash"
     timeout: 30
+    env:
+      DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
     command: |
-      python3 -c "
-      import sys
+      python3 - <<'EOF' || true
+      import os, sys
       sys.path.insert(0, 'modules/tool-dot-graph')
+      output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
       try:
           from amplifier_module_tool_dot_graph import validate
-          content = open('{{ctx.output_dir}}/combined.dot').read()
+          content = open(os.path.join(output_dir, 'combined.dot')).read()
           r = validate.validate_dot(content)
           print('VALID' if r['valid'] else 'INVALID')
           for i in r.get('issues', []): print(i)
       except FileNotFoundError:
-          print('WARNING: combined.dot not found at {{ctx.output_dir}}/combined.dot')
+          print(f'WARNING: combined.dot not found at {output_dir}/combined.dot')
           print('         Skipping validation (combine step may not have produced output)')
       except Exception as e:
           print(f'WARNING: validation skipped ({e})')
-      " || true
+      EOF
 
   # ---------------------------------------------------------------------------
   # Step 4: render — render combined.dot to PNG (conditional)
@@ -221,8 +233,10 @@ steps:
     type: "bash"
     condition: "{{render_png}} == 'true'"
     timeout: 30
+    env:
+      DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
     command: |
-      output_dir="{{ctx.output_dir}}"
+      output_dir="$DISCOVERY_OUTPUT_DIR"
       dot -Tpng -Gdpi=150 "${output_dir}/combined.dot" -o "${output_dir}/combined.png" 2>/dev/null || true
       if [ -f "${output_dir}/combined.png" ]; then
         echo "Rendered: ${output_dir}/combined.png"
@@ -239,13 +253,15 @@ steps:
     output: "hoist_result"
     parse_json: true
     timeout: 30
+    env:
+      DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
     command: |
       python3 - <<'EOF'
-      import json
+      import json, os
       import shutil
       from pathlib import Path
 
-      output_dir = "{{ctx.output_dir}}"
+      output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
       output_root = Path(output_dir)
       output_root.mkdir(parents=True, exist_ok=True)
 
@@ -301,6 +317,8 @@ steps:
     output: "metadata_result"
     parse_json: true
     timeout: 10
+    env:
+      DISCOVERY_REPO_PATH: "{{ctx.repo_path}}"
     command: |
       python3 - <<'EOF'
       import json
@@ -309,7 +327,7 @@ steps:
       from datetime import datetime, timezone
       from pathlib import Path
 
-      repo_path = "{{ctx.repo_path}}"
+      repo_path = os.environ["DISCOVERY_REPO_PATH"]
       output_dir = os.path.join(repo_path, ".discovery")
 
       try:

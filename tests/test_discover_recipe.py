@@ -19,18 +19,15 @@ Total: 21+ tests covering all spec requirements
 """
 
 import json
-import re
+import os
 import subprocess
-import sys
 from pathlib import Path
 
 import yaml
+from amplifier_recipe_runner.engine import substitute_variables
 
 REPO_ROOT = Path(__file__).parent.parent
 RECIPE_PATH = REPO_ROOT / "recipes" / "discover.yaml"
-_JSON_BOUNDARY = re.compile(
-    r"\{\{\s*([^|{}]+?)\s*\|\s*tojson\s*\|\s*tojson\s*\}\}"
-)
 
 
 # ---------------------------------------------------------------------------
@@ -56,18 +53,31 @@ def _get_step_by_id(data: dict, step_id: str) -> dict | None:
     return None
 
 
-def _render_python_command(command: str, values: dict[str, object]) -> str:
-    """Render only the audited JSON boundaries and return the heredoc body."""
+def _render_bash_step(
+    step: dict, values: dict[str, object]
+) -> tuple[str, dict[str, str]]:
+    """Render a bash command and its env exactly as the runner does."""
+    command = substitute_variables(step["command"], values)
+    env = os.environ.copy()
+    env.update(
+        {
+            name: substitute_variables(value, values)
+            for name, value in step.get("env", {}).items()
+        }
+    )
+    return command, env
 
-    def replace(match: re.Match[str]) -> str:
-        key = match.group(1).strip()
-        return json.dumps(json.dumps(values[key]))
 
-    rendered = _JSON_BOUNDARY.sub(replace, command)
-    lines = rendered.splitlines()
-    assert lines[0].startswith("python3 - <<")
-    assert lines[-1] == "PYEOF"
-    return "\n".join(lines[1:-1])
+def _run_bash_step(step: dict, values: dict[str, object]) -> subprocess.CompletedProcess:
+    command, env = _render_bash_step(step, values)
+    return subprocess.run(
+        command,
+        shell=True,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -243,40 +253,64 @@ def test_resolve_mode_handles_deep_mode_explicitly():
     )
 
 
-def test_resolve_mode_serializes_untrusted_values_before_python():
-    """Mode and repository path must enter Python as JSON data, not source text."""
-    command = _get_step_by_id(_load_recipe(), "resolve-mode")["command"]
-    assert 'mode = "{{mode}}"' not in command
-    assert 'repo_path = "{{repo_path}}"' not in command
-    assert "json.loads({{ mode | tojson | tojson }})" in command
-    assert "json.loads({{ repo_path | tojson | tojson }})" in command
+def test_resolve_mode_passes_untrusted_values_only_through_bash_env():
+    """The runner only interpolates simple variables; Python reads the env."""
+    step = _get_step_by_id(_load_recipe(), "resolve-mode")
+    assert step is not None
+    command = step["command"]
+    assert "tojson" not in command
+    assert 'mode = os.environ["DISCOVERY_MODE"]' in command
+    assert 'repo_path = os.environ["DISCOVERY_REPO_PATH"]' in command
+    assert step["env"] == {
+        "DISCOVERY_MODE": "{{mode}}",
+        "DISCOVERY_REPO_PATH": "{{repo_path}}",
+    }
     assert 'mode not in {"auto", "quick", "deep"}' in command
 
 
 def test_resolve_mode_quote_and_newline_payload_remains_data(tmp_path):
-    """A repository path payload cannot break out of the generated Python."""
-    command = _get_step_by_id(_load_recipe(), "resolve-mode")["command"]
+    """A quote-breaking repo path is passed as env data and cannot execute."""
+    step = _get_step_by_id(_load_recipe(), "resolve-mode")
+    assert step is not None
     sentinel = tmp_path / "executed.txt"
     payload = (
         'repo"; __import__("pathlib").Path('
         + repr(str(sentinel))
         + ').write_text("bad")\n#'
     )
-    body = _render_python_command(
-        command,
-        {"mode": "quick", "repo_path": payload},
+    result = _run_bash_step(step, {"mode": "quick", "repo_path": payload})
+
+    assert result.returncode != 0
+    assert not sentinel.exists()
+    assert "repo_path must name an existing directory" in result.stderr
+
+
+def test_resolve_mode_fails_closed_for_nonexistent_repo_path(tmp_path):
+    """Nonexistent paths must never be routed to a discovery pipeline."""
+    step = _get_step_by_id(_load_recipe(), "resolve-mode")
+    assert step is not None
+
+    result = _run_bash_step(
+        step, {"mode": "quick", "repo_path": str(tmp_path / "not-a-repository")}
     )
 
-    result = subprocess.run(
-        [sys.executable, "-c", body],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    assert result.returncode != 0
+    assert "repo_path must name an existing directory" in result.stderr
+
+
+def test_resolve_mode_routes_small_valid_repo_to_quick_using_actual_runner(tmp_path):
+    """A real runner-rendered env executes the quick route for a small repo."""
+    step = _get_step_by_id(_load_recipe(), "resolve-mode")
+    assert step is not None
+    (tmp_path / "example.py").write_text("print('ok')\n", encoding="utf-8")
+
+    result = _run_bash_step(step, {"mode": "auto", "repo_path": str(tmp_path)})
 
     assert result.returncode == 0, result.stderr
-    assert not sentinel.exists()
-    assert json.loads(result.stdout)["repo_path"] == payload
+    rendered = json.loads(result.stdout)
+    assert rendered["mode"] == "quick"
+    assert rendered["recipe_path"].endswith("/quick/discovery-pipeline.yaml")
+    assert rendered["repo_path"] == str(tmp_path)
 
 
 # ---------------------------------------------------------------------------

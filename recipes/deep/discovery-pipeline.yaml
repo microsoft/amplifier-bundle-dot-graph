@@ -74,15 +74,21 @@ stages:
         output: "ctx"
         parse_json: true
         timeout: 10
+        env:
+          DISCOVERY_REPO_PATH: "{{repo_path}}"
+          DISCOVERY_OUTPUT_DIR: "{{output_dir}}"
         command: |
           python3 - <<'PYEOF'
           import json, os
 
-          repo_path = "{{repo_path}}"
-          output_dir = "{{output_dir}}"
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
+          unresolved_marker = chr(123) * 2
+          if not os.path.isdir(repo_path):
+              raise ValueError("repo_path must name an existing directory")
 
           # Guard: if output_dir was left as an unresolved template, derive it
-          if not output_dir or "{{" in output_dir:
+          if not output_dir or unresolved_marker in output_dir:
               output_dir = os.path.join(repo_path, ".discovery")
 
           print(json.dumps({
@@ -101,12 +107,15 @@ stages:
         output: "scan_result"
         parse_json: true
         timeout: 60
+        env:
+          DISCOVERY_REPO_PATH: "{{ctx.repo_path}}"
+          DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
         command: |
           python3 - <<'PYEOF'
           import sys, json, os
 
-          repo_path = "{{ctx.repo_path}}"
-          output_dir = "{{ctx.output_dir}}"
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
 
           os.makedirs(output_dir, exist_ok=True)
 
@@ -115,11 +124,7 @@ stages:
               from amplifier_module_tool_dot_graph import prescan
               result = prescan.prescan_repo(repo_path)
           except Exception as e:
-              print(f'WARNING: prescan module unavailable ({e}), falling back to basic directory listing', file=sys.stderr)
-              import pathlib
-              rp = pathlib.Path(repo_path)
-              files = [str(f.relative_to(rp)) for f in rp.rglob('*') if f.is_file() and '.git' not in str(f)]
-              result = {'success': True, 'repo_path': repo_path, 'total_files': len(files), 'modules': [], 'languages': {}, 'build_manifests': [], 'entry_points': []}
+              raise RuntimeError(f"prescan failed: {e}") from e
           with open(os.path.join(output_dir, 'prescan-result.json'), 'w') as f:
               json.dump(result, f, indent=2)
           print(json.dumps({
@@ -171,7 +176,7 @@ stages:
             ...
           ]
 
-    approval_gate:
+    approval:
       required: true
       prompt: |
         Prescan complete. Review investigation topics before strategies begin.

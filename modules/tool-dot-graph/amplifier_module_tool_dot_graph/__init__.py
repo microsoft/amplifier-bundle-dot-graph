@@ -9,6 +9,7 @@ Routes tool calls to validate, render, setup_helper, analyze, prescan, and assem
 
 import json
 import logging
+from pathlib import Path
 from typing import Any
 
 try:
@@ -50,6 +51,11 @@ class DotGraphTool:
     - Prescan: structural codebase scanner for discovery pipeline
     - Assemble: hierarchical DOT assembly (modules -> subsystems -> overview)
     """
+
+    def __init__(self, render_output_root: str | None = None) -> None:
+        self.render_output_root = str(
+            Path(render_output_root or Path.cwd()).expanduser().resolve()
+        )
 
     @property
     def name(self) -> str:
@@ -117,8 +123,11 @@ Operations:
                         "output_path": {
                             "type": "string",
                             "description": (
-                                "Output file path for render operation "
-                                "(auto-generated in temp dir if not provided)"
+                                "Workspace-relative output file path for render "
+                                "operation. The path must stay beneath the module's "
+                                "configured render_output_root, match the selected "
+                                "format, and must not already exist. Auto-generated "
+                                "in the temp directory if not provided."
                             ),
                         },
                         "layers": {
@@ -224,7 +233,13 @@ Operations:
             output_format = options.get("format", "svg")
             engine = options.get("engine", "dot")
             output_path = options.get("output_path")
-            result = render.render_dot(dot_content, output_format, engine, output_path)
+            result = render.render_dot(
+                dot_content,
+                output_format,
+                engine,
+                output_path,
+                output_root=self.render_output_root,
+            )
             return ToolResult(success=result["success"], output=json.dumps(result))
 
         if operation == "setup":
@@ -297,17 +312,18 @@ async def mount(
     Returns:
         Module metadata dict
     """
-    tool = DotGraphTool()
+    module_config = config or {}
+    tool = DotGraphTool(render_output_root=module_config.get("render_output_root"))
 
     await coordinator.mount("tools", tool, name=tool.name)
 
     logger.info(
         "tool-dot-graph mounted: registered 'dot_graph' tool "
-        "with validate/render/setup/analyze/prescan/assemble routing (v0.4.0)"
+        "with validate/render/setup/analyze/prescan/assemble routing (v0.5.0)"
     )
 
     return {
         "name": "tool-dot-graph",
-        "version": "0.4.0",
+        "version": "0.5.0",
         "provides": ["dot_graph"],
     }

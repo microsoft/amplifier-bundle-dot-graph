@@ -123,6 +123,16 @@ else
 fi
 ```
 
+## Safe output and recipe boundaries
+
+`options.output_path` is workspace-relative beneath `render_output_root`
+(default: the process working directory); absolute, drive, UNC, traversal,
+symlink-escape, suffix-mismatch, and overwrite attempts are rejected. Omitted
+paths use a temporary file, while internal assembly may replace only its own
+PNGs. Discovery values cross Python boundaries as JSON data. Topics must be
+1-7 exact `name`/`slug`/`description` objects with unique lowercase kebab-case
+slugs; recovered overview DOT must parse successfully before being written.
+
 ---
 
 ## Troubleshooting

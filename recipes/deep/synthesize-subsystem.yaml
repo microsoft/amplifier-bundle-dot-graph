@@ -98,14 +98,18 @@ steps:
     output: "validation_result"
     parse_json: true
     timeout: 30
+    env:
+      DISCOVERY_SUBSYSTEM_NAME: "{{subsystem_name}}"
+      DISCOVERY_OUTPUT_DIR: "{{output_dir}}"
     command: |
       python3 - <<'EOF'
       import json
       import sys
+      import os
       from pathlib import Path
 
-      subsystem_name = "{{subsystem_name}}"
-      output_dir = "{{output_dir}}"
+      subsystem_name = os.environ["DISCOVERY_SUBSYSTEM_NAME"]
+      output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
       diagram_path = Path(output_dir) / f"{subsystem_name}.dot"
 
       result = {

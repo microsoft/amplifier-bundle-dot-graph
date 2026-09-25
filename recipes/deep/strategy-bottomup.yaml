@@ -41,18 +41,23 @@ stages:
         output: "ctx"
         parse_json: true
         timeout: 10
+        env:
+          DISCOVERY_REPO_PATH: "{{repo_path}}"
+          DISCOVERY_OUTPUT_DIR: "{{output_dir}}"
         command: |
           python3 - <<'EOF'
           import json
           import os
           from pathlib import Path
 
-          repo_path = "{{repo_path}}"
-          output_dir = "{{output_dir}}"
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
+          unresolved_marker = chr(123) * 2
+          if not os.path.isdir(repo_path):
+              raise ValueError("repo_path must name an existing directory")
 
-          # Unresolved template guard: if output_dir is empty or still contains
-          # a '{{' placeholder, resolve it from repo_path at runtime.
-          if not output_dir or '{{' in output_dir:
+          # Resolve an empty or unresolved output path from repo_path at runtime.
+          if not output_dir or unresolved_marker in output_dir:
               output_dir = os.path.join(repo_path, '.discovery', 'investigation', 'bottomup')
 
           Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -70,14 +75,17 @@ stages:
         output: "prescan_result"
         parse_json: true
         timeout: 60
+        env:
+          DISCOVERY_REPO_PATH: "{{ctx.repo_path}}"
+          DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
         command: |
           python3 - <<'EOF'
           import json
           import os
           from pathlib import Path
 
-          repo_path = "{{ctx.repo_path}}"
-          output_dir = "{{ctx.output_dir}}"
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
 
           # Create output directory
           Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -95,20 +103,7 @@ stages:
               structure = prescan.prescan_repo(repo_path)
               result["structure"] = structure
           except Exception as e:
-              # Fallback: basic directory listing
-              try:
-                  top_level = []
-                  for entry in sorted(Path(repo_path).iterdir()):
-                      if entry.name.startswith("."):
-                          continue
-                      top_level.append({
-                          "name": entry.name,
-                          "type": "dir" if entry.is_dir() else "file",
-                      })
-                  result["structure"] = {"top_level": top_level, "source": "fallback"}
-                  result["error"] = f"prescan unavailable ({e}), used fallback listing"
-              except Exception as e2:
-                  result["error"] = f"structural scan failed: {e2}"
+              raise RuntimeError(f"prescan failed: {e}") from e
 
           # Write prescan-result.json
           prescan_path = Path(output_dir) / "prescan-result.json"
@@ -130,14 +125,17 @@ stages:
         output: "traversal_plan"
         parse_json: true
         timeout: 30
+        env:
+          DISCOVERY_REPO_PATH: "{{prescan_result.repo_path}}"
+          DISCOVERY_OUTPUT_DIR: "{{prescan_result.output_dir}}"
         command: |
           python3 - <<'EOF'
           import json
           import os
           from pathlib import Path
 
-          repo_path = "{{prescan_result.repo_path}}"
-          output_dir = "{{prescan_result.output_dir}}"
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
 
           # Directories to skip during traversal
           SKIP_DIRS = {
@@ -232,12 +230,14 @@ stages:
         output: "updated_plan"
         parse_json: true
         timeout: 30
+        env:
+          DISCOVERY_OUTPUT_DIR: "{{traversal_plan.output_dir}}"
         command: |
           python3 - <<'EOF'
-          import json
+          import json, os
           from pathlib import Path
 
-          output_dir = "{{traversal_plan.output_dir}}"
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
           plan_path = Path(output_dir) / "traversal-plan.json"
 
           # Guard: if the file is missing, surface a clear error rather than a traceback
@@ -290,12 +290,14 @@ stages:
         output: "subsystems_result"
         parse_json: true
         timeout: 15
+        env:
+          DISCOVERY_OUTPUT_DIR: "{{traversal_plan.output_dir}}"
         command: |
           python3 - <<'EOF'
-          import json
+          import json, os
           from pathlib import Path
 
-          output_dir = "{{traversal_plan.output_dir}}"
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
 
           # Read traversal-plan.json (guard: surface a clear error if missing)
           plan_path = Path(output_dir) / "traversal-plan.json"
@@ -363,6 +365,9 @@ stages:
         output: "metadata_result"
         parse_json: true
         timeout: 10
+        env:
+          DISCOVERY_REPO_PATH: "{{repo_path}}"
+          DISCOVERY_FIDELITY: "{{fidelity}}"
         command: |
           python3 - <<'EOF'
           import json
@@ -371,14 +376,14 @@ stages:
           from pathlib import Path
 
           # Resolve output_dir from repo_path in Python at runtime.
-          # Cannot use the raw output_dir context var — its default contains {{repo_path}} which
+          # Cannot use the raw output_dir context var — its default contains a nested placeholder which
           # the template engine does not recursively resolve (Known Gotcha #5).
           # Cannot use prescan_result.* — may not exist if recipe is called
           # as a sub-recipe where prescan was handled externally.
           import os
-          repo_path = "{{repo_path}}"
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
           output_dir = os.path.join(repo_path, ".discovery", "investigation", "bottomup")
-          fidelity = "{{fidelity}}"
+          fidelity = os.environ["DISCOVERY_FIDELITY"]
 
           # Get current git commit
           try:

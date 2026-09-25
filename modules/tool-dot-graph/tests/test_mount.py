@@ -222,3 +222,22 @@ async def test_mounted_tool_execute_returns_result():
     assert result is not None, "execute() must return a result, not None"
     assert hasattr(result, "success"), "Result must have 'success' attribute"
     assert hasattr(result, "output"), "Result must have 'output' attribute"
+
+
+@pytest.mark.asyncio
+async def test_mount_configures_trusted_render_output_root(tmp_path):
+    """mount() passes trusted render_output_root configuration to the tool."""
+    from amplifier_module_tool_dot_graph import mount
+
+    coordinator = MagicMock()
+    coordinator.mount = AsyncMock()
+
+    await mount(coordinator, {"render_output_root": str(tmp_path)})
+
+    args, _ = coordinator.mount.call_args
+    tool = args[1]
+    assert tool.render_output_root == str(tmp_path.resolve())
+    description = tool.input_schema["properties"]["options"]["properties"][
+        "output_path"
+    ]["description"]
+    assert "workspace-relative" in description.lower()

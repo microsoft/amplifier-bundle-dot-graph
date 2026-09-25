@@ -60,18 +60,19 @@ steps:
     output: "lens_result"
     parse_json: true
     timeout: 10
+    env:
+      DISCOVERY_LENS: "{{lens}}"
     command: |
       python3 - <<'EOF'
-      import json, os
+      import json, os, re
 
-      # Use template substitution ({{lens}}) — consistent with all other bash steps
-      # in this codebase. Amplifier substitutes context variables before shell execution.
-      lens = "{{lens}}"
+      lens = os.environ["DISCOVERY_LENS"]
+      lens_name = lens if re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", lens) else ""
 
       guidance = ""
 
       # Strategy 1: read context/lenses/{lens}.md from CWD (bundle root)
-      cwd_path = os.path.join(os.getcwd(), "context", "lenses", f"{lens}.md")
+      cwd_path = os.path.join(os.getcwd(), "context", "lenses", f"{lens_name}.md")
       if os.path.exists(cwd_path):
           with open(cwd_path) as f:
               guidance = f.read().strip()
@@ -79,8 +80,8 @@ steps:
       # Strategy 2: check DOT_GRAPH_BUNDLE_ROOT env var
       if not guidance:
           bundle_root = os.environ.get("DOT_GRAPH_BUNDLE_ROOT", "")
-          if bundle_root:
-              path = os.path.join(bundle_root, "context", "lenses", f"{lens}.md")
+          if bundle_root and lens_name:
+              path = os.path.join(bundle_root, "context", "lenses", f"{lens_name}.md")
               if os.path.exists(path):
                   with open(path) as f:
                       guidance = f.read().strip()
@@ -94,7 +95,7 @@ steps:
               if spec and spec.origin:
                   pkg_dir = os.path.dirname(spec.origin)  # amplifier_module_tool_dot_graph/
                   bundle_root = os.path.dirname(os.path.dirname(os.path.dirname(pkg_dir)))  # 3 levels up
-                  path = os.path.join(bundle_root, "context", "lenses", f"{lens}.md")
+                  path = os.path.join(bundle_root, "context", "lenses", f"{lens_name}.md")
                   if os.path.exists(path):
                       with open(path) as f:
                           guidance = f.read().strip()

@@ -118,13 +118,16 @@ steps:
         output: "validation_result"
         parse_json: true
         timeout: 30
+        env:
+          DISCOVERY_MODULE_DIR: "{{module_dir}}"
         command: |
           python3 - <<'EOF'
           import json
           import sys
+          import os
           from pathlib import Path
 
-          module_dir = "{{module_dir}}"
+          module_dir = os.environ["DISCOVERY_MODULE_DIR"]
           diagram_path = Path(module_dir) / "diagram.dot"
 
           result = {
@@ -174,12 +177,13 @@ steps:
         output: "quality_check"
         parse_json: true
         timeout: 10
+        env:
+          DISCOVERY_VALIDATION_RESULT: "{{validation_result}}"
         command: |
           python3 - <<'EOF'
-          import json
+          import json, os
 
-          validation_result_json = r"""{{validation_result}}"""
-          validation_result = json.loads(validation_result_json)
+          validation_result = json.loads(os.environ["DISCOVERY_VALIDATION_RESULT"])
 
           is_valid = validation_result.get("valid", False)
           errors = validation_result.get("errors", [])

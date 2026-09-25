@@ -3,6 +3,7 @@
 import os
 import shutil
 import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -69,23 +70,18 @@ def test_render_with_neato_engine():
 
 @skip_if_no_graphviz
 def test_render_custom_output_path():
-    """render_dot() with explicit output_path writes to that path."""
-    with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as f:
-        custom_path = f.name
-    # Remove the empty file so graphviz can write to this path cleanly;
-    # some versions refuse to overwrite an existing (even empty) output file.
-    os.unlink(custom_path)
-
-    try:
-        result = render_dot(_SIMPLE_DOT, output_path=custom_path)
-
+    """render_dot() writes a relative output beneath the trusted root."""
+    with tempfile.TemporaryDirectory() as output_root:
+        result = render_dot(
+            _SIMPLE_DOT,
+            output_path="nested/custom.svg",
+            output_root=output_root,
+        )
+        custom_path = Path(output_root) / "nested" / "custom.svg"
         assert result["success"] is True
-        assert result["output_path"] == custom_path
-        assert os.path.exists(custom_path)
+        assert Path(result["output_path"]) == custom_path.resolve()
+        assert custom_path.exists()
         assert result["size_bytes"] > 0
-    finally:
-        if os.path.exists(custom_path):
-            os.unlink(custom_path)
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +159,136 @@ def test_engine_not_available_returns_error():
     assert "error" in result
     assert "Engine not found on PATH" in result["error"]
     assert "dot" in result["error"]  # available engines listed
+
+
+# ---------------------------------------------------------------------------
+# Output path confinement
+# ---------------------------------------------------------------------------
+
+
+def _installed_graphviz_env() -> dict:
+    return {
+        "graphviz": {
+            "installed": True,
+            "version": "test",
+            "engines": ["dot"],
+        },
+        "pydot": {"installed": True, "version": "test"},
+        "networkx": {"installed": True, "version": "test"},
+    }
+
+
+@pytest.mark.parametrize(
+    "output_path",
+    [
+        "../outside.svg",
+        "/tmp/outside.svg",
+        r"C:\outside.svg",
+        r"\\server\share\outside.svg",
+    ],
+)
+def test_untrusted_output_path_escape_is_rejected_before_graphviz(
+    tmp_path: Path, output_path: str
+):
+    """Traversal, absolute, drive, and UNC destinations fail before execution."""
+    with (
+        patch(
+            "amplifier_module_tool_dot_graph.render.setup_helper.check_environment",
+            return_value=_installed_graphviz_env(),
+        ),
+        patch(
+            "amplifier_module_tool_dot_graph.render.subprocess.run"
+        ) as subprocess_run,
+    ):
+        result = render_dot(
+            _SIMPLE_DOT,
+            output_path=output_path,
+            output_root=tmp_path,
+        )
+
+    assert result["success"] is False
+    assert "output_path" in result["error"]
+    subprocess_run.assert_not_called()
+
+
+def test_output_path_suffix_must_match_format(tmp_path: Path):
+    """The selected format and destination suffix must agree."""
+    with (
+        patch(
+            "amplifier_module_tool_dot_graph.render.setup_helper.check_environment",
+            return_value=_installed_graphviz_env(),
+        ),
+        patch(
+            "amplifier_module_tool_dot_graph.render.subprocess.run"
+        ) as subprocess_run,
+    ):
+        result = render_dot(
+            _SIMPLE_DOT,
+            output_format="png",
+            output_path="diagram.svg",
+            output_root=tmp_path,
+        )
+
+    assert result["success"] is False
+    assert "must end with '.png'" in result["error"]
+    subprocess_run.assert_not_called()
+
+
+def test_existing_output_is_not_overwritten(tmp_path: Path):
+    """Agent-facing renders fail closed when the destination already exists."""
+    destination = tmp_path / "diagram.svg"
+    destination.write_text("keep", encoding="utf-8")
+
+    with (
+        patch(
+            "amplifier_module_tool_dot_graph.render.setup_helper.check_environment",
+            return_value=_installed_graphviz_env(),
+        ),
+        patch(
+            "amplifier_module_tool_dot_graph.render.subprocess.run"
+        ) as subprocess_run,
+    ):
+        result = render_dot(
+            _SIMPLE_DOT,
+            output_path="diagram.svg",
+            output_root=tmp_path,
+        )
+
+    assert result["success"] is False
+    assert "overwriting is not permitted" in result["error"]
+    assert destination.read_text(encoding="utf-8") == "keep"
+    subprocess_run.assert_not_called()
+
+
+def test_symlink_escape_is_rejected(tmp_path: Path):
+    """An existing symlink beneath the root cannot redirect the output outside."""
+    outside = tmp_path.parent / f"{tmp_path.name}-outside"
+    outside.mkdir()
+    link = tmp_path / "linked"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks are not available in this environment")
+
+    with (
+        patch(
+            "amplifier_module_tool_dot_graph.render.setup_helper.check_environment",
+            return_value=_installed_graphviz_env(),
+        ),
+        patch(
+            "amplifier_module_tool_dot_graph.render.subprocess.run"
+        ) as subprocess_run,
+    ):
+        result = render_dot(
+            _SIMPLE_DOT,
+            output_path="linked/escape.svg",
+            output_root=tmp_path,
+        )
+
+    assert result["success"] is False
+    assert "configured output root" in result["error"]
+    assert not (outside / "escape.svg").exists()
+    subprocess_run.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

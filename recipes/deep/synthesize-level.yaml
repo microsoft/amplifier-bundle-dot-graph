@@ -55,12 +55,15 @@ steps:
     output: "level_inventory"
     parse_json: true
     timeout: 30
+    env:
+      DISCOVERY_LEVEL_PATH: "{{level_path}}"
     command: |
       python3 - <<'EOF'
       import json
+      import os
       from pathlib import Path
 
-      level_path = "{{level_path}}"
+      level_path = os.environ["DISCOVERY_LEVEL_PATH"]
 
       result = {
           "level_path": level_path,
@@ -135,14 +138,18 @@ steps:
     output: "validation_result"
     parse_json: true
     timeout: 30
+    env:
+      DISCOVERY_OUTPUT_DIR: "{{output_dir}}"
+      DISCOVERY_LEVEL_SLUG: "{{level_slug}}"
     command: |
       python3 - <<'EOF'
       import json
       import sys
+      import os
       from pathlib import Path
 
-      output_dir = "{{output_dir}}"
-      level_slug = "{{level_slug}}"
+      output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
+      level_slug = os.environ["DISCOVERY_LEVEL_SLUG"]
       diagram_path = Path(output_dir) / level_slug / "diagram.dot"
 
       result = {

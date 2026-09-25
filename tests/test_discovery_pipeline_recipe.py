@@ -288,15 +288,15 @@ def test_scan_topic_select_uses_discovery_prescan_agent():
     )
 
 
-def test_scan_stage_has_approval_gate_required():
-    """Scan stage must have an approval_gate with required=true."""
+def test_scan_stage_has_required_approval():
+    """Scan stage must have a schema-supported approval with required=true."""
     data = _load_recipe()
     stage = _get_stage_by_name(data, "scan")
     assert stage is not None
-    assert "approval_gate" in stage, "Scan stage must have an 'approval_gate' field"
-    gate = stage["approval_gate"]
+    assert "approval" in stage, "Scan stage must have an 'approval' field"
+    gate = stage["approval"]
     assert gate.get("required") is True, (
-        f"approval_gate.required must be true, got: {gate.get('required')!r}"
+        f"approval.required must be true, got: {gate.get('required')!r}"
     )
 
 
@@ -631,14 +631,20 @@ def test_deep_pipeline_resolve_context_is_bash_parse_json():
 
 
 def test_deep_pipeline_resolve_context_guards_template_expansion():
-    """resolve-context command must guard against unresolved template markers ('{{')."""
+    """resolve-context must safely recognize unresolved template markers."""
     data = _load_recipe()
     step = _get_stage_step_by_id(data, "scan", "resolve-context")
     assert step is not None
     command = str(step.get("command", ""))
-    assert "{{" in command, (
-        "resolve-context command must contain a '{{' guard check to detect "
-        "unresolved template variables"
+    assert "unresolved_marker = chr(123) * 2" in command, (
+        "resolve-context command must construct the unresolved-template guard "
+        "without executable recipe substitutions"
+    )
+    assert "unresolved_marker in output_dir" in command, (
+        "resolve-context command must use the constructed guard for output_dir"
+    )
+    assert "{{" not in command, (
+        "resolve-context command must not embed executable recipe templates"
     )
 
 

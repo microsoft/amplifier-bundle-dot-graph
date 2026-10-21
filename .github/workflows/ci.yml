@@ -77,6 +77,8 @@ jobs:
         run: |
           uv pip install pytest pytest-asyncio pyyaml pydot networkx
           uv pip install 'git+https://github.com/microsoft/amplifier-bundle-recipes@f8ec2ec8190ec55309cae784a98a1f7bfcdd1d63'
+          # Isolated recipe subprocesses must use the installed tool, not checkout imports.
+          uv pip install -e modules/tool-dot-graph
 
       - name: Run tests
         # Invoked through the venv interpreter directly rather than `uv run`:

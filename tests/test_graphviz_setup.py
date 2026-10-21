@@ -26,10 +26,10 @@ def test_file_exists():
 
 
 def test_line_count_in_range(doc_content):
-    """File must be approximately 140-160 lines."""
+    """Keep the setup guide concise, including its security and output options."""
     lines = doc_content.splitlines()
-    assert 130 <= len(lines) <= 175, (
-        f"Expected 130-175 lines (target 140-160), got {len(lines)}"
+    assert 130 <= len(lines) <= 190, (
+        f"Expected 130-190 lines, got {len(lines)}"
     )
 
 

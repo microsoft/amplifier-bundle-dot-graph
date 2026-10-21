@@ -8,7 +8,11 @@ description: >
   codebases or systems with poor documentation. The strategy runs fully unattended
   across 3 stages (scan-and-plan, traverse, assemble), writing traversal-plan.json
   as a mutable state file that accumulates child DOT paths during post-order traversal.
-version: "1.0.0"
+version: "1.0.1"
+# Changelog:
+#   1.0.1 (2026-10-21) - BUGFIX: Isolate Python imports and bound output writes.
+#           ROOT CAUSE: imports trusted cwd; writes followed output symlinks.
+#           Metadata now uses the resolved configured output directory.
 author: "DOT Graph Bundle"
 tags: ["discovery", "strategy", "bottom-up", "dot-graph", "post-order"]
 
@@ -41,18 +45,23 @@ stages:
         output: "ctx"
         parse_json: true
         timeout: 10
+        env:
+          DISCOVERY_REPO_PATH: "{{repo_path}}"
+          DISCOVERY_OUTPUT_DIR: "{{output_dir}}"
         command: |
-          python3 - <<'EOF'
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
           import json
           import os
           from pathlib import Path
 
-          repo_path = "{{repo_path}}"
-          output_dir = "{{output_dir}}"
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
+          unresolved_marker = chr(123) * 2
+          if not os.path.isdir(repo_path):
+              raise ValueError("repo_path must name an existing directory")
 
-          # Unresolved template guard: if output_dir is empty or still contains
-          # a '{{' placeholder, resolve it from repo_path at runtime.
-          if not output_dir or '{{' in output_dir:
+          # Resolve an empty or unresolved output path from repo_path at runtime.
+          if not output_dir or unresolved_marker in output_dir:
               output_dir = os.path.join(repo_path, '.discovery', 'investigation', 'bottomup')
 
           Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -62,25 +71,30 @@ stages:
 
       # -----------------------------------------------------------------------
       # Step 1: Prescan — map repository structure
-      # Invokes amplifier_module_tool_dot_graph.prescan with fallback to basic
-      # directory listing. Writes prescan-result.json to the output directory.
+      # Invokes installed amplifier_module_tool_dot_graph.prescan, failing closed.
+      # Writes prescan-result.json to the output directory.
       # -----------------------------------------------------------------------
       - id: "prescan"
         type: "bash"
         output: "prescan_result"
         parse_json: true
         timeout: 60
+        env:
+          DISCOVERY_REPO_PATH: "{{ctx.repo_path}}"
+          DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
         command: |
-          python3 - <<'EOF'
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
           import json
           import os
           from pathlib import Path
 
-          repo_path = "{{ctx.repo_path}}"
-          output_dir = "{{ctx.output_dir}}"
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
 
-          # Create output directory
-          Path(output_dir).mkdir(parents=True, exist_ok=True)
+          root = Path(output_dir).resolve()
+          prescan_path = root / "prescan-result.json"
+          if prescan_path.is_symlink() or not prescan_path.resolve().is_relative_to(root):
+              raise ValueError("prescan output escapes configured output_dir")
 
           result = {
               "repo_path": repo_path,
@@ -93,25 +107,14 @@ stages:
           try:
               from amplifier_module_tool_dot_graph import prescan
               structure = prescan.prescan_repo(repo_path)
+              if not structure.get("success"):
+                  raise ValueError(structure.get("error", "prescan failed"))
               result["structure"] = structure
           except Exception as e:
-              # Fallback: basic directory listing
-              try:
-                  top_level = []
-                  for entry in sorted(Path(repo_path).iterdir()):
-                      if entry.name.startswith("."):
-                          continue
-                      top_level.append({
-                          "name": entry.name,
-                          "type": "dir" if entry.is_dir() else "file",
-                      })
-                  result["structure"] = {"top_level": top_level, "source": "fallback"}
-                  result["error"] = f"prescan unavailable ({e}), used fallback listing"
-              except Exception as e2:
-                  result["error"] = f"structural scan failed: {e2}"
+              raise RuntimeError(f"prescan failed: {e}") from e
 
           # Write prescan-result.json
-          prescan_path = Path(output_dir) / "prescan-result.json"
+          prescan_path.parent.mkdir(parents=True, exist_ok=True)
           prescan_path.write_text(json.dumps(result, indent=2))
 
           print(json.dumps(result))
@@ -130,14 +133,17 @@ stages:
         output: "traversal_plan"
         parse_json: true
         timeout: 30
+        env:
+          DISCOVERY_REPO_PATH: "{{prescan_result.repo_path}}"
+          DISCOVERY_OUTPUT_DIR: "{{prescan_result.output_dir}}"
         command: |
-          python3 - <<'EOF'
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
           import json
           import os
           from pathlib import Path
 
-          repo_path = "{{prescan_result.repo_path}}"
-          output_dir = "{{prescan_result.output_dir}}"
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
 
           # Directories to skip during traversal
           SKIP_DIRS = {
@@ -158,7 +164,7 @@ stages:
               except PermissionError:
                   return
               for entry in children:
-                  if not entry.is_dir():
+                  if entry.is_symlink() or not entry.is_dir():
                       continue
                   if entry.name.startswith(".") or entry.name in SKIP_DIRS:
                       continue
@@ -188,7 +194,11 @@ stages:
           }
 
           # Write traversal-plan.json — mutable state file for traverse stage
-          plan_path = Path(output_dir) / "traversal-plan.json"
+          output_root = Path(output_dir).resolve()
+          plan_path = output_root / "traversal-plan.json"
+          if plan_path.is_symlink() or not plan_path.resolve().is_relative_to(output_root):
+              raise ValueError("traversal plan escapes configured output_dir")
+          plan_path.parent.mkdir(parents=True, exist_ok=True)
           plan_path.write_text(json.dumps(traversal_plan, indent=2))
 
           print(json.dumps(traversal_plan))
@@ -232,13 +242,18 @@ stages:
         output: "updated_plan"
         parse_json: true
         timeout: 30
+        env:
+          DISCOVERY_OUTPUT_DIR: "{{traversal_plan.output_dir}}"
         command: |
-          python3 - <<'EOF'
-          import json
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
+          import json, os
           from pathlib import Path
 
-          output_dir = "{{traversal_plan.output_dir}}"
-          plan_path = Path(output_dir) / "traversal-plan.json"
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
+          output_root = Path(output_dir).resolve()
+          plan_path = output_root / "traversal-plan.json"
+          if plan_path.is_symlink() or not plan_path.resolve().is_relative_to(output_root):
+              raise ValueError("traversal plan escapes configured output_dir")
 
           # Guard: if the file is missing, surface a clear error rather than a traceback
           if not plan_path.exists():
@@ -290,12 +305,14 @@ stages:
         output: "subsystems_result"
         parse_json: true
         timeout: 15
+        env:
+          DISCOVERY_OUTPUT_DIR: "{{traversal_plan.output_dir}}"
         command: |
-          python3 - <<'EOF'
-          import json
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
+          import json, os
           from pathlib import Path
 
-          output_dir = "{{traversal_plan.output_dir}}"
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
 
           # Read traversal-plan.json (guard: surface a clear error if missing)
           plan_path = Path(output_dir) / "traversal-plan.json"
@@ -311,7 +328,10 @@ stages:
           ]
 
           # Create subsystems output directory
-          subsystems_dir = Path(output_dir) / "subsystems"
+          output_root = Path(output_dir).resolve()
+          subsystems_dir = output_root / "subsystems"
+          if subsystems_dir.is_symlink() or not subsystems_dir.resolve().is_relative_to(output_root):
+              raise ValueError("subsystems output escapes configured output_dir")
           subsystems_dir.mkdir(parents=True, exist_ok=True)
 
           result = {
@@ -363,22 +383,22 @@ stages:
         output: "metadata_result"
         parse_json: true
         timeout: 10
+        env:
+          DISCOVERY_REPO_PATH: "{{repo_path}}"
+          DISCOVERY_FIDELITY: "{{fidelity}}"
+          DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
         command: |
-          python3 - <<'EOF'
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
           import json
           import subprocess
           from datetime import datetime, timezone
           from pathlib import Path
 
-          # Resolve output_dir from repo_path in Python at runtime.
-          # Cannot use the raw output_dir context var — its default contains {{repo_path}} which
-          # the template engine does not recursively resolve (Known Gotcha #5).
-          # Cannot use prescan_result.* — may not exist if recipe is called
-          # as a sub-recipe where prescan was handled externally.
+          # Use the configured output directory already resolved in ctx.
           import os
-          repo_path = "{{repo_path}}"
-          output_dir = os.path.join(repo_path, ".discovery", "investigation", "bottomup")
-          fidelity = "{{fidelity}}"
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
+          fidelity = os.environ["DISCOVERY_FIDELITY"]
 
           # Get current git commit
           try:
@@ -398,7 +418,10 @@ stages:
               "repo_path": repo_path,
           }
 
-          last_run_path = Path(output_dir) / "last-run.json"
+          output_root = Path(output_dir).resolve()
+          last_run_path = output_root / "last-run.json"
+          if last_run_path.is_symlink() or not last_run_path.resolve().is_relative_to(output_root):
+              raise ValueError("metadata output escapes configured output_dir")
           last_run_path.parent.mkdir(parents=True, exist_ok=True)
           last_run_path.write_text(json.dumps(metadata, indent=2))
           print(json.dumps({"written": str(last_run_path), **metadata}))

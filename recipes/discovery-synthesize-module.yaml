@@ -30,8 +30,10 @@ description: >
   quality gate loop: synthesize -> validate -> check-quality -> retry if
   invalid (max 3 iterations). If validation still fails after 3 retries, the
   best attempt is kept for manual review.
-version: "1.1.0"
+version: "1.1.1"
 # Changelog:
+#   1.1.1 (2026-10-21) - BUGFIX: Isolate validator imports from target cwd/PYTHONPATH.
+#           ROOT CAUSE: Python stdin mode included the untrusted working directory.
 #   1.1.0 - Declare schema_version 2 + dependency manifest (see header) so this
 #           recipe resolves its agents closed-world and runs from any session
 #           bundle. No step, context, or behavioural change.
@@ -118,13 +120,16 @@ steps:
         output: "validation_result"
         parse_json: true
         timeout: 30
+        env:
+          DISCOVERY_MODULE_DIR: "{{module_dir}}"
         command: |
-          python3 - <<'EOF'
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
           import json
           import sys
+          import os
           from pathlib import Path
 
-          module_dir = "{{module_dir}}"
+          module_dir = os.environ["DISCOVERY_MODULE_DIR"]
           diagram_path = Path(module_dir) / "diagram.dot"
 
           result = {
@@ -174,12 +179,13 @@ steps:
         output: "quality_check"
         parse_json: true
         timeout: 10
+        env:
+          DISCOVERY_VALIDATION_RESULT: "{{validation_result}}"
         command: |
-          python3 - <<'EOF'
-          import json
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
+          import json, os
 
-          validation_result_json = r"""{{validation_result}}"""
-          validation_result = json.loads(validation_result_json)
+          validation_result = json.loads(os.environ["DISCOVERY_VALIDATION_RESULT"])
 
           is_valid = validation_result.get("valid", False)
           errors = validation_result.get("errors", [])

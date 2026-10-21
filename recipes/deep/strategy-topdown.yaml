@@ -31,8 +31,11 @@ description: >
   teams per topic, then synthesizing findings into subsystem and overview DOT
   diagrams. Unlike the interactive discovery-pipeline, this strategy has no
   approval gates and is suitable for automated or background analysis.
-version: "1.1.0"
+version: "1.1.1"
 # Changelog:
+#   1.1.1 (2026-10-21) - BUGFIX: Isolate imports; check all output destinations.
+#           ROOT CAUSE: imports trusted cwd; writes followed output symlinks.
+#           Metadata now respects the resolved configured output directory.
 #   1.1.0 - Declare schema_version 2 + dependency manifest (see header) so this
 #           recipe resolves its agents closed-world and runs from any session
 #           bundle. No step, context, or behavioural change.
@@ -69,18 +72,23 @@ stages:
         output: "ctx"
         parse_json: true
         timeout: 10
+        env:
+          DISCOVERY_REPO_PATH: "{{repo_path}}"
+          DISCOVERY_OUTPUT_DIR: "{{output_dir}}"
         command: |
-          python3 - <<'EOF'
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
           import json
           import os
           from pathlib import Path
 
-          repo_path = "{{repo_path}}"
-          output_dir = "{{output_dir}}"
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
+          unresolved_marker = chr(123) * 2
+          if not os.path.isdir(repo_path):
+              raise ValueError("repo_path must name an existing directory")
 
-          # Unresolved template guard: if output_dir is empty or still contains
-          # a '{{' placeholder, resolve it from repo_path at runtime.
-          if not output_dir or '{{' in output_dir:
+          # Resolve an empty or unresolved output path from repo_path at runtime.
+          if not output_dir or unresolved_marker in output_dir:
               output_dir = os.path.join(repo_path, '.discovery', 'investigation', 'topdown')
 
           Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -91,7 +99,7 @@ stages:
       # -----------------------------------------------------------------------
       # Step 1: Structural scan — map the repository layout
       # Invokes prescan via amplifier_module_tool_dot_graph.prescan with
-      # fallback to basic directory listing.
+      # the installed module; import or scan failures stop the recipe.
       # Writes prescan-result.json.
       # -----------------------------------------------------------------------
       - id: "structural-scan"
@@ -100,17 +108,22 @@ stages:
         output: "scan_result"
         parse_json: true
         timeout: 60
+        env:
+          DISCOVERY_REPO_PATH: "{{ctx.repo_path}}"
+          DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
         command: |
-          python3 - <<'EOF'
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
           import json
           import os
           from pathlib import Path
 
-          repo_path = "{{ctx.repo_path}}"
-          output_dir = "{{ctx.output_dir}}"
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
 
-          # Create output directory
-          Path(output_dir).mkdir(parents=True, exist_ok=True)
+          root = Path(output_dir).resolve()
+          prescan_path = root / "prescan-result.json"
+          if prescan_path.is_symlink() or not prescan_path.resolve().is_relative_to(root):
+              raise ValueError("prescan output escapes configured output_dir")
 
           result = {
               "repo_path": repo_path,
@@ -123,25 +136,14 @@ stages:
           try:
               from amplifier_module_tool_dot_graph import prescan
               structure = prescan.prescan_repo(repo_path)
+              if not structure.get("success"):
+                  raise ValueError(structure.get("error", "prescan failed"))
               result["structure"] = structure
           except Exception as e:
-              # Fallback: basic directory listing
-              try:
-                  top_level = []
-                  for entry in sorted(Path(repo_path).iterdir()):
-                      if entry.name.startswith("."):
-                          continue
-                      top_level.append({
-                          "name": entry.name,
-                          "type": "dir" if entry.is_dir() else "file",
-                      })
-                  result["structure"] = {"top_level": top_level, "source": "fallback"}
-                  result["error"] = f"prescan unavailable ({e}), used fallback listing"
-              except Exception as e2:
-                  result["error"] = f"structural scan failed: {e2}"
+              raise RuntimeError(f"prescan failed: {e}") from e
 
           # Write prescan-result.json
-          prescan_path = Path(output_dir) / "prescan-result.json"
+          prescan_path.parent.mkdir(parents=True, exist_ok=True)
           prescan_path.write_text(json.dumps(result, indent=2))
 
           print(json.dumps(result))
@@ -202,19 +204,20 @@ stages:
         type: "bash"
         output: "topics"
         parse_json: true
+        env:
+          DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
+          DISCOVERY_TOPICS_JSON: "{{topics}}"
         command: |
-          python3 - <<'EOF'
-          import json
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
+          import json, os
           from pathlib import Path
 
-          output_dir = "{{ctx.output_dir}}"
-          topics_json = r"""{{topics}}"""
-          try:
-              topics = json.loads(topics_json)
-          except Exception:
-              import ast
-              topics = ast.literal_eval(topics_json)
-          topics_path = Path(output_dir) / "topics.json"
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
+          topics = json.loads(os.environ["DISCOVERY_TOPICS_JSON"])
+          root = Path(output_dir).resolve()
+          topics_path = root / "topics.json"
+          if topics_path.is_symlink() or not topics_path.resolve().is_relative_to(root):
+              raise ValueError("topics output escapes configured output_dir")
           topics_path.parent.mkdir(parents=True, exist_ok=True)
           topics_path.write_text(json.dumps(topics, indent=2))
           print(json.dumps(topics))
@@ -234,13 +237,15 @@ stages:
         type: "bash"
         output: "topics"
         parse_json: true
+        env:
+          DISCOVERY_REPO_PATH: "{{repo_path}}"
+          DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
         command: |
-          python3 - <<'EOF'
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
           import json, os
           from pathlib import Path
 
-          # Construct path from repo_path directly — avoids nested template issues
-          repo_path = "{{repo_path}}"
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
 
           # Topics written by parent pipeline to the standard location
           topics_file = os.path.join(repo_path, '.discovery', 'topics.json')
@@ -255,11 +260,14 @@ stages:
                   print("[]")  # Empty list fallback
                   raise SystemExit(0)
 
-          output_dir = "{{ctx.output_dir}}"
-          Path(output_dir).mkdir(parents=True, exist_ok=True)
-          dest = Path(output_dir) / "topics.json"
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
+          root = Path(output_dir).resolve()
+          dest = root / "topics.json"
+          if dest.is_symlink() or not dest.resolve().is_relative_to(root):
+              raise ValueError("topics output escapes configured output_dir")
 
           topics = json.loads(Path(topics_file).read_text())
+          dest.parent.mkdir(parents=True, exist_ok=True)
           dest.write_text(json.dumps(topics, indent=2))
           print(json.dumps(topics))
           EOF
@@ -279,15 +287,17 @@ stages:
         output: "prep_result"
         parse_json: true
         timeout: 15
+        env:
+          DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
         command: |
-          python3 - <<'EOF'
-          import json
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
+          import json, re, os
           from pathlib import Path
 
-          output_dir = "{{ctx.output_dir}}"
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
 
-          # Load topics from the file that save-topics wrote (avoids template
-          # serialization issues with {{topics}} — Python repr vs JSON quotes)
+          # Load topics from the file that save-topics wrote (avoids inline
+          # serialization issues between Python representations and JSON).
           topics_path = Path(output_dir) / "topics.json"
           if not topics_path.exists():
               raise RuntimeError(f"No topics found at {topics_path} — did save-topics run?")
@@ -295,18 +305,57 @@ stages:
 
           agent_names = ["code-tracer", "behavior-observer", "integration-mapper"]
           created = []
+          validated_topics = []
+          seen_slugs = set()
 
-          for topic in topics:
-              slug = topic.get("slug", "")
-              if not slug:
-                  continue
+          if not isinstance(topics, list) or not 1 <= len(topics) <= 7:
+              raise ValueError("topics must be an array containing 1 to 7 topics")
+          output_root = Path(output_dir).resolve()
+          root = output_root / "modules"
+          if not root.resolve().is_relative_to(output_root):
+              raise ValueError("modules output escapes configured output_dir")
+          for index, topic in enumerate(topics):
+              if not isinstance(topic, dict):
+                  raise ValueError(f"topic {index} must be an object")
+              if set(topic) != {"name", "slug", "description"}:
+                  raise ValueError(
+                      f"topic {index} must contain only name, slug, and description"
+                  )
+              if not all(isinstance(topic[field], str) for field in topic):
+                  raise ValueError(f"topic {index} fields must be strings")
+              name = topic["name"].strip()
+              slug = topic["slug"].strip()
+              description = topic["description"].strip()
+              if not name or len(name) > 120:
+                  raise ValueError(f"topic {index} name must be 1-120 characters")
+              if not description or len(description) > 500:
+                  raise ValueError(
+                      f"topic {index} description must be 1-500 characters"
+                  )
+              if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug):
+                  raise ValueError(
+                      f"topic {index} slug must contain lowercase letters, "
+                      "digits, and single hyphens only"
+                  )
+              if slug in seen_slugs:
+                  raise ValueError(f"duplicate topic slug: {slug}")
+              seen_slugs.add(slug)
+              validated_topics.append(
+                  {"name": name, "slug": slug, "description": description}
+              )
               # Per-topic agent directories
               for agent_name in agent_names:
-                  agent_dir = Path(output_dir) / "modules" / slug / "agents" / agent_name
+                  agent_dir = root / slug / "agents" / agent_name
+                  if agent_dir.is_symlink() or not agent_dir.resolve().is_relative_to(root.resolve()):
+                      raise ValueError(f"topic output escapes modules directory: {slug!r}")
                   agent_dir.mkdir(parents=True, exist_ok=True)
-              created.append(str(Path(output_dir) / "modules" / slug))
+              created.append(str(root / slug))
 
-          print(json.dumps({"created_dirs": created, "topic_count": len(created)}))
+          print(json.dumps({
+              "created_dirs": created,
+              "topic_count": len(created),
+              "topics": validated_topics,
+          }))
           EOF
 
       # -----------------------------------------------------------------------
@@ -316,7 +365,7 @@ stages:
       # -----------------------------------------------------------------------
       - id: "investigate-topics"
         type: "recipe"
-        foreach: "{{topics}}"
+        foreach: "{{prep_result.topics}}"
         parallel: true
         as: "topic"
         recipe: "@dot-graph:recipes/discovery-investigate-topic.yaml"
@@ -343,7 +392,7 @@ stages:
       # -----------------------------------------------------------------------
       - id: "reconcile-modules"
         type: "recipe"
-        foreach: "{{topics}}"
+        foreach: "{{prep_result.topics}}"
         parallel: true
         as: "topic"
         recipe: "@dot-graph:recipes/discovery-synthesize-module.yaml"
@@ -393,22 +442,22 @@ stages:
         output: "metadata_result"
         parse_json: true
         timeout: 10
+        env:
+          DISCOVERY_REPO_PATH: "{{repo_path}}"
+          DISCOVERY_FIDELITY: "{{fidelity}}"
+          DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
         command: |
-          python3 - <<'EOF'
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
           import json
           import subprocess
           from datetime import datetime, timezone
           from pathlib import Path
 
-          # Resolve output_dir from repo_path in Python at runtime.
-          # Cannot use the raw output_dir context var — its default contains {{repo_path}} which
-          # the template engine does not recursively resolve (Known Gotcha #5).
-          # Cannot use scan_result.output_dir — scan_result does not exist
-          # when parent_topics_available="true" (scan step is skipped).
+          # Use resolved context even when the structural scan was skipped.
           import os
-          repo_path = "{{repo_path}}"
-          output_dir = os.path.join(repo_path, ".discovery", "investigation", "topdown")
-          fidelity = "{{fidelity}}"
+          repo_path = os.environ["DISCOVERY_REPO_PATH"]
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
+          fidelity = os.environ["DISCOVERY_FIDELITY"]
 
           # Get current git commit
           try:
@@ -428,7 +477,10 @@ stages:
               "repo_path": repo_path,
           }
 
-          last_run_path = Path(output_dir) / "last-run.json"
+          root = Path(output_dir).resolve()
+          last_run_path = root / "last-run.json"
+          if last_run_path.is_symlink() or not last_run_path.resolve().is_relative_to(root):
+              raise ValueError("metadata output escapes configured output_dir")
           last_run_path.parent.mkdir(parents=True, exist_ok=True)
           last_run_path.write_text(json.dumps(metadata, indent=2))
           print(json.dumps({"written": str(last_run_path), **metadata}))

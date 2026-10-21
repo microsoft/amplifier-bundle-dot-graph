@@ -3,20 +3,22 @@
 24 tests covering:
 - Operation routing: validate, render, setup, analyze (stats, cycles, error cases), unknown (8 tests)
 - Input schema: setup operation in enum, options sub-properties, analyze options (3 tests)
-- Mount contract: real tool version 0.4.0, tool can actually validate (3 tests)
+- Mount contract: real tool version 0.5.0, tool can actually validate (3 tests)
 - Error handling: invalid layer name returns structured error, not exception (1 test)
 - Layer selection: syntax-only, structural-only layers (1 test)
 - Render: mocked render operation (1 test)
 - Prescan routing: prescan routes correctly, missing repo_path error (2 tests)
 - Assemble routing: assemble routes correctly, missing manifest error (2 tests)
 - Input schema: prescan/assemble in enum and options (2 tests)
-- Mount contract: version 0.4.0 assertion (1 test)
+- Mount contract: version 0.5.0 assertion (1 test)
 
 These tests verify that __init__.py routes operations to the real
 validate, render, setup_helper, analyze, prescan, and assemble modules.
 """
 
 import json
+import shutil
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -276,6 +278,142 @@ async def test_render_operation_routes_correctly():
     )
 
 
+@pytest.mark.skipif(shutil.which("dot") is None, reason="graphviz CLI not installed")
+@pytest.mark.parametrize("output_format", ["svg", "png"])
+@pytest.mark.parametrize("absolute", [False, True])
+async def test_render_writes_and_replaces_contained_images(
+    tmp_path: Path, output_format: str, absolute: bool
+):
+    """The real tool supports first renders and edits at relative or absolute paths."""
+    from amplifier_module_tool_dot_graph import DotGraphTool
+
+    tool = DotGraphTool(render_output_root=tmp_path)
+    destination = tmp_path / "diagrams" / f"graph.{output_format}"
+    output_path = str(destination if absolute else destination.relative_to(tmp_path))
+    previous = None
+    for content in (SIMPLE_DOT, "digraph G { changed -> diagram -> content }"):
+        result = await tool.execute(
+            {
+                "operation": "render",
+                "dot_content": content,
+                "options": {"format": output_format, "output_path": output_path},
+            }
+        )
+        assert result.success, result.output
+        data = _parse_output(result)
+        assert Path(data["output_path"]) == destination.resolve()
+        image = destination.read_bytes()
+        assert image.startswith(b"<?xml" if output_format == "svg" else b"\x89PNG\r\n")
+        assert image != previous
+        previous = image
+    assert list(destination.parent.iterdir()) == [destination]
+
+
+@pytest.mark.skipif(shutil.which("dot") is None, reason="graphviz CLI not installed")
+@pytest.mark.parametrize(
+    "output_path",
+    ["../outside.svg", r"C:\outside.svg", r"C:outside.svg",
+     r"\\server\share\outside.svg", r"\outside.svg", "diagram.py"],
+)
+async def test_render_rejects_unsafe_paths_through_tool(tmp_path: Path, output_path: str):
+    """Internal absolute/overwrite support does not authorize escapes or wrong formats."""
+    from amplifier_module_tool_dot_graph import DotGraphTool
+
+    root = tmp_path / "workspace"
+    root.mkdir()
+    outside = tmp_path / "outside.svg"
+    outside.write_bytes(b"keep outside")
+    tool = DotGraphTool(render_output_root=root)
+    for path in (output_path, str(outside)):
+        result = await tool.execute(
+            {
+                "operation": "render",
+                "dot_content": SIMPLE_DOT,
+                "options": {
+                    "output_path": path,
+                    "allow_absolute_output_path": True,
+                    "allow_overwrite": True,
+                    "render_output_root": str(tmp_path),
+                },
+            }
+        )
+        assert not result.success, result.output
+        assert "output_path" in _parse_output(result)["error"]
+        assert outside.read_bytes() == b"keep outside"
+        assert list(root.iterdir()) == []
+
+
+@pytest.mark.skipif(shutil.which("dot") is None, reason="graphviz CLI not installed")
+@pytest.mark.parametrize("parent_link", [False, True])
+async def test_render_rejects_file_and_parent_symlink_escapes(
+    tmp_path: Path, parent_link: bool
+):
+    """Neither a destination symlink nor a parent symlink may redirect writes outside."""
+    from amplifier_module_tool_dot_graph import DotGraphTool
+
+    root = tmp_path / "workspace"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    destination = outside / "graph.svg"
+    destination.write_bytes(b"keep outside")
+    link = root / ("linked" if parent_link else "graph.svg")
+    try:
+        link.symlink_to(outside if parent_link else destination, target_is_directory=parent_link)
+    except OSError:
+        pytest.skip("symlinks are not available in this environment")
+    result = await DotGraphTool(render_output_root=root).execute(
+        {
+            "operation": "render",
+            "dot_content": SIMPLE_DOT,
+            "options": {"output_path": "linked/graph.svg" if parent_link else "graph.svg"},
+        }
+    )
+    assert not result.success, result.output
+    assert "configured output root" in _parse_output(result)["error"]
+    assert destination.read_bytes() == b"keep outside"
+    assert list(outside.iterdir()) == [destination]
+    assert link.is_symlink()
+
+
+@pytest.mark.skipif(shutil.which("dot") is None, reason="graphviz CLI not installed")
+async def test_failed_render_preserves_existing_image_and_cleans_staging(tmp_path: Path):
+    """A Graphviz failure must not truncate an existing image or leave temporary files."""
+    from amplifier_module_tool_dot_graph import DotGraphTool
+
+    destination = tmp_path / "graph.svg"
+    destination.write_bytes(b"previous image")
+    result = await DotGraphTool(render_output_root=tmp_path).execute(
+        {
+            "operation": "render",
+            "dot_content": INVALID_DOT,
+            "options": {"output_path": "graph.svg"},
+        }
+    )
+    assert not result.success
+    assert "Render failed" in _parse_output(result)["error"]
+    assert destination.read_bytes() == b"previous image"
+    assert list(tmp_path.iterdir()) == [destination]
+
+
+@pytest.mark.skipif(shutil.which("dot") is None, reason="graphviz CLI not installed")
+async def test_render_without_output_path_still_uses_temporary_file(tmp_path: Path):
+    from amplifier_module_tool_dot_graph import DotGraphTool
+
+    result = await DotGraphTool(render_output_root=tmp_path).execute(
+        {"operation": "render", "dot_content": SIMPLE_DOT}
+    )
+    assert result.success, result.output
+    destination = Path(_parse_output(result)["output_path"])
+    try:
+        assert destination.suffix == ".svg"
+        assert destination.read_bytes().startswith(b"<?xml")
+        assert not destination.is_relative_to(tmp_path)
+        assert list(tmp_path.iterdir()) == []
+    finally:
+        destination.unlink()
+
+
 # ---------------------------------------------------------------------------
 # Input schema tests (3 tests)
 # ---------------------------------------------------------------------------
@@ -351,7 +489,7 @@ def test_input_schema_documents_analyze_options():
 
 @pytest.mark.asyncio
 async def test_mount_registers_real_tool():
-    """mount() returns version 0.4.0, indicating the real implementation with prescan/assemble routing."""
+    """mount() returns version 0.5.0 with confined render destinations."""
     from amplifier_module_tool_dot_graph import mount
 
     coordinator = MagicMock()
@@ -359,8 +497,8 @@ async def test_mount_registers_real_tool():
 
     result = await mount(coordinator)
 
-    assert result["version"] == "0.4.0", (
-        f"Expected version 0.4.0 (prescan/assemble routing complete), got: {result['version']!r}"
+    assert result["version"] == "0.5.0", (
+        f"Expected version 0.5.0 (render path confinement), got: {result['version']!r}"
     )
     assert result["name"] == "tool-dot-graph", (
         f"Expected name 'tool-dot-graph', got: {result['name']!r}"
@@ -550,13 +688,13 @@ def test_input_schema_includes_prescan_assemble():
 
 
 # ---------------------------------------------------------------------------
-# Mount version 0.4.0 test (1 new test) — RED phase
+# Mount version 0.5.0 test
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_mount_returns_version_040():
-    """mount() metadata version is 0.4.0 (prescan/assemble routing added)."""
+async def test_mount_returns_version_050():
+    """mount() metadata version is 0.5.0 (render path confinement added)."""
     from amplifier_module_tool_dot_graph import mount
 
     coordinator = MagicMock()
@@ -564,6 +702,6 @@ async def test_mount_returns_version_040():
 
     result = await mount(coordinator)
 
-    assert result["version"] == "0.4.0", (
-        f"Expected version 0.4.0 (prescan/assemble routing complete), got: {result['version']!r}"
+    assert result["version"] == "0.5.0", (
+        f"Expected version 0.5.0 (render path confinement), got: {result['version']!r}"
     )

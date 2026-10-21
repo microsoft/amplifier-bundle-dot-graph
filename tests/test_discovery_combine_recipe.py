@@ -105,10 +105,10 @@ def test_recipe_description_non_empty():
 
 
 def test_recipe_version():
-    """Recipe must have version='1.1.0' (bumped by the schema v2 migration)."""
+    """Recipe includes the bounded-output and trusted-import fixes."""
     data = _load_recipe()
-    assert data.get("version") == "1.1.0", (
-        f"Expected version='1.1.0', got: {data.get('version')!r}"
+    assert data.get("version") == "1.1.1", (
+        f"Expected version='1.1.1', got: {data.get('version')!r}"
     )
 
 
@@ -527,15 +527,15 @@ def test_render_step_condition_references_render_png():
     )
 
 
-def test_render_step_command_uses_dot_tpng():
-    """render step command must use 'dot -Tpng' to render PNG."""
+def test_render_step_command_uses_checked_renderer():
+    """Render through the installed renderer, retaining the explicit output root."""
     data = _load_recipe()
     step = _get_step_by_id(data, "render")
     assert step is not None
     command_text = step.get("command", "") or step.get("script", "") or ""
-    assert (
-        "dot" in command_text and "Tpng" in command_text or "-Tpng" in command_text
-    ), "render step command must use 'dot -Tpng' for PNG rendering"
+    assert "render.render_dot(" in command_text
+    assert 'output_format="png"' in command_text
+    assert "output_root=root" in command_text
 
 
 # ---------------------------------------------------------------------------

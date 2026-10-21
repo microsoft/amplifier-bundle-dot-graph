@@ -138,10 +138,10 @@ def test_recipe_description_non_empty():
 
 
 def test_recipe_version():
-    """Recipe must have version='1.2.0' for security-boundary hardening."""
+    """Recipe must have version='1.2.1' for the runtime boundary corrections."""
     data = _load_recipe()
-    assert data.get("version") == "1.2.0", (
-        f"Expected version='1.2.0', got: {data.get('version')!r}"
+    assert data.get("version") == "1.2.1", (
+        f"Expected version='1.2.1', got: {data.get('version')!r}"
     )
 
 
@@ -739,15 +739,15 @@ def test_synthesize_stage_has_verify_overview_dot_step():
 
 
 def test_verify_overview_dot_is_bash_step():
-    """verify-overview-dot must be a bash step (not agent) with on_error=continue."""
+    """A missing or invalid overview must fail before metadata records success."""
     data = _load_recipe()
     step = _get_stage_step_by_id(data, "synthesize", "verify-overview-dot")
     assert step is not None, "verify-overview-dot step must exist"
     assert step.get("type") == "bash", (
         f"verify-overview-dot must be type='bash', got: {step.get('type')!r}"
     )
-    assert step.get("on_error") == "continue", (
-        f"verify-overview-dot must have on_error='continue' (missing file is non-fatal), "
+    assert step.get("on_error") == "fail", (
+        f"verify-overview-dot must fail closed on missing or invalid DOT, "
         f"got: {step.get('on_error')!r}"
     )
 
@@ -797,7 +797,7 @@ def test_verify_overview_dot_treats_agent_response_as_data_and_validates_dot():
     command = step["command"]
     assert "agent_result = '''{{overview_dot_result}}'''" not in command
     assert "tojson" not in command
-    assert 'agent_result = json.loads(os.environ["DISCOVERY_AGENT_RESULT"])' in command
+    assert 'agent_result = os.environ["DISCOVERY_AGENT_RESULT"]' in command
     assert step["env"]["DISCOVERY_AGENT_RESULT"] == "{{overview_dot_result}}"
     assert "pydot.graph_from_dot_data(dot_content)" in command
     assert "overview_path.relative_to(output_root)" in command

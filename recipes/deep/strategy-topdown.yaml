@@ -31,8 +31,11 @@ description: >
   teams per topic, then synthesizing findings into subsystem and overview DOT
   diagrams. Unlike the interactive discovery-pipeline, this strategy has no
   approval gates and is suitable for automated or background analysis.
-version: "1.1.0"
+version: "1.1.1"
 # Changelog:
+#   1.1.1 (2026-10-21) - BUGFIX: Isolate imports; check all output destinations.
+#           ROOT CAUSE: imports trusted cwd; writes followed output symlinks.
+#           Metadata now respects the resolved configured output directory.
 #   1.1.0 - Declare schema_version 2 + dependency manifest (see header) so this
 #           recipe resolves its agents closed-world and runs from any session
 #           bundle. No step, context, or behavioural change.
@@ -73,7 +76,7 @@ stages:
           DISCOVERY_REPO_PATH: "{{repo_path}}"
           DISCOVERY_OUTPUT_DIR: "{{output_dir}}"
         command: |
-          python3 - <<'EOF'
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
           import json
           import os
           from pathlib import Path
@@ -96,7 +99,7 @@ stages:
       # -----------------------------------------------------------------------
       # Step 1: Structural scan — map the repository layout
       # Invokes prescan via amplifier_module_tool_dot_graph.prescan with
-      # fallback to basic directory listing.
+      # the installed module; import or scan failures stop the recipe.
       # Writes prescan-result.json.
       # -----------------------------------------------------------------------
       - id: "structural-scan"
@@ -109,7 +112,7 @@ stages:
           DISCOVERY_REPO_PATH: "{{ctx.repo_path}}"
           DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
         command: |
-          python3 - <<'EOF'
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
           import json
           import os
           from pathlib import Path
@@ -117,8 +120,10 @@ stages:
           repo_path = os.environ["DISCOVERY_REPO_PATH"]
           output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
 
-          # Create output directory
-          Path(output_dir).mkdir(parents=True, exist_ok=True)
+          root = Path(output_dir).resolve()
+          prescan_path = root / "prescan-result.json"
+          if prescan_path.is_symlink() or not prescan_path.resolve().is_relative_to(root):
+              raise ValueError("prescan output escapes configured output_dir")
 
           result = {
               "repo_path": repo_path,
@@ -131,12 +136,14 @@ stages:
           try:
               from amplifier_module_tool_dot_graph import prescan
               structure = prescan.prescan_repo(repo_path)
+              if not structure.get("success"):
+                  raise ValueError(structure.get("error", "prescan failed"))
               result["structure"] = structure
           except Exception as e:
               raise RuntimeError(f"prescan failed: {e}") from e
 
           # Write prescan-result.json
-          prescan_path = Path(output_dir) / "prescan-result.json"
+          prescan_path.parent.mkdir(parents=True, exist_ok=True)
           prescan_path.write_text(json.dumps(result, indent=2))
 
           print(json.dumps(result))
@@ -201,13 +208,16 @@ stages:
           DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
           DISCOVERY_TOPICS_JSON: "{{topics}}"
         command: |
-          python3 - <<'EOF'
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
           import json, os
           from pathlib import Path
 
           output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
           topics = json.loads(os.environ["DISCOVERY_TOPICS_JSON"])
-          topics_path = Path(output_dir) / "topics.json"
+          root = Path(output_dir).resolve()
+          topics_path = root / "topics.json"
+          if topics_path.is_symlink() or not topics_path.resolve().is_relative_to(root):
+              raise ValueError("topics output escapes configured output_dir")
           topics_path.parent.mkdir(parents=True, exist_ok=True)
           topics_path.write_text(json.dumps(topics, indent=2))
           print(json.dumps(topics))
@@ -231,7 +241,7 @@ stages:
           DISCOVERY_REPO_PATH: "{{repo_path}}"
           DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
         command: |
-          python3 - <<'EOF'
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
           import json, os
           from pathlib import Path
 
@@ -251,10 +261,13 @@ stages:
                   raise SystemExit(0)
 
           output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
-          Path(output_dir).mkdir(parents=True, exist_ok=True)
-          dest = Path(output_dir) / "topics.json"
+          root = Path(output_dir).resolve()
+          dest = root / "topics.json"
+          if dest.is_symlink() or not dest.resolve().is_relative_to(root):
+              raise ValueError("topics output escapes configured output_dir")
 
           topics = json.loads(Path(topics_file).read_text())
+          dest.parent.mkdir(parents=True, exist_ok=True)
           dest.write_text(json.dumps(topics, indent=2))
           print(json.dumps(topics))
           EOF
@@ -277,7 +290,7 @@ stages:
         env:
           DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
         command: |
-          python3 - <<'EOF'
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
           import json, re, os
           from pathlib import Path
 
@@ -297,7 +310,10 @@ stages:
 
           if not isinstance(topics, list) or not 1 <= len(topics) <= 7:
               raise ValueError("topics must be an array containing 1 to 7 topics")
-          root = (Path(output_dir) / "modules").resolve()
+          output_root = Path(output_dir).resolve()
+          root = output_root / "modules"
+          if not root.resolve().is_relative_to(output_root):
+              raise ValueError("modules output escapes configured output_dir")
           for index, topic in enumerate(topics):
               if not isinstance(topic, dict):
                   raise ValueError(f"topic {index} must be an object")
@@ -329,8 +345,8 @@ stages:
               )
               # Per-topic agent directories
               for agent_name in agent_names:
-                  agent_dir = (root / slug / "agents" / agent_name).resolve()
-                  if root not in agent_dir.parents:
+                  agent_dir = root / slug / "agents" / agent_name
+                  if agent_dir.is_symlink() or not agent_dir.resolve().is_relative_to(root.resolve()):
                       raise ValueError(f"topic output escapes modules directory: {slug!r}")
                   agent_dir.mkdir(parents=True, exist_ok=True)
               created.append(str(root / slug))
@@ -429,21 +445,18 @@ stages:
         env:
           DISCOVERY_REPO_PATH: "{{repo_path}}"
           DISCOVERY_FIDELITY: "{{fidelity}}"
+          DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
         command: |
-          python3 - <<'EOF'
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
           import json
           import subprocess
           from datetime import datetime, timezone
           from pathlib import Path
 
-          # Resolve output_dir from repo_path in Python at runtime.
-          # Cannot use the raw output_dir context var — its default contains a nested placeholder which
-          # the template engine does not recursively resolve (Known Gotcha #5).
-          # Cannot use scan_result.output_dir — scan_result does not exist
-          # when parent_topics_available="true" (scan step is skipped).
+          # Use resolved context even when the structural scan was skipped.
           import os
           repo_path = os.environ["DISCOVERY_REPO_PATH"]
-          output_dir = os.path.join(repo_path, ".discovery", "investigation", "topdown")
+          output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
           fidelity = os.environ["DISCOVERY_FIDELITY"]
 
           # Get current git commit
@@ -464,7 +477,10 @@ stages:
               "repo_path": repo_path,
           }
 
-          last_run_path = Path(output_dir) / "last-run.json"
+          root = Path(output_dir).resolve()
+          last_run_path = root / "last-run.json"
+          if last_run_path.is_symlink() or not last_run_path.resolve().is_relative_to(root):
+              raise ValueError("metadata output escapes configured output_dir")
           last_run_path.parent.mkdir(parents=True, exist_ok=True)
           last_run_path.write_text(json.dumps(metadata, indent=2))
           print(json.dumps({"written": str(last_run_path), **metadata}))

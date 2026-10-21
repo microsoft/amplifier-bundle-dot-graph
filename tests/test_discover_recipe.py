@@ -98,8 +98,8 @@ def test_discover_recipe_parses_as_valid_yaml():
 
 
 def test_discover_recipe_version():
-    """Security boundary hardening is published as recipe version 1.1.0."""
-    assert _load_recipe().get("version") == "1.1.0"
+    """Isolated interpreter hardening is published as recipe version 1.1.1."""
+    assert _load_recipe().get("version") == "1.1.1"
 
 
 # ---------------------------------------------------------------------------

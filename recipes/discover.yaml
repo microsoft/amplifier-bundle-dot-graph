@@ -4,8 +4,10 @@ description: >
   mode. Auto-mode counts repository files and routes to quick (< 50 files) or
   deep (>= 50 files). Thin routing recipe that delegates to the appropriate
   pipeline sub-recipe based on repository size or explicit mode selection.
-version: "1.1.0"
+version: "1.1.1"
 # Changelog:
+#   1.1.1 (2026-10-21) - BUGFIX: Isolate Python imports from the target checkout.
+#           ROOT CAUSE: Python stdin mode included cwd and PYTHONPATH.
 #   1.1.0 - Serialize context values before Python parsing and reject unknown
 #           modes or repository scan failures instead of silently routing.
 #   1.0.0 - Initial release.
@@ -37,7 +39,7 @@ steps:
       DISCOVERY_MODE: "{{mode}}"
       DISCOVERY_REPO_PATH: "{{repo_path}}"
     command: |
-      python3 - <<'PYEOF'
+      "${AMPLIFIER_PYTHON:-python3}" -I - <<'PYEOF'
       import json, os, sys
 
       mode = os.environ["DISCOVERY_MODE"]

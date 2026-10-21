@@ -12,6 +12,7 @@
 """
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -435,3 +436,39 @@ def test_render_png_default_is_false(dot_dir: str, tmp_path: Path):
     assert png_files == [], (
         f"Default render_png=False must produce no PNG files, found: {png_files}"
     )
+
+
+@pytest.mark.skipif(shutil.which("dot") is None, reason="graphviz CLI not installed")
+async def test_tool_assembly_relative_subdirectory_renders_adjacent_pngs(tmp_path, monkeypatch):
+    """Real assembly renders and rerenders PNGs beside DOTs without duplicating output_dir."""
+    from amplifier_module_tool_dot_graph import DotGraphTool
+
+    monkeypatch.chdir(tmp_path)
+    output_dir = Path("assembly.dot-dir")
+    (output_dir / "subsystems").mkdir(parents=True)
+    sources = [output_dir / "overview.dot", output_dir / "subsystems" / "backend.dot"]
+    for source in sources:
+        source.write_text(MOD_ALPHA_DOT)
+    tool = DotGraphTool(render_output_root=tmp_path)
+    previous = {}
+    for content in (MOD_ALPHA_DOT, MOD_GAMMA_DOT):
+        for source in sources:
+            source.write_text(content)
+        result = await tool.execute(
+            {
+                "operation": "assemble",
+                "options": {
+                    "manifest": {"modules": {}, "subsystems": {"backend": {"modules": []}}},
+                    "output_dir": str(output_dir),
+                },
+            }
+        )
+        assert result.success, result.output
+        assert json.loads(result.output)["warnings"] == []
+        expected = {source.with_suffix(".png") for source in sources}
+        assert set(output_dir.rglob("*.png")) == expected
+        for image_path in expected:
+            image = image_path.read_bytes()
+            assert image.startswith(b"\x89PNG\r\n")
+            assert image != previous.get(image_path)
+            previous[image_path] = image

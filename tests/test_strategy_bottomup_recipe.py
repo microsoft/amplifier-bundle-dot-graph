@@ -117,9 +117,9 @@ def test_recipe_description_non_empty(recipe_data):
 
 
 def test_recipe_version(recipe_data):
-    """Recipe must have version='1.0.0'."""
-    assert recipe_data.get("version") == "1.0.0", (
-        f"Expected version='1.0.0', got: {recipe_data.get('version')!r}"
+    """Recipe includes the bounded-output and trusted-import fixes."""
+    assert recipe_data.get("version") == "1.0.1", (
+        f"Expected version='1.0.1', got: {recipe_data.get('version')!r}"
     )
 
 

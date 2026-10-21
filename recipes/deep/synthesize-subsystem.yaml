@@ -30,8 +30,10 @@ description: >
   boundaries and produce a subsystem-level DOT diagram, then validates the output
   via pydot. Designed as a building block for the discovery pipeline's multi-level
   synthesis strategy. Focus is on seams between modules, not module internals.
-version: "1.1.0"
+version: "1.1.1"
 # Changelog:
+#   1.1.1 (2026-10-21) - BUGFIX: Isolate validator imports from target cwd/PYTHONPATH.
+#           ROOT CAUSE: Python stdin mode included the untrusted working directory.
 #   1.1.0 - Declare schema_version 2 + dependency manifest (see header) so this
 #           recipe resolves its agents closed-world and runs from any session
 #           bundle. No step, context, or behavioural change.
@@ -102,7 +104,7 @@ steps:
       DISCOVERY_SUBSYSTEM_NAME: "{{subsystem_name}}"
       DISCOVERY_OUTPUT_DIR: "{{output_dir}}"
     command: |
-      python3 - <<'EOF'
+      "${AMPLIFIER_PYTHON:-python3}" -I - <<'EOF'
       import json
       import sys
       import os

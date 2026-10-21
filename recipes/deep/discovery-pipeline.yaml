@@ -30,8 +30,10 @@ description: >
   based on the 'strategies' context variable), and combine (merges top-down and
   bottom-up results when both strategies were run). Backward-compatible context
   variables; adds 'strategies' to select which investigation strategy to run.
-version: "1.1.0"
+version: "1.1.1"
 # Changelog:
+#   1.1.1 (2026-10-21) - BUGFIX: Isolate Python imports and bound prescan writes.
+#           ROOT CAUSE: cwd imports and pre-existing output symlinks were trusted.
 #   1.1.0 - Declare schema_version 2 + dependency manifest (see header) so this
 #           recipe resolves its agents closed-world and runs from any session
 #           bundle. No step, context, or behavioural change.
@@ -78,7 +80,7 @@ stages:
           DISCOVERY_REPO_PATH: "{{repo_path}}"
           DISCOVERY_OUTPUT_DIR: "{{output_dir}}"
         command: |
-          python3 - <<'PYEOF'
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'PYEOF'
           import json, os
 
           repo_path = os.environ["DISCOVERY_REPO_PATH"]
@@ -111,21 +113,26 @@ stages:
           DISCOVERY_REPO_PATH: "{{ctx.repo_path}}"
           DISCOVERY_OUTPUT_DIR: "{{ctx.output_dir}}"
         command: |
-          python3 - <<'PYEOF'
+          "${AMPLIFIER_PYTHON:-python3}" -I - <<'PYEOF'
           import sys, json, os
+          from pathlib import Path
 
           repo_path = os.environ["DISCOVERY_REPO_PATH"]
           output_dir = os.environ["DISCOVERY_OUTPUT_DIR"]
 
-          os.makedirs(output_dir, exist_ok=True)
-
-          sys.path.insert(0, 'modules/tool-dot-graph')
+          root = Path(output_dir).resolve()
+          destination = root / 'prescan-result.json'
+          if destination.is_symlink() or not destination.resolve().is_relative_to(root):
+              raise ValueError("prescan output escapes configured output_dir")
           try:
               from amplifier_module_tool_dot_graph import prescan
               result = prescan.prescan_repo(repo_path)
+              if not result.get("success"):
+                  raise ValueError(result.get("error", "prescan failed"))
           except Exception as e:
               raise RuntimeError(f"prescan failed: {e}") from e
-          with open(os.path.join(output_dir, 'prescan-result.json'), 'w') as f:
+          destination.parent.mkdir(parents=True, exist_ok=True)
+          with destination.open('w') as f:
               json.dump(result, f, indent=2)
           print(json.dumps({
               'success': result.get('success', True),

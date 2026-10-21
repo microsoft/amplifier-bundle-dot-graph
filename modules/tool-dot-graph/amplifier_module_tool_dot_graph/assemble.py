@@ -116,8 +116,8 @@ def assemble_hierarchy(
         if overview_path:
             dot_paths_to_render.append(overview_path)
         for dot_path in dot_paths_to_render:
-            png_path = dot_path.replace(".dot", ".png")
             try:
+                png_path = str(Path(dot_path).with_suffix(".png").resolve())
                 dot_content = Path(dot_path).read_text(encoding="utf-8")
                 render_result = _render.render_dot(
                     dot_content,

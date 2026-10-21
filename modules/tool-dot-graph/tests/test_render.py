@@ -1,5 +1,6 @@
 """Tests for render.py — graphviz CLI rendering wrapper."""
 
+import errno
 import os
 import shutil
 import tempfile
@@ -235,7 +236,7 @@ def test_output_path_suffix_must_match_format(tmp_path: Path):
 
 
 def test_existing_output_is_not_overwritten(tmp_path: Path):
-    """Agent-facing renders fail closed when the destination already exists."""
+    """Direct callers must explicitly opt in before replacing an existing image."""
     destination = tmp_path / "diagram.svg"
     destination.write_text("keep", encoding="utf-8")
 
@@ -289,6 +290,146 @@ def test_symlink_escape_is_rejected(tmp_path: Path):
     assert "configured output root" in result["error"]
     assert not (outside / "escape.svg").exists()
     subprocess_run.assert_not_called()
+
+
+@skip_if_no_graphviz
+@pytest.mark.parametrize("existing", [False, True])
+def test_atomic_replacement_stages_on_destination_filesystem(tmp_path: Path, existing: bool):
+    """The final rename must not cross from system temp to a mounted workspace."""
+    destination = tmp_path / "diagram.svg"
+    if existing:
+        destination.write_bytes(b"previous image")
+    real_replace = os.replace
+
+    def same_filesystem_replace(source, target):
+        if Path(source).parent.parent.resolve() != destination.parent.resolve():
+            raise OSError(errno.EXDEV, "Invalid cross-device link")
+        assert Path(source).read_bytes().startswith(b"<?xml")
+        if existing:
+            assert destination.read_bytes() == b"previous image"
+        else:
+            assert not destination.exists()
+        real_replace(source, target)
+
+    with patch(
+        "amplifier_module_tool_dot_graph.render.os.replace",
+        side_effect=same_filesystem_replace,
+    ) as replace:
+        result = render_dot(
+            _SIMPLE_DOT, output_path="diagram.svg", output_root=tmp_path,
+            allow_overwrite=True,
+        )
+    assert result["success"], result
+    replace.assert_called_once()
+    assert destination.read_bytes().startswith(b"<?xml")
+    assert list(tmp_path.iterdir()) == [destination]
+
+
+@skip_if_no_graphviz
+@pytest.mark.parametrize("existing", [False, True])
+def test_failed_final_replace_leaves_no_partial_output(tmp_path: Path, existing: bool):
+    destination = tmp_path / "diagram.svg"
+    if existing:
+        destination.write_bytes(b"previous image")
+    with patch(
+        "amplifier_module_tool_dot_graph.render.os.replace",
+        side_effect=PermissionError("destination is not writable"),
+    ):
+        result = render_dot(
+            _SIMPLE_DOT, output_path="diagram.svg", output_root=tmp_path,
+            allow_overwrite=True,
+        )
+    assert not result["success"]
+    assert "Failed to render output" in result["error"]
+    if existing:
+        assert destination.read_bytes() == b"previous image"
+        assert list(tmp_path.iterdir()) == [destination]
+    else:
+        assert list(tmp_path.iterdir()) == []
+
+
+@skip_if_no_graphviz
+def test_final_replace_does_not_follow_a_destination_symlink(tmp_path: Path):
+    """A symlink inserted after validation is replaced, never opened for writing."""
+    outside = tmp_path / "outside.svg"
+    outside.write_bytes(b"keep outside")
+    root = tmp_path / "workspace"
+    root.mkdir()
+    destination = root / "diagram.svg"
+    destination.write_bytes(b"previous image")
+    try:
+        probe = root / "probe"
+        probe.symlink_to(outside)
+        probe.unlink()
+    except OSError:
+        pytest.skip("symlinks are not available in this environment")
+    real_replace = os.replace
+
+    def replace_after_symlink_swap(source, target):
+        destination.unlink()
+        destination.symlink_to(outside)
+        real_replace(source, target)
+
+    with patch(
+        "amplifier_module_tool_dot_graph.render.os.replace",
+        side_effect=replace_after_symlink_swap,
+    ):
+        result = render_dot(
+            _SIMPLE_DOT, output_path="diagram.svg", output_root=root,
+            allow_overwrite=True,
+        )
+    assert result["success"], result
+    assert not destination.is_symlink()
+    assert destination.read_bytes().startswith(b"<?xml")
+    assert outside.read_bytes() == b"keep outside"
+    assert list(root.iterdir()) == [destination]
+
+
+def test_directory_output_is_rejected_before_graphviz(tmp_path: Path):
+    destination = tmp_path / "diagram.svg"
+    destination.mkdir()
+    with (
+        patch(
+            "amplifier_module_tool_dot_graph.render.setup_helper.check_environment",
+            return_value=_installed_graphviz_env(),
+        ),
+        patch("amplifier_module_tool_dot_graph.render.subprocess.run") as run,
+    ):
+        result = render_dot(
+            _SIMPLE_DOT, output_path="diagram.svg", output_root=tmp_path,
+            allow_overwrite=True,
+        )
+    assert not result["success"]
+    assert "regular file" in result["error"]
+    assert destination.is_dir()
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize("stage", ["mkstemp", "mkdir", "TemporaryDirectory"])
+def test_output_preparation_and_staging_errors_are_structured(tmp_path: Path, stage: str):
+    destination = tmp_path / "diagram.svg"
+    destination.write_bytes(b"previous image")
+    failing_function = (
+        "amplifier_module_tool_dot_graph.render.Path.mkdir" if stage == "mkdir"
+        else f"amplifier_module_tool_dot_graph.render.tempfile.{stage}"
+    )
+    with (
+        patch(
+            "amplifier_module_tool_dot_graph.render.setup_helper.check_environment",
+            return_value=_installed_graphviz_env(),
+        ),
+        patch(failing_function, side_effect=PermissionError("cannot stage output")),
+        patch("amplifier_module_tool_dot_graph.render.subprocess.run") as run,
+    ):
+        result = render_dot(
+            _SIMPLE_DOT, output_path=None if stage == "mkstemp" else "diagram.svg",
+            output_root=tmp_path, allow_overwrite=True,
+        )
+    assert not result["success"]
+    assert "cannot stage output" in result["error"]
+    assert destination.read_bytes() == b"previous image"
+    assert list(tmp_path.iterdir()) == [destination]
+    run.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

@@ -123,10 +123,11 @@ Operations:
                         "output_path": {
                             "type": "string",
                             "description": (
-                                "Workspace-relative output file path for render "
+                                "Relative or absolute output file path for render "
                                 "operation. The path must stay beneath the module's "
-                                "configured render_output_root, match the selected "
-                                "format, and must not already exist. Auto-generated "
+                                "render_output_root (default: session working directory), "
+                                "and match the selected format. Existing image files "
+                                "are replaced after a successful render. Auto-generated "
                                 "in the temp directory if not provided."
                             ),
                         },
@@ -239,6 +240,8 @@ Operations:
                 engine,
                 output_path,
                 output_root=self.render_output_root,
+                allow_absolute_output_path=True,
+                allow_overwrite=True,
             )
             return ToolResult(success=result["success"], output=json.dumps(result))
 
@@ -313,7 +316,12 @@ async def mount(
         Module metadata dict
     """
     module_config = config or {}
-    tool = DotGraphTool(render_output_root=module_config.get("render_output_root"))
+    output_root = module_config.get("render_output_root")
+    if output_root is None:
+        session_root = coordinator.get_capability("session.working_dir")
+        if isinstance(session_root, (str, Path)):
+            output_root = session_root
+    tool = DotGraphTool(render_output_root=output_root)
 
     await coordinator.mount("tools", tool, name=tool.name)
 

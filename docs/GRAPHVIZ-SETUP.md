@@ -125,13 +125,22 @@ fi
 
 ## Safe output and recipe boundaries
 
-`options.output_path` is workspace-relative beneath `render_output_root`
-(default: the process working directory); absolute, drive, UNC, traversal,
-symlink-escape, suffix-mismatch, and overwrite attempts are rejected. Omitted
-paths use a temporary file, while internal assembly may replace only its own
-PNGs. Discovery values cross Python boundaries as JSON data. Topics must be
-1-7 exact `name`/`slug`/`description` objects with unique lowercase kebab-case
-slugs; recovered overview DOT must parse successfully before being written.
+`options.output_path` accepts relative or absolute paths beneath `render_output_root`.
+The root defaults to the session working directory, or the process working
+directory when no session directory is available; explicit module configuration
+takes precedence. Paths escaping that canonical root (including through symlinks),
+foreign Windows paths, directories, and suffix/format mismatches are rejected.
+Existing image files can be rerendered: a successful render atomically replaces
+the destination, while a failed render leaves it unchanged. Omitted paths still
+use a temporary file. Assembly PNGs are written beside their DOT sources.
+
+Discovery values pass through environment variables rather than executable
+shell or Python source. Strings remain literal; lists and dictionaries are
+JSON-serialized. Recipe Python steps use the runtime interpreter in isolated
+mode and import installed dependencies, not code from the scanned checkout.
+Topics must be 1-7 exact `name`/`slug`/`description` objects with unique lowercase
+kebab-case slugs. Existing and recovered overview DOT must parse successfully;
+artifact writes reject destination symlinks and escaping parent symlinks.
 
 ---
 

@@ -212,8 +212,15 @@ All 5 expected counts verified exactly.
 
 ### P1 (Should fix soon)
 
-2. **Recipe context injection safety (resolved)** — Dynamic recipe and model
-   values are JSON-serialized before crossing Python interpreter boundaries.
+2. **Recipe context injection safety** — Bash steps pass dynamic recipe and
+   model values through environment variables, never by interpolating them into
+   shell or Python source. The runner preserves string values literally and
+   JSON-serializes lists/dictionaries; consumers parse JSON only for structured
+   inputs. Python commands use isolated mode (`-I`) with the runtime interpreter
+   (`AMPLIFIER_PYTHON`, or `python3`) and installed dependencies, not modules from
+   the target checkout. Explicit output directories are the write boundary;
+   destination files and escaping symlink parents are rejected before writes.
+   This is not a sandbox for agent tool use or concurrently replaced paths.
    Topic objects are schema-validated, slugs are constrained to lowercase
    kebab-case, duplicate slugs are rejected, and derived directories are
    containment-checked beneath the discovery output root.

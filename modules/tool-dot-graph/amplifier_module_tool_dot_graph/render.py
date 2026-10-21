@@ -97,73 +97,92 @@ def render_dot(
 
     # --- Determine output path ---
     auto_output_path = output_path is None
-    if output_path is None:
-        fd, output_path = tempfile.mkstemp(suffix=f".{output_format}")
-        os.close(fd)
-    else:
-        if output_root is None:
-            return {
-                "success": False,
-                "error": "Explicit output_path requires a trusted output_root",
-            }
-
-        raw_output_path = os.fspath(output_path)
-        windows_path = PureWindowsPath(raw_output_path)
-        candidate_path = Path(raw_output_path).expanduser()
-        if not allow_absolute_output_path and (
-            candidate_path.is_absolute()
-            or windows_path.is_absolute()
-            or bool(windows_path.drive)
-        ):
-            return {
-                "success": False,
-                "error": "output_path must be relative to the configured output root",
-            }
-
-        root_path = Path(output_root).expanduser().resolve()
-        if candidate_path.is_absolute():
-            resolved_output_path = candidate_path.resolve(strict=False)
+    try:
+        if output_path is None:
+            fd, output_path = tempfile.mkstemp(suffix=f".{output_format}")
+            os.close(fd)
         else:
-            resolved_output_path = (root_path / candidate_path).resolve(strict=False)
+            if output_root is None:
+                return {
+                    "success": False,
+                    "error": "Explicit output_path requires a trusted output_root",
+                }
 
-        try:
-            resolved_output_path.relative_to(root_path)
-        except ValueError:
-            return {
-                "success": False,
-                "error": "output_path must remain within the configured output root",
-            }
+            raw_output_path = os.fspath(output_path)
+            windows_path = PureWindowsPath(raw_output_path)
+            candidate_path = Path(raw_output_path).expanduser()
+            # Foreign Windows paths must not become literal relative filenames on
+            # POSIX, even when contained native absolute paths are allowed.
+            if (windows_path.drive or windows_path.root) and not candidate_path.is_absolute():
+                return {
+                    "success": False,
+                    "error": "output_path must use a native path within the configured output root",
+                }
+            if candidate_path.is_absolute() and not allow_absolute_output_path:
+                return {
+                    "success": False,
+                    "error": "output_path must be relative to the configured output root",
+                }
 
-        if resolved_output_path.suffix.lower() != f".{output_format}":
-            return {
-                "success": False,
-                "error": (
-                    f"output_path must end with '.{output_format}' "
-                    f"for format '{output_format}'"
-                ),
-            }
+            root_path = Path(output_root).expanduser().resolve()
+            if candidate_path.is_absolute():
+                resolved_output_path = candidate_path.resolve(strict=False)
+            else:
+                resolved_output_path = (root_path / candidate_path).resolve(strict=False)
 
-        resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            resolved_output_path.parent.resolve(strict=True).relative_to(root_path)
-        except (FileNotFoundError, ValueError):
-            return {
-                "success": False,
-                "error": "output_path parent escapes the configured output root",
-            }
+            try:
+                resolved_output_path.relative_to(root_path)
+            except ValueError:
+                return {
+                    "success": False,
+                    "error": "output_path must remain within the configured output root",
+                }
 
-        if resolved_output_path.exists() and not allow_overwrite:
-            return {
-                "success": False,
-                "error": "output_path already exists; overwriting is not permitted",
-            }
-        output_path = str(resolved_output_path)
+            if resolved_output_path.suffix.lower() != f".{output_format}":
+                return {
+                    "success": False,
+                    "error": (
+                        f"output_path must end with '.{output_format}' "
+                        f"for format '{output_format}'"
+                    ),
+                }
+
+            resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                resolved_output_path.parent.resolve(strict=True).relative_to(root_path)
+            except (FileNotFoundError, ValueError):
+                return {
+                    "success": False,
+                    "error": "output_path parent escapes the configured output root",
+                }
+
+            if resolved_output_path.exists():
+                if not resolved_output_path.is_file():
+                    return {
+                        "success": False,
+                        "error": "output_path must be a regular file",
+                    }
+                if not allow_overwrite:
+                    return {
+                        "success": False,
+                        "error": "output_path already exists; overwriting is not permitted",
+                    }
+            output_path = str(resolved_output_path)
+    except (OSError, ValueError) as exc:
+        return {
+            "success": False,
+            "error": f"Failed to prepare output_path: {exc}",
+        }
 
     # --- Render ---
     succeeded = False
     created_output = auto_output_path
     try:
-        with tempfile.TemporaryDirectory(prefix="dot-graph-render-") as temp_dir:
+        # Keep staged output on the destination filesystem so os.replace stays
+        # atomic even when the workspace and system temp directory are on different volumes.
+        with tempfile.TemporaryDirectory(
+            prefix="dot-graph-render-", dir=Path(output_path).parent
+        ) as temp_dir:
             tmp_dot_path = Path(temp_dir) / "input.dot"
             rendered_path = Path(temp_dir) / f"output.{output_format}"
             tmp_dot_path.write_text(dot_content, encoding="utf-8")

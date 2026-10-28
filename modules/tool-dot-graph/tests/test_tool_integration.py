@@ -18,6 +18,7 @@ validate, render, setup_helper, analyze, prescan, and assemble modules.
 
 import json
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -341,6 +342,81 @@ async def test_render_rejects_unsafe_paths_through_tool(tmp_path: Path, output_p
         assert "output_path" in _parse_output(result)["error"]
         assert outside.read_bytes() == b"keep outside"
         assert list(root.iterdir()) == []
+
+
+@pytest.mark.skipif(shutil.which("dot") is None, reason="graphviz CLI not installed")
+@pytest.mark.parametrize("output_format", ["svg", "png"])
+@pytest.mark.parametrize("explicit_root", [False, True])
+async def test_rejected_save_guidance_supports_both_recovery_options(
+    tmp_path: Path, output_format: str, explicit_root: bool
+):
+    """The mounted tool returns complete guidance; both user-selected retries work."""
+    from amplifier_module_tool_dot_graph import mount
+
+    root = tmp_path.resolve() / "workspace"
+    root.mkdir()
+    session_root = tmp_path / "session"
+    coordinator = MagicMock()
+    coordinator.mount = AsyncMock()
+    coordinator.get_capability.return_value = session_root if explicit_root else root
+    await mount(coordinator, {"render_output_root": str(root)} if explicit_root else None)
+    tool = coordinator.mount.call_args.args[1]
+    requested = root.parent / "chosen folder" / f"architecture.{output_format}"
+    request = {
+        "operation": "render",
+        "dot_content": SIMPLE_DOT,
+        "options": {"format": output_format, "output_path": str(requested)},
+    }
+    with patch(
+        "amplifier_module_tool_dot_graph.render.subprocess.run", wraps=subprocess.run,
+    ) as run:
+        failure = await tool.execute(request)
+    assert not failure.success
+    data = _parse_output(failure)
+    assert set(data) == {"success", "error"} and data["success"] is False
+    error = data["error"]
+    assert f"Could not save:\n  {requested}" in error
+    assert f"Diagrams can currently be saved inside:\n  {root}" in error
+    assert "No file was written." in error
+    assert "OPTION 1" in error and "OPTION 2" in error
+    assert "Start a new session" in error
+    assert "other settings" in error
+    assert "No configuration was changed" in error
+    assert ".amplifier/" not in error and "docs/" not in error
+    assert list(root.iterdir()) == []
+    assert not requested.parent.exists()
+    # Environment detection still probes the installed Graphviz version; no render runs.
+    assert [call.args[0] for call in run.call_args_list] == [["dot", "-V"]]
+
+    # Use the exact full path offered in the actual ToolResult, not a reconstructed path.
+    suggested = error.split('Ask me: "Save the diagram to ', 1)[1].split(' instead."', 1)[0]
+    retry = await tool.execute({
+        **request, "options": {"format": output_format, "output_path": suggested},
+    })
+    assert retry.success, retry.output
+    assert Path(_parse_output(retry)["output_path"]) == root / requested.name
+    assert Path(suggested).read_bytes().startswith(
+        b"<?xml" if output_format == "svg" else b"\x89PNG\r\n"
+    )
+
+    # Apply the returned module configuration to a fresh mount, as a new session does.
+    quoted_root = error.split("      render_output_root: ", 1)[1].split("\n\n", 1)[0]
+    new_root = json.loads(quoted_root)
+    assert new_root == str(requested.parent)
+    await mount(coordinator, {"render_output_root": new_root})
+    new_tool = coordinator.mount.call_args.args[1]
+    assert not (await tool.execute(request)).success  # Old session is unchanged.
+    assert tool.render_output_root == str(root)
+    result = await new_tool.execute(request)
+    assert result.success, result.output
+    assert Path(_parse_output(result)["output_path"]) == requested
+    assert requested.read_bytes().startswith(
+        b"<?xml" if output_format == "svg" else b"\x89PNG\r\n"
+    )
+    old_folder_request = {
+        **request, "options": {"format": output_format, "output_path": suggested},
+    }
+    assert not (await new_tool.execute(old_folder_request)).success
 
 
 @pytest.mark.skipif(shutil.which("dot") is None, reason="graphviz CLI not installed")

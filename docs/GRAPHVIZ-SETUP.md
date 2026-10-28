@@ -142,6 +142,43 @@ Topics must be 1-7 exact `name`/`slug`/`description` objects with unique lowerca
 kebab-case slugs. Existing and recovered overview DOT must parse successfully;
 artifact writes reject destination symlinks and escaping parent symlinks.
 
+## Choosing where diagrams are saved
+
+For the `dot_graph` **render** operation, a save outside the permitted folder
+reports the full requested path and the current permitted folder. It offers a
+full alternative path inside it when available, or asks for a new filename there.
+No image is written and no configuration is changed by the rejected request.
+Follow the applicable option directly from the error; no guide lookup is needed:
+
+1. **Save now:** ask the assistant to save to the full alternative path shown.
+   This keeps the current configuration. A suggested path is not reserved and
+   does not guarantee filesystem write permissions.
+2. **Choose a different folder:** update `config.render_output_root` in the
+   existing `tool-dot-graph` entry of the bundle or application configuration
+   used for the session. For example, to use `/path/to/chosen-folder`:
+
+   ```yaml
+   tools:
+     - module: tool-dot-graph
+       config:
+         render_output_root: "/path/to/chosen-folder"
+   ```
+
+   This is a fragment, not a replacement file. Preserve the entry's `source`,
+   other configuration keys and all other settings; update the existing entry
+   rather than adding a duplicate. If you need help finding it, ask the assistant:
+   "Find where tool-dot-graph is configured and set render_output_root to
+   /path/to/chosen-folder, preserving my other settings."
+   Start a new session with that configuration, then retry the full requested path.
+   The new root **replaces** the old permitted folder; it does not add a second
+   folder. Tool-call options cannot change this module configuration.
+
+The error fills in the actual paths and an inline configuration fragment for the
+requested file's immediate parent, not a broader home directory or filesystem root.
+If a symlink redirects the save outside the permitted folder, the error instead
+shows the requested and resolved paths and asks you to remove or avoid the
+redirect; it does not suggest permitting the symlink target.
+
 ---
 
 ## Troubleshooting

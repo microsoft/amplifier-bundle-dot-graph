@@ -6,6 +6,7 @@ Uses setup_helper for environment detection and graceful degradation.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -22,6 +23,77 @@ SUPPORTED_ENGINES = ("dot", "neato", "fdp", "sfdp", "twopi", "circo")
 
 # Subprocess timeout for graphviz rendering (seconds).
 _RENDER_TIMEOUT_SECS = 30
+
+
+def _output_root_error(
+    reason: str,
+    candidate_path: Path,
+    root_path: Path,
+    resolved_output_path: Path,
+    output_format: str,
+) -> str:
+    """Explain a rejected save without changing configuration or reserving a path."""
+    requested_path = (
+        candidate_path if candidate_path.is_absolute() else root_path / candidate_path
+    )
+    full_path = Path(os.path.abspath(requested_path))
+    message = (
+        f"{reason}\n\nCould not save:\n  {requested_path}\n\n"
+        f"Diagrams can currently be saved inside:\n  {root_path}\n\n"
+        "No file was written.\n\n"
+    )
+    redirected = full_path != resolved_output_path
+    if redirected:
+        message += (
+            f"This path resolves to:\n  {resolved_output_path}\n\n"
+            "A symlink redirects this path outside the permitted folder. "
+            "Remove or avoid the redirect rather than permitting its target.\n\n"
+        )
+
+    filename = Path(full_path.name or "diagram").with_suffix(f".{output_format}").name
+    alternatives = (
+        root_path / filename,
+        root_path / f"{Path(filename).stem}-in-root.{output_format}",
+        root_path / f"diagram-in-root.{output_format}",
+    )
+    message += "OPTION 1 — Save without changing configuration\n\n"
+    for alternative in alternatives:
+        if (
+            not alternative.exists()
+            and not alternative.is_symlink()
+            and alternative.resolve(strict=False).is_relative_to(root_path)
+        ):
+            message += f'Ask me: "Save the diagram to {alternative} instead."\n\n'
+            break
+    else:
+        message += (
+            f'Ask me: "Choose a new .{output_format} filename directly inside '
+            f'{root_path}, avoiding existing files, directories and symlinks."\n\n'
+        )
+    if redirected:
+        return message + "No configuration was changed by this failed save."
+
+    requested_parent = full_path.parent
+    return message + (
+        "OPTION 2 — Change the permitted output folder\n\n"
+        "For the dot_graph render operation, update config.render_output_root "
+        "in the existing tool-dot-graph entry of the bundle or application "
+        "configuration used for this session:\n\n"
+        "tools:\n"
+        "  - module: tool-dot-graph\n"
+        "    config:\n"
+        f"      render_output_root: {json.dumps(str(requested_parent), ensure_ascii=False)}\n\n"
+        "This is a fragment, not a replacement file. Preserve the entry's source, "
+        "other config keys and other settings; update the existing entry rather "
+        "than adding a duplicate.\n\n"
+        'If you need help finding it, ask me: "Find where tool-dot-graph is '
+        f"configured and set render_output_root to {requested_parent}, "
+        'preserving my other settings."\n\n'
+        "Start a new session with that configuration, then retry "
+        f"{requested_path}. This replaces the current permitted folder; "
+        "it does not add a second folder. "
+        "No configuration was changed by this failed save."
+    )
 
 
 def render_dot(
@@ -135,7 +207,10 @@ def render_dot(
             except ValueError:
                 return {
                     "success": False,
-                    "error": "output_path must remain within the configured output root",
+                    "error": _output_root_error(
+                        "output_path must remain within the configured output root",
+                        candidate_path, root_path, resolved_output_path, output_format,
+                    ),
                 }
 
             if resolved_output_path.suffix.lower() != f".{output_format}":
@@ -153,7 +228,11 @@ def render_dot(
             except (FileNotFoundError, ValueError):
                 return {
                     "success": False,
-                    "error": "output_path parent escapes the configured output root",
+                    "error": _output_root_error(
+                        "output_path parent escapes the configured output root",
+                        candidate_path, root_path,
+                        resolved_output_path.resolve(strict=False), output_format,
+                    ),
                 }
 
             if resolved_output_path.exists():

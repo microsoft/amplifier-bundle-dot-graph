@@ -3,9 +3,13 @@ Tests for docs/GRAPHVIZ-SETUP.md existence and required content.
 TDD: This test is written BEFORE the docs/GRAPHVIZ-SETUP.md file is created.
 """
 
+import json
+import shutil
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).parent.parent
 DOC_PATH = REPO_ROOT / "docs" / "GRAPHVIZ-SETUP.md"
@@ -28,9 +32,76 @@ def test_file_exists():
 def test_line_count_in_range(doc_content):
     """Keep the setup guide concise, including its security and output options."""
     lines = doc_content.splitlines()
-    assert 130 <= len(lines) <= 190, (
-        f"Expected 130-190 lines, got {len(lines)}"
+    assert 130 <= len(lines) <= 230, (
+        f"Expected 130-230 lines, got {len(lines)}"
     )
+
+
+def test_output_folder_guidance_includes_preserving_configuration_and_retry(doc_content):
+    """The setup guide includes host-neutral, directly usable module configuration."""
+    section = doc_content.split("## Choosing where diagrams are saved\n", 1)[1]
+    section = section.split("\n---", 1)[0]
+    fragment = section.split("```yaml\n", 1)[1].split("```", 1)[0]
+    assert yaml.safe_load(fragment) == {
+        "tools": [{
+            "module": "tool-dot-graph",
+            "config": {"render_output_root": "/path/to/chosen-folder"},
+        }],
+    }
+    assert "full alternative path" in section
+    assert "No image is written and no configuration is changed" in section
+    assert "fragment, not a replacement file" in section
+    assert "Preserve the entry's `source`" in section
+    assert "rather than adding a duplicate" in section
+    assert "Find where tool-dot-graph is configured" in section
+    assert "Start a new session" in section
+    assert "retry the full requested path" in section
+    assert "**replaces**" in section and "does not add a second" in section
+    assert "does not suggest permitting the symlink target" in section
+    assert ".amplifier/" not in section
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(shutil.which("dot") is None, reason="graphviz CLI not installed")
+@pytest.mark.parametrize("output_format", ["svg", "png"])
+async def test_emitted_unicode_root_yaml_can_configure_a_new_session(tmp_path, output_format):
+    """Copied YAML must retain non-BMP characters through mounting and real rendering."""
+    from amplifier_module_tool_dot_graph import mount
+
+    root = tmp_path.resolve() / "workspace"
+    root.mkdir()
+    requested = root.parent / "chosen-\U0001f600" / f"architecture.{output_format}"
+    coordinator = MagicMock()
+    coordinator.mount = AsyncMock()
+    coordinator.get_capability.return_value = root
+    await mount(coordinator)
+    old_tool = coordinator.mount.call_args.args[1]
+    request = {
+        "operation": "render",
+        "dot_content": "digraph G { a -> b }",
+        "options": {"format": output_format, "output_path": str(requested)},
+    }
+    failure = await old_tool.execute(request)
+    assert not failure.success
+    error = json.loads(failure.output)["error"]
+    fragment = "tools:\n" + error.split("\ntools:\n", 1)[1].split("\n\n", 1)[0]
+    entry = yaml.safe_load(fragment)["tools"][0]
+    assert entry["module"] == "tool-dot-graph"
+    assert entry["config"]["render_output_root"] == str(requested.parent)
+    assert not requested.parent.exists()
+    assert list(root.iterdir()) == []
+
+    await mount(coordinator, entry["config"])
+    new_tool = coordinator.mount.call_args.args[1]
+    assert new_tool.render_output_root == str(requested.parent)
+    assert old_tool.render_output_root == str(root)
+    result = await new_tool.execute(request)
+    assert result.success, result.output
+    assert json.loads(result.output)["output_path"] == str(requested)
+    assert requested.read_bytes().startswith(
+        b"<?xml" if output_format == "svg" else b"\x89PNG\r\n"
+    )
+    assert not (await old_tool.execute(request)).success
 
 
 # --- Optional note ---

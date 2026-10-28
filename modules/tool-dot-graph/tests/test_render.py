@@ -1,6 +1,7 @@
 """Tests for render.py — graphviz CLI rendering wrapper."""
 
 import errno
+import json
 import os
 import shutil
 import tempfile
@@ -290,6 +291,187 @@ def test_symlink_escape_is_rejected(tmp_path: Path):
     assert "configured output root" in result["error"]
     assert not (outside / "escape.svg").exists()
     subprocess_run.assert_not_called()
+
+
+@pytest.mark.parametrize("absolute", [False, True])
+@pytest.mark.parametrize(
+    "folder",
+    ["outside", "space # and 'quote", 'double"quote', "line\nbreak", "unicode-\u03bb", "unicode-\U0001f600"],
+)
+def test_escape_guidance_has_full_paths_and_inline_configuration(
+    tmp_path: Path, monkeypatch, absolute: bool, folder: str
+):
+    """Guidance uses the configured root, not cwd, and quotes configuration safely."""
+    if os.name == "nt" and any(char in folder for char in '"\n'):
+        pytest.skip("filename is not supported on Windows")
+    root = tmp_path.resolve() / "workspace"
+    root.mkdir()
+    requested = root.parent / folder / "diagram.svg"
+    relative = Path("..") / folder / "diagram.svg"
+    monkeypatch.chdir(tmp_path.parent)
+    with (
+        patch(
+            "amplifier_module_tool_dot_graph.render.setup_helper.check_environment",
+            return_value=_installed_graphviz_env(),
+        ),
+        patch("amplifier_module_tool_dot_graph.render.subprocess.run") as run,
+    ):
+        result = render_dot(
+            _SIMPLE_DOT, output_path=str(requested if absolute else relative),
+            output_root=root, allow_absolute_output_path=True,
+        )
+    assert set(result) == {"success", "error"}
+    assert not result["success"]
+    error = result["error"]
+    full_request = requested if absolute else root / relative
+    assert error.startswith("output_path must remain within the configured output root")
+    assert f"Could not save:\n  {full_request}" in error
+    assert f"Diagrams can currently be saved inside:\n  {root}" in error
+    assert f'Ask me: "Save the diagram to {root / "diagram.svg"} instead."' in error
+    assert "No file was written." in error
+    assert "OPTION 1" in error and "OPTION 2" in error
+    assert "For the dot_graph render operation" in error
+    fragment = error.split("\ntools:\n", 1)[1].split("\n\n", 1)[0]
+    assert fragment.startswith("  - module: tool-dot-graph\n    config:\n")
+    quoted_parent = fragment.split("render_output_root: ", 1)[1]
+    # Root tests additionally verify YAML parsing and mounting for non-BMP characters.
+    assert json.loads(quoted_parent) == str(requested.parent)
+    assert "fragment, not a replacement file" in error
+    assert "Preserve the entry's source, other config keys and other settings" in error
+    assert "rather than adding a duplicate" in error
+    assert "Find where tool-dot-graph is configured" in error
+    assert "Start a new session" in error
+    assert f"then retry {full_request}" in error
+    assert "replaces the current permitted folder; it does not add a second folder" in error
+    assert "No configuration was changed" in error
+    assert ".amplifier/" not in error
+    assert "docs/" not in error
+    assert not requested.exists()
+    assert list(root.iterdir()) == []
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize("collision", ["directory", "symlink", "file", "all"])
+def test_guidance_does_not_suggest_a_colliding_or_redirected_destination(
+    tmp_path: Path, collision: str
+):
+    root = tmp_path.resolve() / "workspace"
+    root.mkdir()
+    destination = root / "diagram.png"
+    if collision == "symlink":
+        try:
+            destination.symlink_to(tmp_path / "do-not-touch.png")
+        except OSError:
+            pytest.skip("symlinks are not available in this environment")
+    elif collision == "file":
+        destination.write_bytes(b"keep")
+    else:
+        destination.mkdir()
+    if collision == "all":
+        (root / "diagram-in-root.png").mkdir()
+    before = set(root.iterdir())
+    with (
+        patch(
+            "amplifier_module_tool_dot_graph.render.setup_helper.check_environment",
+            return_value=_installed_graphviz_env(),
+        ),
+        patch("amplifier_module_tool_dot_graph.render.subprocess.run") as run,
+    ):
+        result = render_dot(
+            _SIMPLE_DOT, output_format="png", output_path="../diagram.txt",
+            output_root=root,
+        )
+    error = result["error"]
+    assert not result["success"]
+    assert f'Save the diagram to {destination} instead.' not in error
+    if collision == "all":
+        assert f"Choose a new .png filename directly inside {root}" in error
+        assert "Save the diagram to" not in error
+    else:
+        assert f'Save the diagram to {root / "diagram-in-root.png"} instead.' in error
+    assert set(root.iterdir()) == before
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize("parent_link", [False, True])
+def test_symlink_guidance_shows_redirect_without_suggesting_a_wider_root(
+    tmp_path: Path, parent_link: bool
+):
+    root = tmp_path.resolve() / "workspace"
+    root.mkdir()
+    outside = root.parent / "outside"
+    outside.mkdir()
+    target = outside / "diagram.svg"
+    target.write_bytes(b"keep")
+    link = root / ("linked" if parent_link else "diagram.svg")
+    try:
+        link.symlink_to(outside if parent_link else target, target_is_directory=parent_link)
+    except OSError:
+        pytest.skip("symlinks are not available in this environment")
+    requested = link / "diagram.svg" if parent_link else link
+    with (
+        patch(
+            "amplifier_module_tool_dot_graph.render.setup_helper.check_environment",
+            return_value=_installed_graphviz_env(),
+        ),
+        patch("amplifier_module_tool_dot_graph.render.subprocess.run") as run,
+    ):
+        result = render_dot(
+            _SIMPLE_DOT, output_path=str(requested), output_root=root,
+            allow_absolute_output_path=True,
+        )
+    error = result["error"]
+    assert not result["success"]
+    assert f"Could not save:\n  {requested}" in error
+    assert f"This path resolves to:\n  {target}" in error
+    assert "Remove or avoid the redirect rather than permitting its target" in error
+    assert "render_output_root:" not in error
+    assert "OPTION 2" not in error
+    safe = root / ("diagram.svg" if parent_link else "diagram-in-root.svg")
+    assert f'Save the diagram to {safe} instead.' in error
+    assert not safe.exists()
+    assert link.is_symlink()
+    assert target.read_bytes() == b"keep"
+    run.assert_not_called()
+
+
+def test_parent_recheck_reuses_guidance_without_permitting_redirect(tmp_path: Path):
+    """A parent redirected after initial resolution still gets containment guidance."""
+    root = tmp_path.resolve() / "workspace"
+    root.mkdir()
+    outside = root.parent / "outside"
+    outside.mkdir()
+    probe = root / "probe"
+    try:
+        probe.symlink_to(outside, target_is_directory=True)
+        probe.unlink()
+    except OSError:
+        pytest.skip("symlinks are not available in this environment")
+    requested = root / "nested" / "diagram.svg"
+
+    def redirect_parent(*args, **kwargs):
+        requested.parent.symlink_to(outside, target_is_directory=True)
+
+    with (
+        patch(
+            "amplifier_module_tool_dot_graph.render.setup_helper.check_environment",
+            return_value=_installed_graphviz_env(),
+        ),
+        patch("amplifier_module_tool_dot_graph.render.Path.mkdir", side_effect=redirect_parent),
+        patch("amplifier_module_tool_dot_graph.render.subprocess.run") as run,
+    ):
+        result = render_dot(
+            _SIMPLE_DOT, output_path=str(requested), output_root=root,
+            allow_absolute_output_path=True,
+        )
+    error = result["error"]
+    assert error.startswith("output_path parent escapes the configured output root")
+    assert f"Could not save:\n  {requested}" in error
+    assert f"This path resolves to:\n  {outside / 'diagram.svg'}" in error
+    assert "No file was written." in error
+    assert "OPTION 2" not in error
+    assert list(outside.iterdir()) == []
+    run.assert_not_called()
 
 
 @skip_if_no_graphviz

@@ -117,9 +117,9 @@ def test_recipe_description_non_empty(recipe_data):
 
 
 def test_recipe_version(recipe_data):
-    """Recipe must have version='1.0.0'."""
-    assert recipe_data.get("version") == "1.0.0", (
-        f"Expected version='1.0.0', got: {recipe_data.get('version')!r}"
+    """Recipe includes the bounded-output and trusted-import fixes."""
+    assert recipe_data.get("version") == "1.0.1", (
+        f"Expected version='1.0.1', got: {recipe_data.get('version')!r}"
     )
 
 
@@ -467,13 +467,19 @@ def test_strategy_bottomup_resolve_context_is_bash_parse_json(recipe_data):
 
 
 def test_strategy_bottomup_resolve_context_guards_template_expansion(recipe_data):
-    """resolve-context command must contain the '{{' guard to detect unresolved templates."""
+    """resolve-context must safely recognize unresolved template markers."""
     step = _get_stage_step_by_id(recipe_data, "scan-and-plan", "resolve-context")
     assert step is not None, "resolve-context step must exist in scan-and-plan stage"
     command = str(step.get("command", ""))
-    assert "{{" in command, (
-        "resolve-context command must contain the '{{' guard pattern to detect "
-        "unresolved template strings (Known Gotcha #5 protection)"
+    assert "unresolved_marker = chr(123) * 2" in command, (
+        "resolve-context command must construct the unresolved-template guard "
+        "without executable recipe substitutions"
+    )
+    assert "unresolved_marker in output_dir" in command, (
+        "resolve-context command must use the constructed guard for output_dir"
+    )
+    assert "{{" not in command, (
+        "resolve-context command must not embed executable recipe templates"
     )
     # The guard should check if output_dir contains the placeholder
     assert "bottomup" in command, (

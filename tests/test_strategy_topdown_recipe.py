@@ -101,10 +101,10 @@ def test_recipe_description_non_empty():
 
 
 def test_recipe_version():
-    """Recipe must have version='1.1.0' (bumped by the schema v2 migration)."""
+    """Recipe includes the bounded-output and trusted-import fixes."""
     data = _load_recipe()
-    assert data.get("version") == "1.1.0", (
-        f"Expected version='1.1.0', got: {data.get('version')!r}"
+    assert data.get("version") == "1.1.1", (
+        f"Expected version='1.1.1', got: {data.get('version')!r}"
     )
 
 
@@ -516,13 +516,20 @@ def test_strategy_topdown_resolve_context_is_bash_parse_json():
 
 
 def test_strategy_topdown_resolve_context_guards_template_expansion():
-    """resolve-context command must contain the '{{' guard for unresolved template strings."""
+    """resolve-context must safely recognize unresolved template markers."""
     data = _load_recipe()
     step = _get_stage_step_by_id(data, "scan", "resolve-context")
     assert step is not None, "resolve-context step not found in scan stage"
     command = step.get("command", "")
-    assert "{{" in command, (
-        "resolve-context command must contain '{{' guard to detect unresolved template strings"
+    assert "unresolved_marker = chr(123) * 2" in command, (
+        "resolve-context command must construct the unresolved-template guard "
+        "without executable recipe substitutions"
+    )
+    assert "unresolved_marker in output_dir" in command, (
+        "resolve-context command must use the constructed guard for output_dir"
+    )
+    assert "{{" not in command, (
+        "resolve-context command must not embed executable recipe templates"
     )
 
 

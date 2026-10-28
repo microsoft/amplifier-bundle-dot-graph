@@ -212,7 +212,18 @@ All 5 expected counts verified exactly.
 
 ### P1 (Should fix soon)
 
-2. **Recipe context injection safety** — `{{topics}}` is substituted as a raw Python literal in bash heredocs. If a topic slug contains quotes or special characters, this could break the embedded Python script. Add escaping or use `json.dumps()` to serialize topics safely.
+2. **Recipe context injection safety** — Bash steps pass dynamic recipe and
+   model values through environment variables, never by interpolating them into
+   shell or Python source. The runner preserves string values literally and
+   JSON-serializes lists/dictionaries; consumers parse JSON only for structured
+   inputs. Python commands use isolated mode (`-I`) with the runtime interpreter
+   (`AMPLIFIER_PYTHON`, or `python3`) and installed dependencies, not modules from
+   the target checkout. Explicit output directories are the write boundary;
+   destination files and escaping symlink parents are rejected before writes.
+   This is not a sandbox for agent tool use or concurrently replaced paths.
+   Topic objects are schema-validated, slugs are constrained to lowercase
+   kebab-case, duplicate slugs are rejected, and derived directories are
+   containment-checked beneath the discovery output root.
 
 3. **Improve overview.dot node analysis** — The `analyze_dot()` function uses networkx and doesn't traverse into DOT subgraph clusters. The `overview.dot` and `discovery.dot` files use cluster subgraphs, so their node/edge counts appear as 0. The `_count_graph_elements()` function in `assemble.py` has the correct recursive approach — consider porting it to `analyze.py`.
 
